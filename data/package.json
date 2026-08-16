@@ -7,6 +7,8 @@
     "./zones": "./zones/mvp-world.json",
     "./nutrition": "./nutrition/definitions.json",
     "./foods": "./foods/catalog.json",
-    "./skills": "./skills/progression.json"
+    "./skills": "./skills/progression.json",
+    "./recipes": "./recipes/crafting.json",
+    "./layers": "./characters/layers.json"
   }
 }

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="176" viewBox="0 0 64 176">
+  <defs>
+    <linearGradient id="sh" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8a5c30"/><stop offset="0.4" stop-color="#c2914f"/><stop offset="1" stop-color="#74491f"/>
+    </linearGradient>
+    <linearGradient id="ss" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#eeeeeb"/><stop offset="1" stop-color="#94948f"/>
+    </linearGradient>
+  </defs>
+  <!-- Carried upright: the point rides above the grip, the butt hangs below it. -->
+  <g stroke="#241a12" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M32 26 L32 168" stroke-width="11"/>
+    <path d="M32 26 L32 168" stroke-width="6.5" stroke="url(#sh)"/>
+    <path d="M32 4 L45 30 L32 40 L19 30 Z" fill="url(#ss)"/>
+    <path d="M32 12 L32 36" fill="none" stroke="#6d6a66" stroke-width="2" stroke-opacity=".5"/>
+    <path d="M24 34 L40 34" stroke="#6b4a2c" stroke-width="5"/>
+  </g>
+</svg>

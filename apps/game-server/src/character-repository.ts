@@ -2,7 +2,8 @@ import type { CharacterGender, CharacterSummary, Position } from "@eldoria/game-
 import { createInitialSurvivalState } from "@eldoria/game-data";
 
 export const STARTING_POSITION: Position = { zoneId: "untamedWilds", x: 836, y: 470 };
-export const MAX_CHARACTERS_PER_ACCOUNT = 5;
+/** One life per account: the wanderer you make is the wanderer you live with. */
+export const MAX_CHARACTERS_PER_ACCOUNT = 1;
 
 export type CharacterRepository = {
   list(ownerUid: string): Promise<CharacterSummary[]>;
@@ -34,7 +35,7 @@ export class MemoryCharacterRepository implements CharacterRepository {
 
   async create(ownerUid: string, rawName: string, gender: CharacterGender) {
     const name = validateCharacterName(rawName);
-    if ((await this.list(ownerUid)).length >= MAX_CHARACTERS_PER_ACCOUNT) throw new CharacterRepositoryError("character.limit", "The account already has the maximum number of characters.");
+    if ((await this.list(ownerUid)).length >= MAX_CHARACTERS_PER_ACCOUNT) throw new CharacterRepositoryError("character.limit", "This account already has a wanderer.");
     const createdAt = new Date().toISOString();
     const character = { id: crypto.randomUUID(), ownerUid, name, gender, position: { ...STARTING_POSITION }, createdAt, survival: createInitialSurvivalState(createdAt) };
     this.characters.set(character.id, character);

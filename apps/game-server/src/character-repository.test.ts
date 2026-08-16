@@ -16,9 +16,12 @@ describe("character repository rules", () => {
     expect(await repository.getOwned("owner-b", character.id)).toBeNull();
   });
 
-  it("enforces the per-account character limit", async () => {
+  it("allows one wanderer per account and no more", async () => {
+    expect(MAX_CHARACTERS_PER_ACCOUNT).toBe(1);
     const repository = new MemoryCharacterRepository();
-    for (let index = 0; index < MAX_CHARACTERS_PER_ACCOUNT; index += 1) await repository.create("owner", `Hero ${index}`, "male");
+    await repository.create("owner", "Eldren", "male");
     await expect(repository.create("owner", "One Too Many", "female")).rejects.toMatchObject({ code: "character.limit" });
+    // The cap is per account, so a second player is unaffected.
+    await expect(repository.create("other-owner", "Mira", "female")).resolves.toMatchObject({ name: "Mira" });
   });
 });

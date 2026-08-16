@@ -1,4 +1,4 @@
-import { decodeServerMessage, encodeMessage, type CharacterGender, type CharacterSummary } from "@eldoria/game-protocol";
+import { decodeServerMessage, encodeMessage, type ActionOutcome, type CharacterGender, type CharacterSummary, type SkillLock } from "@eldoria/game-protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { resolveGameServerUrl } from "./connection";
@@ -11,13 +11,19 @@ export type GameConnection = {
   characters: CharacterSummary[];
   charactersReady: boolean;
   selectedCharacter: CharacterSummary | null;
+  lastOutcome: ActionOutcome | null;
+  lastCraft: { recipeId: string; success: boolean; message: string; chance: number | null } | null;
   createCharacter: (name: string, gender: CharacterGender) => void;
   selectCharacter: (characterId: string) => void;
+  setSkillLock: (skillId: string, lock: SkillLock) => void;
+  eatItem: (itemId: string) => void;
+  equipItem: (itemId: string | null) => void;
+  craft: (recipeId: string) => void;
 };
 
-type ConnectionState = Omit<GameConnection, "createCharacter" | "selectCharacter">;
+type ConnectionState = Omit<GameConnection, "createCharacter" | "selectCharacter" | "setSkillLock" | "eatItem" | "equipItem" | "craft">;
 
-const initialState: ConnectionState = { status: "connecting", label: "Connecting", message: "Opening a path to the realm…", latency: null, characters: [], charactersReady: false, selectedCharacter: null };
+const initialState: ConnectionState = { status: "connecting", label: "Connecting", message: "Opening a path to the realm…", latency: null, characters: [], charactersReady: false, selectedCharacter: null, lastOutcome: null, lastCraft: null };
 
 export function useGameConnection(user: User): GameConnection {
   const [state, setState] = useState(initialState);
@@ -103,10 +109,31 @@ export function useGameConnection(user: User): GameConnection {
           window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: message.payload.position.zoneId }));
         }
         if (message.type === "world.action") {
+          window.dispatchEvent(new CustomEvent("eldoria:world-action", { detail: { objectId: message.payload.objectId, actionId: message.payload.actionId, success: message.payload.outcome?.success ?? true, target: message.payload.target ?? null, reward: message.payload.reward ?? null } }));
           setState((current) => ({
             ...current,
             message: message.payload.message,
+            lastOutcome: message.payload.outcome ?? null,
             selectedCharacter: current.selectedCharacter && message.payload.survival ? { ...current.selectedCharacter, survival: message.payload.survival } : current.selectedCharacter,
+          }));
+        }
+        if (message.type === "skill.locked") {
+          setState((current) => ({ ...current, selectedCharacter: current.selectedCharacter ? { ...current.selectedCharacter, survival: message.payload.survival } : current.selectedCharacter }));
+        }
+        if (message.type === "item.eaten") {
+          setState((current) => ({
+            ...current,
+            message: message.payload.message,
+            selectedCharacter: current.selectedCharacter ? { ...current.selectedCharacter, survival: message.payload.survival } : current.selectedCharacter,
+          }));
+        }
+        if (message.type === "item.equipped" || message.type === "craft.result") {
+          setState((current) => ({
+            ...current,
+            ...(message.type === "craft.result"
+              ? { message: message.payload.message, lastCraft: { recipeId: message.payload.recipeId, success: message.payload.success, message: message.payload.message, chance: message.payload.outcome?.chance ?? null } }
+              : {}),
+            selectedCharacter: current.selectedCharacter ? { ...current.selectedCharacter, survival: message.payload.survival } : current.selectedCharacter,
           }));
         }
         if (message.type === "connection.pong") {
@@ -150,5 +177,9 @@ export function useGameConnection(user: User): GameConnection {
       selectedCharacterIdRef.current = characterId;
       sendCharacterCommand({ type: "character.select", requestId: crypto.randomUUID(), payload: { characterId } });
     },
+    setSkillLock: (skillId, lock) => sendCharacterCommand({ type: "skill.lock", requestId: crypto.randomUUID(), payload: { skillId, lock } }),
+    eatItem: (itemId) => sendCharacterCommand({ type: "item.eat", requestId: crypto.randomUUID(), payload: { itemId } }),
+    equipItem: (itemId) => sendCharacterCommand({ type: "item.equip", requestId: crypto.randomUUID(), payload: { itemId } }),
+    craft: (recipeId) => sendCharacterCommand({ type: "craft.attempt", requestId: crypto.randomUUID(), payload: { recipeId } }),
   };
 }
