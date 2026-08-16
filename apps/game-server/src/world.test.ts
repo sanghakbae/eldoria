@@ -7,7 +7,15 @@ describe("RuntimeWorld", () => {
     const player = world.join("user-1");
     world.setDirection("user-1", { x: 1, y: 0 }, 1);
     world.tick(1);
-    expect(player.position).toEqual({ zoneId: "untamedWilds", x: 932, y: 470 });
+    expect(player.position).toEqual({ zoneId: "untamedWilds", x: 888, y: 470 });
+  });
+
+  it("moves north through the open wilderness", () => {
+    const world = new RuntimeWorld();
+    const player = world.join("user-1");
+    world.setDirection("user-1", { x: 0, y: -1 }, 1);
+    world.tick(1);
+    expect(player.position).toEqual({ zoneId: "untamedWilds", x: 836, y: 418 });
   });
 
   it("joins at a persisted character checkpoint", () => {
@@ -38,5 +46,14 @@ describe("RuntimeWorld", () => {
     const world = new RuntimeWorld();
     const player = world.join("user-1", { zoneId: "mossward", x: 836, y: 555 });
     expect(player.position).toEqual({ zoneId: "untamedWilds", x: 836, y: 470 });
+  });
+
+  it("teleports through an interactive den entrance", () => {
+    const world = new RuntimeWorld();
+    const player = world.join("user-1");
+    expect(world.teleport("user-1", "animalDen", "arrival")).toBe(player);
+    expect(player.position).toEqual({ zoneId: "animalDen", x: 836, y: 790 });
+    world.place("user-1", { zoneId: "untamedWilds", x: 250, y: 290 });
+    expect(player.position).toEqual({ zoneId: "untamedWilds", x: 250, y: 290 });
   });
 });

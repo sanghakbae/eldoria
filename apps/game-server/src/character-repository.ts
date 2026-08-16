@@ -1,4 +1,4 @@
-import type { CharacterSummary, Position } from "@eldoria/game-protocol";
+import type { CharacterGender, CharacterSummary, Position } from "@eldoria/game-protocol";
 import { createInitialSurvivalState } from "@eldoria/game-data";
 
 export const STARTING_POSITION: Position = { zoneId: "untamedWilds", x: 836, y: 470 };
@@ -6,9 +6,10 @@ export const MAX_CHARACTERS_PER_ACCOUNT = 5;
 
 export type CharacterRepository = {
   list(ownerUid: string): Promise<CharacterSummary[]>;
-  create(ownerUid: string, name: string): Promise<CharacterSummary>;
+  create(ownerUid: string, name: string, gender: CharacterGender): Promise<CharacterSummary>;
   getOwned(ownerUid: string, characterId: string): Promise<CharacterSummary | null>;
   savePosition(ownerUid: string, characterId: string, position: Position): Promise<void>;
+  saveSurvival(ownerUid: string, characterId: string, survival: CharacterSummary["survival"]): Promise<void>;
 };
 
 export function validateCharacterName(rawName: string): string {
@@ -31,11 +32,11 @@ export class MemoryCharacterRepository implements CharacterRepository {
     return [...this.characters.values()].filter((character) => character.ownerUid === ownerUid).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(stripOwner);
   }
 
-  async create(ownerUid: string, rawName: string) {
+  async create(ownerUid: string, rawName: string, gender: CharacterGender) {
     const name = validateCharacterName(rawName);
     if ((await this.list(ownerUid)).length >= MAX_CHARACTERS_PER_ACCOUNT) throw new CharacterRepositoryError("character.limit", "The account already has the maximum number of characters.");
     const createdAt = new Date().toISOString();
-    const character = { id: crypto.randomUUID(), ownerUid, name, position: { ...STARTING_POSITION }, createdAt, survival: createInitialSurvivalState(createdAt) };
+    const character = { id: crypto.randomUUID(), ownerUid, name, gender, position: { ...STARTING_POSITION }, createdAt, survival: createInitialSurvivalState(createdAt) };
     this.characters.set(character.id, character);
     return stripOwner(character);
   }
@@ -50,8 +51,14 @@ export class MemoryCharacterRepository implements CharacterRepository {
     if (!character || character.ownerUid !== ownerUid) throw new CharacterRepositoryError("character.not_found", "Character was not found.");
     character.position = { ...position };
   }
+
+  async saveSurvival(ownerUid: string, characterId: string, survival: CharacterSummary["survival"]) {
+    const character = this.characters.get(characterId);
+    if (!character || character.ownerUid !== ownerUid) throw new CharacterRepositoryError("character.not_found", "Character was not found.");
+    character.survival = structuredClone(survival);
+  }
 }
 
 function stripOwner(character: CharacterSummary & { ownerUid: string }): CharacterSummary {
-  return { id: character.id, name: character.name, position: { ...character.position }, createdAt: character.createdAt, survival: { nutrition: { ...character.survival.nutrition }, lastMetabolismAt: character.survival.lastMetabolismAt } };
+  return { id: character.id, name: character.name, gender: character.gender, position: { ...character.position }, createdAt: character.createdAt, survival: structuredClone(character.survival) };
 }

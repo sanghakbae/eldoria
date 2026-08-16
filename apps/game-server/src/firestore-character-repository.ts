@@ -1,12 +1,13 @@
 import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore, type Firestore } from "firebase-admin/firestore";
-import type { CharacterSummary, Position } from "@eldoria/game-protocol";
+import type { CharacterGender, CharacterSummary, Position } from "@eldoria/game-protocol";
 import { createInitialSurvivalState } from "@eldoria/game-data";
 import { CharacterRepositoryError, MAX_CHARACTERS_PER_ACCOUNT, STARTING_POSITION, validateCharacterName, type CharacterRepository } from "./character-repository";
 
 type StoredCharacter = {
   ownerUid: string;
   name: string;
+  gender?: CharacterGender;
   position: Position;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -21,12 +22,13 @@ export class FirestoreCharacterRepository implements CharacterRepository {
 
   async list(ownerUid: string): Promise<CharacterSummary[]> {
     const snapshot = await this.firestore.collection("characters").where("ownerUid", "==", ownerUid).get();
-    const documentsToMigrate = snapshot.docs.filter((document) => !document.data().survival || document.data().startVersion !== CURRENT_START_VERSION);
+    const documentsToMigrate = snapshot.docs.filter((document) => !document.data().survival || !document.data().gender || document.data().startVersion !== CURRENT_START_VERSION);
     if (documentsToMigrate.length > 0) {
       const batch = this.firestore.batch();
       for (const document of documentsToMigrate) {
         const update: Record<string, unknown> = {};
         if (!document.data().survival) update.survival = createInitialSurvivalState(document.data().createdAt?.toDate?.().toISOString());
+        if (!document.data().gender) update.gender = "male";
         if (document.data().startVersion !== CURRENT_START_VERSION) {
           update.position = STARTING_POSITION;
           update.startVersion = CURRENT_START_VERSION;
@@ -38,12 +40,12 @@ export class FirestoreCharacterRepository implements CharacterRepository {
     return snapshot.docs.map(toCharacter).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
-  async create(ownerUid: string, rawName: string): Promise<CharacterSummary> {
+  async create(ownerUid: string, rawName: string, gender: CharacterGender): Promise<CharacterSummary> {
     const name = validateCharacterName(rawName);
     const characterRef = this.firestore.collection("characters").doc();
     const ownerRef = this.firestore.collection("users").doc(ownerUid);
     const now = Timestamp.now();
-    const stored: StoredCharacter = { ownerUid, name, position: { ...STARTING_POSITION }, createdAt: now, updatedAt: now, survival: createInitialSurvivalState(now.toDate().toISOString()), startVersion: CURRENT_START_VERSION };
+    const stored: StoredCharacter = { ownerUid, name, gender, position: { ...STARTING_POSITION }, createdAt: now, updatedAt: now, survival: createInitialSurvivalState(now.toDate().toISOString()), startVersion: CURRENT_START_VERSION };
 
     await this.firestore.runTransaction(async (transaction) => {
       const existing = await transaction.get(this.firestore.collection("characters").where("ownerUid", "==", ownerUid));
@@ -75,6 +77,15 @@ export class FirestoreCharacterRepository implements CharacterRepository {
       transaction.update(reference, { position, updatedAt: FieldValue.serverTimestamp() });
     });
   }
+
+  async saveSurvival(ownerUid: string, characterId: string, survival: CharacterSummary["survival"]): Promise<void> {
+    const reference = this.firestore.collection("characters").doc(characterId);
+    await this.firestore.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists || snapshot.data()?.ownerUid !== ownerUid) throw new CharacterRepositoryError("character.not_found", "Character was not found.");
+      transaction.update(reference, { survival, updatedAt: FieldValue.serverTimestamp() });
+    });
+  }
 }
 
 export function createFirestoreCharacterRepository(projectId: string): FirestoreCharacterRepository {
@@ -86,5 +97,5 @@ function toCharacter(snapshot: { id: string; data(): unknown }): CharacterSummar
   const data = snapshot.data() as StoredCharacter | undefined;
   if (!data) throw new Error(`Character ${snapshot.id} has no data.`);
   const createdAt = data.createdAt.toDate().toISOString();
-  return { id: snapshot.id, name: data.name, position: data.startVersion === CURRENT_START_VERSION ? data.position : { ...STARTING_POSITION }, createdAt, survival: data.survival ?? createInitialSurvivalState(createdAt) };
+  return { id: snapshot.id, name: data.name, gender: data.gender ?? "male", position: data.startVersion === CURRENT_START_VERSION ? data.position : { ...STARTING_POSITION }, createdAt, survival: data.survival ?? createInitialSurvivalState(createdAt) };
 }

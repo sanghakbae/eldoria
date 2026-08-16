@@ -28,6 +28,7 @@ describe("zone collision data", () => {
     expect(marsh?.ecology).toMatchObject({ biome: "warm-marsh", hydrology: { type: "wetland-channels" } });
     expect(new Set(worldDefinition.zones.map((zone) => zone.ecology.wildFruits.join(","))).size).toBeGreaterThan(3);
     expect(wilds?.layers.objects.map((object) => object.type)).toEqual(expect.arrayContaining(["copperOreDeposit", "coalDeposit", "ironOreDeposit", "wildlifeSpawnRabbit", "wildlifeSpawnDeer", "wildlifeSpawnBoar"]));
+    expect(getZoneDefinition("animalDen")).toMatchObject({ layers: { terrain: { assetId: "world.animalDen" }, objects: expect.arrayContaining([expect.objectContaining({ type: "animalDenExit" })]) } });
   });
 
   it("rejects malformed world content before the server starts", () => {

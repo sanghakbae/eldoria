@@ -1,4 +1,4 @@
-import { decodeServerMessage, encodeMessage, type CharacterSummary } from "@eldoria/game-protocol";
+import { decodeServerMessage, encodeMessage, type CharacterGender, type CharacterSummary } from "@eldoria/game-protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { resolveGameServerUrl } from "./connection";
@@ -11,7 +11,7 @@ export type GameConnection = {
   characters: CharacterSummary[];
   charactersReady: boolean;
   selectedCharacter: CharacterSummary | null;
-  createCharacter: (name: string) => void;
+  createCharacter: (name: string, gender: CharacterGender) => void;
   selectCharacter: (characterId: string) => void;
 };
 
@@ -43,7 +43,13 @@ export function useGameConnection(user: User): GameConnection {
       moveSequence += 1;
       socket.send(encodeMessage({ type: "player.move", requestId: `move-${moveSequence}`, payload: { sequence: moveSequence, direction: detail } }));
     };
+    const sendInteract = (event: Event) => {
+      const detail = (event as CustomEvent<{ objectId: string }>).detail;
+      if (!detail?.objectId || socket?.readyState !== WebSocket.OPEN || !authenticatedUid) return;
+      socket.send(encodeMessage({ type: "world.interact", requestId: crypto.randomUUID(), payload: { objectId: detail.objectId } }));
+    };
     window.addEventListener("eldoria:move-intent", sendMove);
+    window.addEventListener("eldoria:interact", sendInteract);
 
     const connect = () => {
       const url = resolveGameServerUrl(window.location, import.meta.env.VITE_GAME_SERVER_URL);
@@ -96,6 +102,13 @@ export function useGameConnection(user: User): GameConnection {
           window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: message.payload.position }));
           window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: message.payload.position.zoneId }));
         }
+        if (message.type === "world.action") {
+          setState((current) => ({
+            ...current,
+            message: message.payload.message,
+            selectedCharacter: current.selectedCharacter && message.payload.survival ? { ...current.selectedCharacter, survival: message.payload.survival } : current.selectedCharacter,
+          }));
+        }
         if (message.type === "connection.pong") {
           const start = sentAt.get(message.requestId);
           if (start !== undefined) {
@@ -124,6 +137,7 @@ export function useGameConnection(user: User): GameConnection {
       if (retry) window.clearTimeout(retry);
       if (pingTimer) window.clearInterval(pingTimer);
       window.removeEventListener("eldoria:move-intent", sendMove);
+      window.removeEventListener("eldoria:interact", sendInteract);
       socket?.close();
       socketRef.current = null;
     };
@@ -131,7 +145,7 @@ export function useGameConnection(user: User): GameConnection {
 
   return {
     ...state,
-    createCharacter: (name) => sendCharacterCommand({ type: "character.create", requestId: crypto.randomUUID(), payload: { name } }),
+    createCharacter: (name, gender) => sendCharacterCommand({ type: "character.create", requestId: crypto.randomUUID(), payload: { name, gender } }),
     selectCharacter: (characterId) => {
       selectedCharacterIdRef.current = characterId;
       sendCharacterCommand({ type: "character.select", requestId: crypto.randomUUID(), payload: { characterId } });

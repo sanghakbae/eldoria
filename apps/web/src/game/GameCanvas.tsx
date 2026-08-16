@@ -2,13 +2,14 @@ import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 import { createGameConfig } from "./config";
 
-export function GameCanvas() {
+export function GameCanvas({ gender }: { gender: "female" | "male" }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
 
   useEffect(() => {
     if (!hostRef.current || gameRef.current) return;
     const host = hostRef.current;
+    host.dataset.gender = gender;
     gameRef.current = new Phaser.Game(createGameConfig(host));
     const resizeObserver = new ResizeObserver(([entry]) => {
       if (!entry || !gameRef.current) return;
@@ -23,7 +24,7 @@ export function GameCanvas() {
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, []);
+  }, [gender]);
 
   return <div ref={hostRef} className="game-canvas" />;
 }

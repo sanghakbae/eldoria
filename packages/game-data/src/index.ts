@@ -56,7 +56,7 @@ export const initialNutrition: NutritionState = Object.fromEntries(nutrientIds.m
 export const foodCatalog = parseFoodCatalog(foodContent);
 
 export function createInitialSurvivalState(now = new Date().toISOString()) {
-  return { nutrition: { ...initialNutrition }, lastMetabolismAt: now };
+  return { nutrition: { ...initialNutrition }, lastMetabolismAt: now, inventory: [], skills: {} };
 }
 
 export function evaluateBodyConditions(nutrition: NutritionState): BodyCondition[] {

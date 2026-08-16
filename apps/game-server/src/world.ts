@@ -7,7 +7,7 @@ export type RuntimePlayer = {
   sequence: number;
 };
 
-const MOVEMENT_SPEED = 96;
+const MOVEMENT_SPEED = 52;
 
 export class RuntimeWorld {
   private readonly players = new Map<string, RuntimePlayer>();
@@ -28,6 +28,24 @@ export class RuntimeWorld {
 
   get(uid: string): RuntimePlayer | undefined {
     return this.players.get(uid);
+  }
+
+  teleport(uid: string, zoneId: string, spawnId: string): RuntimePlayer | undefined {
+    const player = this.players.get(uid);
+    const zone = getZoneDefinition(zoneId);
+    const spawn = zone?.layers.spawn.find((candidate) => candidate.id === spawnId);
+    if (!player || !zone || !spawn) return undefined;
+    player.position = { zoneId, x: spawn.x, y: spawn.y };
+    player.direction = { x: 0, y: 0 };
+    return player;
+  }
+
+  place(uid: string, position: RuntimePlayer["position"]): RuntimePlayer | undefined {
+    const player = this.players.get(uid);
+    if (!player || !getZoneDefinition(position.zoneId) || !isPositionWalkable(position.zoneId, position.x, position.y)) return undefined;
+    player.position = { ...position };
+    player.direction = { x: 0, y: 0 };
+    return player;
   }
 
   setDirection(uid: string, direction: { x: number; y: number }, sequence: number) {

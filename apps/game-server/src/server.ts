@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import { decodeClientMessage, encodeMessage, type CharacterSummary } from "@eldoria/game-protocol";
+import { calculateSkillGain, createInitialSurvivalState, getZoneDefinition } from "@eldoria/game-data";
 import { WebSocketServer } from "ws";
 import type { GameServerConfig } from "./config";
 import type { VerifyIdToken } from "./auth-verifier";
@@ -15,6 +16,9 @@ export type RunningGameServer = {
 export function createGameServer(config: GameServerConfig, dependencies: { verifyIdToken: VerifyIdToken; characters: CharacterRepository; skills?: SkillConfigRepository }): Promise<RunningGameServer> {
   const world = new RuntimeWorld();
   const skills = dependencies.skills ?? new MemorySkillConfigRepository();
+  const interactionCooldowns = new Map<string, number>();
+  const wildlifeStates = new Map<string, { health: number; defeatedUntil: number }>();
+  const denReturnPositions = new Map<string, { zoneId: string; x: number; y: number }>();
   const httpServer: HttpServer = createServer((request, response) => {
     void handleHttpRequest(request, response, dependencies.verifyIdToken, skills);
   });
@@ -61,7 +65,7 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           return;
         }
         try {
-          const character = await dependencies.characters.create(uid, message.payload.name);
+          const character = await dependencies.characters.create(uid, message.payload.name, message.payload.gender);
           socket.send(encodeMessage({ type: "character.created", requestId: message.requestId, payload: { character } }));
         } catch (error) {
           const repositoryError = error instanceof CharacterRepositoryError ? error : undefined;
@@ -98,6 +102,88 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           return;
         }
         world.setDirection(uid, message.payload.direction, message.payload.sequence);
+      } else if (message.type === "world.interact") {
+        if (!uid || !selectedCharacterId) {
+          sendError(socket, message.requestId, "character.required", "Select a character before interacting.");
+          return;
+        }
+        const player = world.get(uid);
+        const object = player ? getZoneDefinition(player.position.zoneId)?.layers.objects.find((candidate) => candidate.id === message.payload.objectId) : undefined;
+        const interactionRange = object?.type.startsWith("wildlifeSpawn") ? 600 : 260;
+        if (!player || !object || Math.hypot(player.position.x - object.x, player.position.y - object.y) > interactionRange) {
+          sendError(socket, message.requestId, "interaction.too_far", "Move closer to the resource.");
+          return;
+        }
+        if (object.type === "animalDenEntrance" || object.type === "animalDenExit") {
+          if (object.type === "animalDenEntrance") denReturnPositions.set(uid, { ...player.position });
+          const moved = object.type === "animalDenEntrance"
+            ? world.teleport(uid, "animalDen", "arrival")
+            : world.place(uid, denReturnPositions.get(uid) ?? { zoneId: "untamedWilds", x: 385, y: 300 });
+          if (object.type === "animalDenExit") denReturnPositions.delete(uid);
+          if (moved) socket.send(encodeMessage({ type: "world.action", requestId: message.requestId, payload: { objectId: object.id, actionId: "travel.enter", message: object.type === "animalDenEntrance" ? "Entered the wild animal den." : "Returned to the untamed wilds." } }));
+          return;
+        }
+        let action = resolveResourceAction(object.type, object.id);
+        if (object.type.startsWith("wildlifeSpawn")) {
+          const species = object.type.endsWith("Rabbit") ? "rabbit" : object.type.endsWith("Deer") ? "deer" : "wild-boar";
+          const maximumHealth = species === "rabbit" ? 3 : species === "deer" ? 8 : 11;
+          const wildlifeKey = `${player.position.zoneId}:${object.id}`;
+          const state = wildlifeStates.get(wildlifeKey) ?? { health: maximumHealth, defeatedUntil: 0 };
+          if (state.defeatedUntil > Date.now()) {
+            sendError(socket, message.requestId, "wildlife.defeated", "The animal has already been taken.");
+            return;
+          }
+          if (state.defeatedUntil > 0) {
+            state.health = maximumHealth;
+            state.defeatedUntil = 0;
+          }
+          state.health -= 1;
+          const defeated = state.health <= 0;
+          if (defeated) {
+            state.health = maximumHealth;
+            state.defeatedUntil = Date.now() + 45_000;
+          }
+          wildlifeStates.set(wildlifeKey, state);
+          action = {
+            actionId: "club.strike",
+            reward: defeated ? { itemId: `meat.${species}`, quantity: species === "rabbit" ? 2 : species === "deer" ? 8 : 10 } : undefined,
+            message: defeated ? `Caught the ${species}.` : `Struck the ${species} with bare fists. ${state.health} health remains.`,
+            cooldownMs: 700,
+          };
+        }
+        if (!action) {
+          sendError(socket, message.requestId, "interaction.unavailable", "This object cannot be used yet.");
+          return;
+        }
+        const cooldownKey = `${uid}:${object.id}`;
+        const now = Date.now();
+        if ((interactionCooldowns.get(cooldownKey) ?? 0) > now) {
+          sendError(socket, message.requestId, "interaction.cooldown", "Wait before using this resource again.");
+          return;
+        }
+        interactionCooldowns.set(cooldownKey, now + action.cooldownMs);
+        const character = await dependencies.characters.getOwned(uid, selectedCharacterId);
+        if (!character) {
+          sendError(socket, message.requestId, "character.not_found", "Character was not found.");
+          return;
+        }
+        const survival = structuredClone(character.survival ?? createInitialSurvivalState());
+        survival.inventory ??= [];
+        survival.skills ??= {};
+        if (action.reward) {
+          const stack = survival.inventory.find((item) => item.itemId === action.reward?.itemId);
+          if (stack) stack.quantity += action.reward.quantity;
+          else survival.inventory.push({ ...action.reward });
+        }
+        const skillConfig = (await skills.list()).find((candidate) => candidate.actionIds.includes(action.actionId));
+        if (skillConfig) {
+          const progress = survival.skills[skillConfig.id] ?? { value: 0, completedActions: 0 };
+          progress.completedActions += 1;
+          progress.value += calculateSkillGain({ skill: skillConfig, completedActions: progress.completedActions, currentValue: progress.value, totalSkillValue: Object.values(survival.skills).reduce((sum, item) => sum + item.value, 0), difficultyFactor: 1 });
+          survival.skills[skillConfig.id] = progress;
+        }
+        await dependencies.characters.saveSurvival(uid, selectedCharacterId, survival);
+        socket.send(encodeMessage({ type: "world.action", requestId: message.requestId, payload: { objectId: object.id, actionId: action.actionId, message: action.message, ...(action.reward ? { reward: action.reward } : {}), survival } }));
       }
     });
     socket.on("close", () => {
@@ -109,6 +195,7 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
         });
       }
       world.leave(uid);
+      denReturnPositions.delete(uid);
     });
   });
 
@@ -136,6 +223,15 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
       });
     });
   });
+}
+
+type ResourceAction = { actionId: string; reward?: { itemId: string; quantity: number }; message: string; cooldownMs: number };
+
+function resolveResourceAction(type: string, objectId: string): ResourceAction | null {
+  if (type === "fishingWater") return { actionId: "fishing.cast", reward: { itemId: "fish.trout", quantity: 1 }, message: "Caught a trout from the pond.", cooldownMs: 3000 };
+  if (type === "wildTree") return { actionId: "material.process", reward: { itemId: "wood.raw-log", quantity: 1 }, message: "Cut usable wood from the tree.", cooldownMs: 2200 };
+  if (type === "wildFruitTree") return { actionId: "fruit.gather", reward: { itemId: objectId.includes("pear") ? "fruit.pear" : "fruit.apple", quantity: 1 }, message: "Gathered ripe wild fruit.", cooldownMs: 1200 };
+  return null;
 }
 
 function sendError(socket: { send(data: string): void }, requestId: string, code: string, message: string) {

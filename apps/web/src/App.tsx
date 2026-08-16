@@ -4,13 +4,13 @@ import { AuthScreen } from "./auth/AuthScreen";
 import { useAuth } from "./auth/useAuth";
 import { LanguageToggle, useLanguage, type TranslationKey } from "./i18n/LanguageContext";
 import type { User } from "firebase/auth";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { evaluateBodyConditions, type BodyCondition } from "@eldoria/game-data";
 import type { CharacterSummary } from "@eldoria/game-protocol";
 import { AdminSkillSettings } from "./admin/AdminSkillSettings";
 
 const quickSlots: TranslationKey[] = ["fists", "gather", "fire", "map"];
-const zoneTranslationKeys: Record<string, TranslationKey> = { untamedWilds: "untamedWilds", mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" };
+const zoneTranslationKeys: Record<string, TranslationKey> = { untamedWilds: "untamedWilds", animalDen: "animalDen", mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" };
 type PlayerPosition = { zoneId: string; x: number; y: number };
 type MapPoint = { x: number; y: number };
 
@@ -31,6 +31,7 @@ const zoneMapImages: Record<string, string> = {
 };
 
 function toMapPoint(position: PlayerPosition): MapPoint {
+  if (position.zoneId === "animalDen") return toMapPoint({ zoneId: "untamedWilds", x: 385, y: 175 });
   const bounds = zoneMapBounds[position.zoneId] ?? zoneMapBounds.mossward!;
   return {
     x: bounds.left + (Math.max(0, Math.min(1672, position.x)) / 1672) * bounds.width,
@@ -132,7 +133,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
 
       <section className="game-layout">
         <aside className="character-panel panel">
-          <div className="portrait"><img src="/assets/characters/wanderer-portrait.png" alt="" /></div>
+          <div className="portrait"><img src={character.gender === "female" ? "/assets/characters/female-wanderer-portrait.png" : "/assets/characters/wanderer-portrait.png"} alt="" /></div>
           <div>
             <p className="eyebrow">{t("wanderer")}</p>
             <h2>{character.name}</h2>
@@ -154,13 +155,16 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           </div>
           <div className="divider" />
           <p className="panel-label">{t("activeSkills")}</p>
-          <Skill name={t("observation")} value="0.0" />
-          <Skill name={t("butchering")} value="0.0" />
-          <Skill name={t("lumberjacking")} value="11.2" />
+          <Skill name={t("fishing")} value={(character.survival.skills?.fishing?.value ?? 0).toFixed(3)} />
+          <Skill name={t("foraging")} value={(character.survival.skills?.foraging?.value ?? 0).toFixed(3)} />
+          <Skill name={t("materialProcessing")} value={(character.survival.skills?.materialProcessing?.value ?? 0).toFixed(3)} />
+          <div className="divider" />
+          <p className="panel-label">{t("inventory")}</p>
+          {(character.survival.inventory ?? []).slice(0, 5).map((item) => <div className="inventory-row" key={item.itemId}><span>{item.itemId}</span><strong>× {item.quantity}</strong></div>)}
         </aside>
 
         <section className="world-frame" aria-label={t("worldAria")}>
-          <GameCanvas />
+          <GameCanvas gender={character.gender} />
           <div className="world-caption">
             <span className="compass">✦</span>
             <div>
@@ -224,11 +228,13 @@ function BodyConditionFigure({ conditions }: { conditions: BodyCondition[] }) {
 function CharacterScreen({ connection, isAdmin, onSignOut }: { connection: GameConnection; isAdmin: boolean; onSignOut: () => Promise<void> }) {
   const { t } = useLanguage();
   const [name, setName] = useState("");
+  const [gender, setGender] = useState<"female" | "male" | "">("");
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!name.trim()) return;
-    connection.createCharacter(name);
+    if (!name.trim() || !gender) return;
+    connection.createCharacter(name, gender);
     setName("");
+    setGender("");
   };
 
   return (
@@ -250,7 +256,7 @@ function CharacterScreen({ connection, isAdmin, onSignOut }: { connection: GameC
             </button>
           ))}
         </div>
-        {connection.characters.length < 5 && <form className="character-create" onSubmit={submit}><label>{t("newCharacterName")}<input value={name} minLength={2} maxLength={20} onChange={(event) => setName(event.target.value)} placeholder={t("characterNamePlaceholder")} /></label><button type="submit" disabled={connection.status !== "online"}>{t("createCharacter")}</button></form>}
+        {connection.characters.length < 5 && <form className="character-create" onSubmit={submit}><label>{t("newCharacterName")}<input value={name} minLength={2} maxLength={20} onChange={(event) => setName(event.target.value)} placeholder={t("characterNamePlaceholder")} required /></label><fieldset className="gender-choice"><legend>{t("characterGender")}</legend><label><input type="radio" name="gender" value="female" checked={gender === "female"} onChange={() => setGender("female")} required />{t("female")}</label><label><input type="radio" name="gender" value="male" checked={gender === "male"} onChange={() => setGender("male")} required />{t("male")}</label></fieldset><button type="submit" disabled={connection.status !== "online" || !gender}>{t("createCharacter")}</button></form>}
         <p className="character-status">{connection.message}</p>
       </section>
     </main>
@@ -274,9 +280,24 @@ function QuickSlotIcon({ slot }: { slot: TranslationKey }) {
 
 function WorldMapOverlay({ position, exploredTrail, visitedZones, onClose }: { position: PlayerPosition; exploredTrail: MapPoint[]; visitedZones: Set<string>; onClose: () => void }) {
   const { t } = useLanguage();
+  const [mapScale, setMapScale] = useState(1);
+  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const playerPoint = toMapPoint(position);
   const trail = [...exploredTrail, playerPoint];
   const trailWidth = Math.min(0.18, 0.1 + visitedZones.size * 0.012);
+  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    drag.current = { x: event.clientX, y: event.clientY, panX: mapPan.x, panY: mapPan.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    setMapPan({ x: drag.current.panX + event.clientX - drag.current.x, y: drag.current.panY + event.clientY - drag.current.y });
+  };
+  const zoomMap = (event: ReactWheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setMapScale((current) => Math.max(1, Math.min(14, current * (event.deltaY < 0 ? 1.18 : 1 / 1.18))));
+  };
   return (
     <section className="world-map-overlay" aria-modal="true" role="dialog" aria-label={t("worldMap")}>
       <header>
@@ -286,8 +307,8 @@ function WorldMapOverlay({ position, exploredTrail, visitedZones, onClose }: { p
         </div>
         <button onClick={onClose} aria-label={t("close")}>×</button>
       </header>
-      <div className="world-atlas">
-        <div className="atlas-world-plane">
+      <div className="world-atlas" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onWheel={zoomMap} onDoubleClick={() => { setMapPan({ x: 0, y: 0 }); setMapScale(1); }}>
+        <div className="atlas-world-plane" style={{ transform: `translate(calc(-50% + ${mapPan.x}px), calc(-50% + ${mapPan.y}px)) scale(${mapScale})` }}>
           {Object.entries(zoneMapBounds).map(([zoneId, bounds]) => (
             <div
               key={zoneId}

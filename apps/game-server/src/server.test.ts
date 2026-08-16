@@ -43,12 +43,12 @@ describe("game server", () => {
     expect(await listed).toMatchObject({ payload: { characters: [] } });
 
     const creation = waitForMessage(socket, "character.created");
-    socket.send(encodeMessage({ type: "character.create", requestId: "create-1", payload: { name: "Ari Stone" } }));
+    socket.send(encodeMessage({ type: "character.create", requestId: "create-1", payload: { name: "Ari Stone", gender: "female" } }));
     const created = await creation;
     if (created.type !== "character.created") throw new Error("Expected character.created");
     const selection = waitForMessage(socket, "character.selected");
     socket.send(encodeMessage({ type: "character.select", requestId: "select-1", payload: { characterId: created.payload.character.id } }));
-    expect(await selection).toMatchObject({ payload: { character: { name: "Ari Stone" } } });
+    expect(await selection).toMatchObject({ payload: { character: { name: "Ari Stone", gender: "female" } } });
     socket.close();
   });
 

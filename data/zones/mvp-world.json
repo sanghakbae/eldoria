@@ -17,7 +17,8 @@
       "layers": {
         "terrain": { "assetId": "world.untamedWilds" },
         "collision": [
-          { "x": 0, "y": 0, "width": 53, "height": 3 },
+          { "x": 0, "y": 0, "width": 21, "height": 3 },
+          { "x": 32, "y": 0, "width": 21, "height": 3 },
           { "x": 0, "y": 27, "width": 53, "height": 3 },
           { "x": 0, "y": 3, "width": 3, "height": 7 },
           { "x": 0, "y": 20, "width": 3, "height": 7 },
@@ -28,13 +29,13 @@
           { "x": 2, "y": 17, "width": 10, "height": 9 }
         ],
         "objects": [
-          { "id": "wilds.pond", "type": "fishingWater", "x": 1410, "y": 430 },
-          { "id": "wilds.ore-cave", "type": "naturalOreCave", "x": 250, "y": 155 },
+          { "id": "wilds.pond", "type": "fishingWater", "x": 1375, "y": 355 },
+          { "id": "wilds.animal-den", "type": "animalDenEntrance", "x": 385, "y": 175 },
           { "id": "wilds.copper-vein", "type": "copperOreDeposit", "x": 215, "y": 145 },
           { "id": "wilds.coal-seam", "type": "coalDeposit", "x": 250, "y": 125 },
           { "id": "wilds.iron-vein", "type": "ironOreDeposit", "x": 285, "y": 155 },
-          { "id": "wilds.crabapple", "type": "wildFruitTree", "x": 205, "y": 610 },
-          { "id": "wilds.wild-pear", "type": "wildFruitTree", "x": 320, "y": 700 },
+          { "id": "wilds.crabapple", "type": "wildFruitTree", "x": 230, "y": 610 },
+          { "id": "wilds.wild-pear", "type": "wildFruitTree", "x": 390, "y": 610 },
           { "id": "wilds.timber-north", "type": "wildTree", "x": 790, "y": 70 },
           { "id": "wilds.timber-south", "type": "wildTree", "x": 1080, "y": 850 },
           { "id": "wilds.rabbit-spawn", "type": "wildlifeSpawnRabbit", "x": 610, "y": 330 },
@@ -43,6 +44,7 @@
         ],
         "spawn": [
           { "id": "arrival", "x": 836, "y": 470 },
+          { "id": "den-return", "x": 385, "y": 300 },
           { "id": "west-entry", "x": 35, "y": 470 },
           { "id": "east-entry", "x": 1637, "y": 470 }
         ]
@@ -173,6 +175,35 @@
         "spawn": [{ "id": "west-road", "x": 35, "y": 555 }]
       },
       "exits": [{ "edge": "west", "toZoneId": "amberfen", "toSpawnId": "east-road" }]
+    },
+    {
+      "id": "animalDen",
+      "name": { "en": "Wild Animal Den", "ko": "야생 동물 굴" },
+      "width": 1672,
+      "height": 941,
+      "columns": 53,
+      "rows": 30,
+      "ecology": {
+        "biome": "subterranean-animal-den",
+        "hydrology": { "type": "none", "fishHabitats": [] },
+        "wildFruits": []
+      },
+      "layers": {
+        "terrain": { "assetId": "world.animalDen" },
+        "collision": [
+          { "x": 0, "y": 0, "width": 53, "height": 5 },
+          { "x": 0, "y": 26, "width": 22, "height": 4 },
+          { "x": 31, "y": 26, "width": 22, "height": 4 },
+          { "x": 0, "y": 5, "width": 5, "height": 21 },
+          { "x": 48, "y": 5, "width": 5, "height": 21 }
+        ],
+        "objects": [
+          { "id": "den.surface-exit", "type": "animalDenExit", "x": 836, "y": 850 },
+          { "id": "den.boar-spawn", "type": "wildlifeSpawnBoar", "x": 1150, "y": 560 }
+        ],
+        "spawn": [{ "id": "arrival", "x": 836, "y": 790 }]
+      },
+      "exits": []
     }
   ]
 }

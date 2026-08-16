@@ -7,9 +7,14 @@ export function createGameConfig(parent: HTMLElement): Phaser.Types.Core.GameCon
     parent,
     width: parent.clientWidth || 960,
     height: parent.clientHeight || 540,
-    transparent: true,
+    transparent: false,
+    backgroundColor: "#06120e",
     pixelArt: true,
     antialias: false,
+    render: {
+      clearBeforeRender: true,
+      preserveDrawingBuffer: false,
+    },
     scene: [MosswardScene],
     scale: {
       mode: Phaser.Scale.RESIZE,

@@ -9,8 +9,8 @@ describe("character repository rules", () => {
 
   it("lists only owned characters and persists position checkpoints", async () => {
     const repository = new MemoryCharacterRepository();
-    const character = await repository.create("owner-a", "Eldren");
-    await repository.create("owner-b", "Mira");
+    const character = await repository.create("owner-a", "Eldren", "male");
+    await repository.create("owner-b", "Mira", "female");
     await repository.savePosition("owner-a", character.id, { zoneId: "greythorn", x: 120, y: 330 });
     expect(await repository.list("owner-a")).toEqual([{ ...character, position: { zoneId: "greythorn", x: 120, y: 330 } }]);
     expect(await repository.getOwned("owner-b", character.id)).toBeNull();
@@ -18,7 +18,7 @@ describe("character repository rules", () => {
 
   it("enforces the per-account character limit", async () => {
     const repository = new MemoryCharacterRepository();
-    for (let index = 0; index < MAX_CHARACTERS_PER_ACCOUNT; index += 1) await repository.create("owner", `Hero ${index}`);
-    await expect(repository.create("owner", "One Too Many")).rejects.toMatchObject({ code: "character.limit" });
+    for (let index = 0; index < MAX_CHARACTERS_PER_ACCOUNT; index += 1) await repository.create("owner", `Hero ${index}`, "male");
+    await expect(repository.create("owner", "One Too Many", "female")).rejects.toMatchObject({ code: "character.limit" });
   });
 });
