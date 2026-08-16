@@ -860,11 +860,6 @@ export class MosswardScene extends Phaser.Scene {
       this.heldItemId = equipped;
       this.heldItem.setTexture(art.key);
     }
-    // The grip is what rides the hand anchor, so it becomes the sprite's own origin. Apply this on
-    // every sync: hot reloads can update art calibration while the equipped item id stays unchanged.
-    this.heldItem.setOrigin(art.grip[0], art.grip[1]);
-    const source = this.textures.get(art.key).getSourceImage();
-    this.heldItem.setDisplaySize((art.height * source.width) / source.height, art.height);
     const frameIndex = Number.parseInt(sprite.frame.name, 10) || 0;
     const vertical = sprite.texture.key === this.verticalWalkTexture;
     const anchors = vertical ? VERTICAL_HAND_ANCHORS : HAND_ANCHORS[this.sideWalkTexture];
@@ -874,6 +869,13 @@ export class MosswardScene extends Phaser.Scene {
       return;
     }
     const itemFlipped = vertical ? frameIndex >= 8 : sprite.flipX;
+    // Phaser mirrors pixels around the sprite origin, but a grip measured in texture coordinates
+    // mirrors with the art. Keeping the unflipped X origin made the actual end of the handle jump to
+    // the opposite side of the wrist, so long tools crossed the face and torso when walking left.
+    // Anchor the mirrored grip itself to the anatomical right hand instead.
+    this.heldItem.setOrigin(itemFlipped ? 1 - art.grip[0] : art.grip[0], art.grip[1]);
+    const source = this.textures.get(art.key).getSourceImage();
+    this.heldItem.setDisplaySize((art.height * source.width) / source.height, art.height);
     const rotationSide = itemFlipped ? -1 : 1;
     const width = sprite.frame.width * sprite.scaleX;
     const height = sprite.frame.height * sprite.scaleY;
