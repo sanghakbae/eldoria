@@ -41,6 +41,28 @@ export function useGameConnection(user: User): GameConnection {
   useEffect(() => {
     if (firebaseMode) {
       let cancelled = false;
+      let positionSave: number | undefined;
+      let pendingPosition: CharacterSummary["position"] | undefined;
+      const persistPosition = (event: Event) => {
+        const position = (event as CustomEvent<CharacterSummary["position"]>).detail;
+        const characterId = selectedCharacterIdRef.current;
+        if (!position || !characterId) return;
+        pendingPosition = position;
+        setState((current) => ({
+          ...current,
+          selectedCharacter: current.selectedCharacter ? { ...current.selectedCharacter, position } : current.selectedCharacter,
+          characters: current.characters.map((character) => character.id === characterId ? { ...character, position } : character),
+        }));
+        if (positionSave !== undefined) return;
+        positionSave = window.setTimeout(() => {
+          positionSave = undefined;
+          if (!pendingPosition) return;
+          const saved = pendingPosition;
+          pendingPosition = undefined;
+          void updateDoc(doc(firestore, "characters", characterId), { position: saved, updatedAt: serverTimestamp() });
+        }, 1000);
+      };
+      window.addEventListener("eldoria:player-state", persistPosition);
       void getDocs(query(collection(firestore, "characters"), where("ownerUid", "==", user.uid))).then((snapshot) => {
         if (cancelled) return;
         const characters = snapshot.docs.map((document) => {
@@ -60,7 +82,11 @@ export function useGameConnection(user: User): GameConnection {
         if (cancelled) return;
         setState((current) => ({ ...current, status: "offline", label: "Database unavailable", message: error instanceof Error ? error.message : String(error), charactersReady: true }));
       });
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+        if (positionSave !== undefined) window.clearTimeout(positionSave);
+        window.removeEventListener("eldoria:player-state", persistPosition);
+      };
     }
 
     let socket: WebSocket | null = null;

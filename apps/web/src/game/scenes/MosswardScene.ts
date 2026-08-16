@@ -170,6 +170,8 @@ export class MosswardScene extends Phaser.Scene {
   private hoverOutline?: Phaser.GameObjects.Ellipse;
   private hoverLabel?: Phaser.GameObjects.Text;
   private restingScale = 0.16;
+  private localAuthority = false;
+  private lastLocalStateAt = 0;
   private animals = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; fill: Phaser.GameObjects.Rectangle; frame: Phaser.GameObjects.Rectangle; species: number }>();
   private readonly receiveWorldAction = (event: Event) => {
     const detail = (event as CustomEvent<{ objectId: string; actionId: string; success: boolean; target: { health: number; maximumHealth: number; defeated: boolean } | null; reward: { itemId: string; quantity: number } | null }>).detail;
@@ -196,6 +198,7 @@ export class MosswardScene extends Phaser.Scene {
 
   create() {
     this.running = true;
+    this.localAuthority = !import.meta.env.VITE_GAME_SERVER_URL && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
     this.registerSideWalkFrames();
     this.registerWildlifeFrames();
     const female = this.game.canvas.parentElement?.dataset.gender === "female";
@@ -267,7 +270,7 @@ export class MosswardScene extends Phaser.Scene {
     });
   }
 
-  update() {
+  update(_time: number, delta: number) {
     if (!this.player || !this.keys) return;
     this.player.x = Phaser.Math.Linear(this.player.x, this.target.x, 0.28);
     this.player.y = Phaser.Math.Linear(this.player.y, this.target.y, 0.28);
@@ -334,6 +337,23 @@ export class MosswardScene extends Phaser.Scene {
     if (signature !== this.previousDirection) {
       this.previousDirection = signature;
       window.dispatchEvent(new CustomEvent("eldoria:move-intent", { detail: direction }));
+    }
+    // The hosted single-player build persists through Firebase and has no authoritative socket tick.
+    // Advance the same collision-aware target locally so keyboard and click movement remain identical.
+    if (this.localAuthority && Math.hypot(direction.x, direction.y) > 0.05) {
+      const step = 52 * Math.min(delta, 50) / 1000;
+      const zone = getZoneDefinition(this.zoneId);
+      if (zone) {
+        const nextX = Phaser.Math.Clamp(this.target.x + direction.x * step, 30, zone.width - 30);
+        const nextY = Phaser.Math.Clamp(this.target.y + direction.y * step, 45, zone.height - 25);
+        if (isPositionWalkable(this.zoneId, nextX, nextY)) this.target.set(nextX, nextY);
+        else if (isPositionWalkable(this.zoneId, nextX, this.target.y)) this.target.x = nextX;
+        else if (isPositionWalkable(this.zoneId, this.target.x, nextY)) this.target.y = nextY;
+      }
+      if (this.time.now - this.lastLocalStateAt >= 250) {
+        this.lastLocalStateAt = this.time.now;
+        window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: { zoneId: this.zoneId, x: this.target.x, y: this.target.y } }));
+      }
     }
     this.animateWalk(direction);
   }
