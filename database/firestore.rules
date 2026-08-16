@@ -22,7 +22,13 @@ service cloud.firestore {
 
     match /characters/{characterId} {
       allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
-      allow write: if false;
+      // Eldoria is a single-player survival world. The authenticated owner may create and update
+      // their own record, but ownership can never be transferred to another account.
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if false;
 
       match /{collection}/{document=**} {
         allow read: if ownsCharacter(characterId);

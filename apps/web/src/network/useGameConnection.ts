@@ -1,6 +1,9 @@
 import { decodeServerMessage, encodeMessage, type ActionOutcome, type CharacterGender, type CharacterSummary, type SkillLock } from "@eldoria/game-protocol";
+import { createInitialSurvivalState, findTool } from "@eldoria/game-data";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
+import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { firestore } from "../firebase/client";
 import { resolveGameServerUrl } from "./connection";
 
 export type GameConnection = {
@@ -29,12 +32,37 @@ export function useGameConnection(user: User): GameConnection {
   const [state, setState] = useState(initialState);
   const socketRef = useRef<WebSocket | null>(null);
   const selectedCharacterIdRef = useRef<string | null>(null);
+  const firebaseMode = !import.meta.env.VITE_GAME_SERVER_URL && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
 
   const sendCharacterCommand = useCallback((message: Parameters<typeof encodeMessage>[0]) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(encodeMessage(message));
   }, []);
 
   useEffect(() => {
+    if (firebaseMode) {
+      let cancelled = false;
+      void getDocs(query(collection(firestore, "characters"), where("ownerUid", "==", user.uid))).then((snapshot) => {
+        if (cancelled) return;
+        const characters = snapshot.docs.map((document) => {
+          const data = document.data();
+          const createdAt = typeof data.createdAt?.toDate === "function" ? data.createdAt.toDate().toISOString() : new Date().toISOString();
+          return {
+            id: document.id,
+            name: String(data.name ?? "Wanderer"),
+            gender: data.gender === "female" ? "female" as const : "male" as const,
+            position: data.position && typeof data.position.x === "number" ? data.position : { zoneId: "untamedWilds", x: 836, y: 470 },
+            createdAt,
+            survival: data.survival ?? createInitialSurvivalState(createdAt),
+          } satisfies CharacterSummary;
+        });
+        setState((current) => ({ ...current, status: "online", label: "Firebase realm", message: "Character records loaded.", characters, charactersReady: true }));
+      }).catch((error: unknown) => {
+        if (cancelled) return;
+        setState((current) => ({ ...current, status: "offline", label: "Database unavailable", message: error instanceof Error ? error.message : String(error), charactersReady: true }));
+      });
+      return () => { cancelled = true; };
+    }
+
     let socket: WebSocket | null = null;
     let retry: number | undefined;
     let pingTimer: number | undefined;
@@ -168,18 +196,55 @@ export function useGameConnection(user: User): GameConnection {
       socket?.close();
       socketRef.current = null;
     };
-  }, [user]);
+  }, [firebaseMode, user]);
 
   return {
     ...state,
-    createCharacter: (name, gender) => sendCharacterCommand({ type: "character.create", requestId: crypto.randomUUID(), payload: { name, gender } }),
+    createCharacter: (name, gender) => {
+      if (!firebaseMode) {
+        sendCharacterCommand({ type: "character.create", requestId: crypto.randomUUID(), payload: { name, gender } });
+        return;
+      }
+      const createdAt = new Date().toISOString();
+      const survival = createInitialSurvivalState(createdAt);
+      void addDoc(collection(firestore, "characters"), { ownerUid: user.uid, name: name.trim(), gender, position: { zoneId: "untamedWilds", x: 836, y: 470 }, survival, startVersion: 2, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }).then((reference) => {
+        const character: CharacterSummary = { id: reference.id, name: name.trim(), gender, position: { zoneId: "untamedWilds", x: 836, y: 470 }, createdAt, survival };
+        setState((current) => ({ ...current, characters: [...current.characters, character], message: `${character.name} is ready.` }));
+      }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));
+    },
     selectCharacter: (characterId) => {
       selectedCharacterIdRef.current = characterId;
+      if (firebaseMode) {
+        const character = state.characters.find((candidate) => candidate.id === characterId);
+        if (character) {
+          window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: character.position }));
+          window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: character.position.zoneId }));
+          setState((current) => ({ ...current, selectedCharacter: character, message: `Entering the realm as ${character.name}.` }));
+        }
+        return;
+      }
       sendCharacterCommand({ type: "character.select", requestId: crypto.randomUUID(), payload: { characterId } });
     },
-    setSkillLock: (skillId, lock) => sendCharacterCommand({ type: "skill.lock", requestId: crypto.randomUUID(), payload: { skillId, lock } }),
+    setSkillLock: (skillId, lock) => {
+      if (!firebaseMode) return sendCharacterCommand({ type: "skill.lock", requestId: crypto.randomUUID(), payload: { skillId, lock } });
+      const character = state.selectedCharacter;
+      if (!character) return;
+      const survival = { ...character.survival, locks: { ...character.survival.locks, [skillId]: lock } };
+      const next = { ...character, survival };
+      setState((current) => ({ ...current, selectedCharacter: next, characters: current.characters.map((candidate) => candidate.id === next.id ? next : candidate) }));
+      void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));
+    },
     eatItem: (itemId) => sendCharacterCommand({ type: "item.eat", requestId: crypto.randomUUID(), payload: { itemId } }),
-    equipItem: (itemId) => sendCharacterCommand({ type: "item.equip", requestId: crypto.randomUUID(), payload: { itemId } }),
+    equipItem: (itemId) => {
+      if (!firebaseMode) return sendCharacterCommand({ type: "item.equip", requestId: crypto.randomUUID(), payload: { itemId } });
+      const character = state.selectedCharacter;
+      if (!character) return;
+      const slot = itemId ? findTool(itemId)?.slot ?? "mainHand" : "mainHand";
+      const survival = { ...character.survival, equipped: slot === "mainHand" ? itemId : character.survival.equipped, equipment: { ...character.survival.equipment, [slot]: itemId } };
+      const next = { ...character, survival };
+      setState((current) => ({ ...current, selectedCharacter: next, characters: current.characters.map((candidate) => candidate.id === next.id ? next : candidate), message: itemId ? "Item equipped." : "Item unequipped." }));
+      void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));
+    },
     craft: (recipeId) => sendCharacterCommand({ type: "craft.attempt", requestId: crypto.randomUUID(), payload: { recipeId } }),
   };
 }
