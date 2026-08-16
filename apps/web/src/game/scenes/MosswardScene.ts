@@ -1161,6 +1161,19 @@ export class MosswardScene extends Phaser.Scene {
         this.time.delayedCall(80, () => this.scheduleAnimalMovement(animal, members, profile, homeX, homeY, zoneId, state, objectId));
         return;
       }
+      const blockedByAnimal = [...this.animals.entries()].some(([candidateId, candidate]) => {
+        if (candidateId === objectId || !candidate.container.visible) return false;
+        const personalSpace = Math.max(34, (profile.displayHeight + candidate.profile.displayHeight) * 0.48);
+        return Phaser.Math.Distance.Between(targetX, targetY, candidate.container.x, candidate.container.y) < personalSpace;
+      });
+      if (blockedByAnimal) {
+        // Do not let independent wildlife collapse into one composite-looking sprite. Turn and take a
+        // later stride instead; this also keeps small hares from disappearing under turkeys and trees.
+        state.heading = wantsRight ? Math.PI : 0;
+        state.stepsRemaining = Math.max(1, state.stepsRemaining - 1);
+        this.time.delayedCall(Phaser.Math.Between(180, 420), () => this.scheduleAnimalMovement(animal, members, profile, homeX, homeY, zoneId, state, objectId));
+        return;
+      }
       if (!this.isAnimalRouteOpen(profile, zoneId, animal.x, animal.y, targetX, targetY)) {
         // Turn away in two or three modest steering steps. A single 180° snap is especially obvious
         // with a pack because every follower flips on the same frame.

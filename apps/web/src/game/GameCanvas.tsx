@@ -24,6 +24,10 @@ export function GameCanvas({ gender, language, equipped, equipment, structures }
       const canvas = gameRef.current.canvas;
       canvas.style.width = `${Math.round(entry.contentRect.width)}px`;
       canvas.style.height = `${Math.round(entry.contentRect.height)}px`;
+      // Phaser's scale manager writes centering margins while the viewport is changing. On a phone
+      // rotation those values can be calculated from the previous parent width and survive after our
+      // explicit resize, pushing the whole world down and to the right. This host owns the exact size.
+      canvas.style.margin = "0";
     });
     resizeObserver.observe(host);
 
