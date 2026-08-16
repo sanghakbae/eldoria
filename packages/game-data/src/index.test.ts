@@ -37,7 +37,7 @@ describe("zone collision data", () => {
     expect(new Set(worldDefinition.zones.map((zone) => zone.ecology.wildFruits.join(","))).size).toBeGreaterThan(3);
     expect(wilds?.layers.objects.map((object) => object.type)).toEqual(expect.arrayContaining(["wildFruitTree", "wildTree", "fishingWater", "wildlifeSpawnRabbit", "wildlifeSpawnDeer", "wildlifeSpawnBoar"]));
     const surfaceTypes = worldDefinition.zones.filter((zone) => zone.id !== "animalDen").flatMap((zone) => zone.layers.objects.map((object) => object.type));
-    expect(surfaceTypes.every((type) => type === "wildFruitTree" || type === "wildTree" || type === "fishingWater" || type.startsWith("wildlifeSpawn"))).toBe(true);
+    expect(surfaceTypes.every((type) => type === "wildFruitTree" || type === "wildTree" || type === "fallenBranch" || type === "fishingWater" || type === "riverFishingWater" || type.startsWith("wildlifeSpawn"))).toBe(true);
     expect(new Set(wilds?.layers.objects.filter((object) => object.type.startsWith("wildlifeSpawn")).map((object) => object.type)).size).toBeGreaterThanOrEqual(11);
     expect(getZoneDefinition("animalDen")).toMatchObject({ layers: { terrain: { assetId: "world.animalDen" }, objects: expect.arrayContaining([expect.objectContaining({ type: "animalDenExit" })]) } });
   });

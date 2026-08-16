@@ -40,7 +40,7 @@ type AnimalProfile = {
 const ANIMAL_PROFILES: Record<string, AnimalProfile> = {
   wildlifeSpawnRabbit: { key: "rabbit", label: { en: "Rabbit", ko: "토끼" }, texture: "wildlife.walk.rabbit", displayHeight: 36, society: "colony", group: [1, 1], speed: 72, stride: [38, 66], rest: [1400, 3200], homeRange: 170, lift: 9 },
   wildlifeSpawnDeer: { key: "deer", label: { en: "Deer", ko: "사슴" }, texture: "wildlife.walk.deer", displayHeight: 100, society: "herd", group: [1, 1], speed: 31, stride: [52, 84], rest: [3200, 6500], homeRange: 280, lift: 5 },
-  wildlifeSpawnBoar: { key: "boar", label: { en: "Wild boar", ko: "멧돼지" }, texture: "wildlife.walk.boar", displayHeight: 78, society: "herd", group: [1, 1], speed: 42, stride: [45, 74], rest: [2200, 4600], homeRange: 230, lift: 6 },
+  wildlifeSpawnBoar: { key: "boar", label: { en: "Wild boar", ko: "멧돼지" }, texture: "wildlife.walk.boar", displayHeight: 78, society: "herd", group: [1, 1], speed: 42, stride: [45, 74], rest: [2200, 4600], homeRange: 230, lift: 6, aggressive: true },
   wildlifeSpawnWolf: { key: "wolf", label: { en: "Wolf", ko: "늑대" }, texture: "wildlife.walk.wolf", displayHeight: 68, society: "pack", group: [1, 1], speed: 58, stride: [55, 92], rest: [1600, 3500], homeRange: 320, lift: 7, aggressive: true },
   wildlifeSpawnFox: { key: "fox", label: { en: "Fox", ko: "여우" }, texture: "wildlife.walk.fox", displayHeight: 62, society: "solitary", group: [1, 1], speed: 62, stride: [48, 82], rest: [2400, 5200], homeRange: 300, lift: 4 },
   wildlifeSpawnBear: { key: "bear", label: { en: "Brown bear", ko: "불곰" }, texture: "wildlife.walk.bear", displayHeight: 130, society: "solitary", group: [1, 1], speed: 34, stride: [38, 65], rest: [4200, 8000], homeRange: 260, lift: 3, aggressive: true },
@@ -63,6 +63,7 @@ const STRIKE_BREAK_OFF = 104;
 const STRIKE_INTERVAL_MS = 850;
 const DOUBLE_CLICK_MS = 400;
 const LOCAL_WILDLIFE_RESPAWN_MS = 15_000;
+const WALK_STRIDE_DISTANCE = 46;
 /**
  * Where the hand sits in each walk pose, as a fraction of that pose's own box. Measured off the sheets
  * rather than guessed, which is why a held item can ride the arm swing instead of floating beside it.
@@ -77,6 +78,13 @@ const HAND_ANCHORS: Record<string, ReadonlyArray<{ fx: number; fy: number; angle
     { fx: 0.963, fy: 0.501, angle: -0.29 }, { fx: 0.951, fy: 0.497, angle: -0.15 }, { fx: 0.996, fy: 0.531, angle: 0.08 }, { fx: 0.929, fy: 0.486, angle: 0.25 },
   ],
 };
+// Each side pose was cropped to its own painted bounds. Its visual mass is therefore not always at
+// 50% of that crop; compensating the measured alpha centroid prevents the torso from twitching left
+// and right while the feet cycle underneath it.
+const SIDE_BODY_CENTERS: Record<string, ReadonlyArray<number>> = {
+  "player.walk": [0.522, 0.475, 0.55, 0.498, 0.502, 0.483, 0.536, 0.498],
+  "player.female.walk": [0.527, 0.496, 0.56, 0.509, 0.502, 0.501, 0.558, 0.519],
+};
 const VERTICAL_HAND_ANCHORS: ReadonlyArray<{ fx: number; fy: number; angle: number }> = [
   // North/back: the character's right hand is on the viewer's right.
   { fx: 0.91, fy: 0.54, angle: 0.08 }, { fx: 0.9, fy: 0.55, angle: 0.04 }, { fx: 0.89, fy: 0.54, angle: 0 }, { fx: 0.9, fy: 0.52, angle: -0.05 },
@@ -90,15 +98,15 @@ const VERTICAL_HAND_ANCHORS: ReadonlyArray<{ fx: number; fy: number; angle: numb
  * `grip` is where the hand closes on it, as a fraction of the drawing, so an axe hangs from its haft
  * while a spear rides upright with the point above the fist.
  */
-const HELD_ITEM_ART: Record<string, { key: string; path: string; height: number; grip: [number, number] }> = {
+const HELD_ITEM_ART: Record<string, { key: string; path: string; height: number; grip: [number, number]; outwardAngle?: number }> = {
   "tool.hand-axe": { key: "item.stone-axe.v4", path: "/assets/items/stone-axe.svg?v=4", height: 25, grip: [0.23, 0.84] },
   "tool.copper-axe": { key: "item.copper-axe", path: "/assets/items/copper-axe.svg", height: 27, grip: [0.23, 0.84] },
   "tool.iron-axe": { key: "item.iron-axe", path: "/assets/items/iron-axe.svg", height: 28, grip: [0.23, 0.84] },
   "tool.steel-axe": { key: "item.steel-axe", path: "/assets/items/steel-axe.svg", height: 29, grip: [0.23, 0.84] },
-  "tool.pickaxe": { key: "item.stone-pickaxe.v3", path: "/assets/items/stone-pickaxe.svg?v=3", height: 40, grip: [0.16, 0.94] },
-  "tool.copper-pickaxe": { key: "item.copper-pickaxe", path: "/assets/items/copper-pickaxe.svg", height: 40, grip: [0.16, 0.94] },
-  "tool.iron-pickaxe": { key: "item.iron-pickaxe", path: "/assets/items/iron-pickaxe.svg", height: 42, grip: [0.16, 0.94] },
-  "tool.steel-pickaxe": { key: "item.steel-pickaxe", path: "/assets/items/steel-pickaxe.svg", height: 43, grip: [0.16, 0.94] },
+  "tool.pickaxe": { key: "item.stone-pickaxe.v3", path: "/assets/items/stone-pickaxe.svg?v=3", height: 40, grip: [0.16, 0.94], outwardAngle: 0.24 },
+  "tool.copper-pickaxe": { key: "item.copper-pickaxe", path: "/assets/items/copper-pickaxe.svg", height: 40, grip: [0.16, 0.94], outwardAngle: 0.24 },
+  "tool.iron-pickaxe": { key: "item.iron-pickaxe", path: "/assets/items/iron-pickaxe.svg", height: 42, grip: [0.16, 0.94], outwardAngle: 0.24 },
+  "tool.steel-pickaxe": { key: "item.steel-pickaxe", path: "/assets/items/steel-pickaxe.svg", height: 43, grip: [0.16, 0.94], outwardAngle: 0.24 },
   "tool.stone-spear": { key: "item.stone-spear", path: "/assets/items/stone-spear.svg", height: 42, grip: [0.5, 0.34] },
   "tool.fishing-rod": { key: "item.fishing-rod", path: "/assets/items/fishing-rod.svg", height: 34, grip: [0.22, 0.9] },
   "family.dagger": { key: "item.dagger", path: "/assets/items/dagger.svg", height: 28, grip: [0.5, 0.82] },
@@ -127,6 +135,7 @@ const GAME_FONT = '"KoPubWorld Dotum", sans-serif';
  */
 const OBJECT_REGIONS: Record<string, { width: number; height: number; offsetY: number }> = {
   fishingWater: { width: 150, height: 78, offsetY: 0 },
+  riverFishingWater: { width: 88, height: 54, offsetY: 0 },
   wildTree: { width: 84, height: 118, offsetY: -62 },
   wildFruitTree: { width: 104, height: 116, offsetY: -60 },
   looseStone: { width: 42, height: 26, offsetY: -9 },
@@ -161,6 +170,7 @@ function stableGroupSize(id: string, range: [number, number]): number {
 
 const OBJECT_NAMES: Record<string, { en: string; ko: string }> = {
   fishingWater: { en: "Pond — fish", ko: "연못 — 낚시" },
+  riverFishingWater: { en: "River — fish", ko: "강 — 낚시" },
   wildTree: { en: "Tree — needs an axe", ko: "나무 — 도끼 필요" },
   wildFruitTree: { en: "Fruit tree", ko: "과수" },
   looseStone: { en: "Loose stone", ko: "돌덩이" },
@@ -196,6 +206,8 @@ export class MosswardScene extends Phaser.Scene {
   private previousDirection = "0,0";
   private clickTarget?: Phaser.Math.Vector2;
   private pathQueue: Phaser.Math.Vector2[] = [];
+  private journeyDestination?: Phaser.Math.Vector2;
+  private lastPathRefreshAt = 0;
   private destinationMarker?: Phaser.GameObjects.Arc;
   private moving = false;
   private activeWalkAnimation = "wanderer.walk.side";
@@ -206,12 +218,17 @@ export class MosswardScene extends Phaser.Scene {
   private southWalkAnimation = "wanderer.walk.south";
   private strikeAnimation = "wanderer.strike";
   private lastDustAt = 0;
+  private walkPhase = 0;
   private cameraZoomFactor = 1;
   private running = false;
   private worldObjects: Phaser.GameObjects.GameObject[] = [];
   private pendingInteraction?: { id: string; x: number; y: number; reach: number };
   private pendingLoot?: { drop: Phaser.GameObjects.Container; meat: Phaser.GameObjects.Image; objectId: string; reward: { itemId: string; quantity: number } };
-  private pendingSleep?: { x: number; y: number };
+  private pendingStructureEntry?: BuiltStructure;
+  private placingStructure?: BuiltStructure;
+  private placementPreview?: Phaser.GameObjects.Image;
+  private structureEntryArrow?: Phaser.GameObjects.Triangle;
+  private structureEntryLabel?: Phaser.GameObjects.Text;
   private builtStructures = new Map<string, Phaser.GameObjects.Image>();
   private heldItemHiddenUntil = 0;
   private resourceHighlights: Array<{ id: string; x: number; y: number; outline?: Phaser.GameObjects.Image }> = [];
@@ -232,6 +249,7 @@ export class MosswardScene extends Phaser.Scene {
   private localAuthority = false;
   private lastLocalStateAt = 0;
   private predatorCooldowns = new Map<string, number>();
+  private combatAudio?: AudioContext;
   private animals = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; outline: Phaser.GameObjects.Sprite; members: Phaser.GameObjects.Sprite[]; fill: Phaser.GameObjects.Rectangle; frame: Phaser.GameObjects.Rectangle; profile: AnimalProfile }>();
   private resources = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Image; outline: Phaser.GameObjects.Image; hitArea: Phaser.GameObjects.Ellipse; fill: Phaser.GameObjects.Rectangle; frame: Phaser.GameObjects.Rectangle; baseScaleX: number; baseScaleY: number; respawn?: Phaser.Time.TimerEvent }>();
   private readonly receiveWorldAction = (event: Event) => {
@@ -254,6 +272,13 @@ export class MosswardScene extends Phaser.Scene {
     const detail = (event as CustomEvent<{ zoneId: string; objects: WorldObjectState[] }>).detail;
     if (!detail || detail.zoneId !== this.zoneId) return;
     for (const object of detail.objects) this.applyWorldObjectState(object);
+  };
+  private readonly receiveStructureMove = (event: Event) => {
+    const id = (event as CustomEvent<string>).detail;
+    const serialized = this.game.canvas.parentElement?.dataset.structures;
+    if (!id || !serialized) return;
+    const structure = (JSON.parse(serialized) as BuiltStructure[]).find((candidate) => candidate.id === id);
+    if (structure) this.beginStructurePlacement(structure);
   };
 
   constructor() {
@@ -336,13 +361,28 @@ export class MosswardScene extends Phaser.Scene {
     this.destinationMarker = this.add.circle(this.target.x, this.target.y, 10, 0xdacb78, 0.22).setStrokeStyle(2, 0xeadf9a, 0.8).setDepth(8).setVisible(false);
     this.createWorldObjects("untamedWilds");
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
-      if (!pointer.leftButtonDown() || currentlyOver.length > 0) return;
+      if (!pointer.leftButtonDown()) return;
       const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      if (this.placingStructure) {
+        if (!this.canPlaceStructure(point.x, point.y)) return;
+        window.dispatchEvent(new CustomEvent("eldoria:structure-place", { detail: { id: this.placingStructure.id, zoneId: this.zoneId, x: Math.round(point.x), y: Math.round(point.y) } }));
+        this.placingStructure = undefined;
+        this.placementPreview?.destroy();
+        this.placementPreview = undefined;
+        return;
+      }
+      if (currentlyOver.length > 0) return;
       this.pendingInteraction = undefined;
       this.walkTo(point.x, point.y);
       // Movement is already armed before optional combat visuals are cleared. This keeps a stale or
       // partially hot-reloaded visual from swallowing the click that should move the character.
       this.disengage();
+    });
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (!this.placingStructure || !this.placementPreview) return;
+      const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      const valid = this.canPlaceStructure(point.x, point.y);
+      this.placementPreview.setPosition(point.x, point.y).setTint(valid ? 0x9fcb88 : 0xd66a5a).setAlpha(valid ? 0.72 : 0.42);
     });
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _objects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
       const zoomStep = deltaY < 0 ? 1.12 : 1 / 1.12;
@@ -354,6 +394,7 @@ export class MosswardScene extends Phaser.Scene {
     window.addEventListener("eldoria:world-object", this.receiveWorldObject);
     window.addEventListener("eldoria:world-snapshot", this.receiveWorldSnapshot);
     window.addEventListener("eldoria:structures", this.receiveStructures);
+    window.addEventListener("eldoria:structure-move", this.receiveStructureMove);
     const savedStructures = this.game.canvas.parentElement?.dataset.structures;
     if (savedStructures) this.syncStructures(JSON.parse(savedStructures) as BuiltStructure[]);
     window.dispatchEvent(new CustomEvent("eldoria:observe-world", { detail: { zoneId: this.zoneId } }));
@@ -364,6 +405,7 @@ export class MosswardScene extends Phaser.Scene {
       window.removeEventListener("eldoria:world-object", this.receiveWorldObject);
       window.removeEventListener("eldoria:world-snapshot", this.receiveWorldSnapshot);
       window.removeEventListener("eldoria:structures", this.receiveStructures);
+      window.removeEventListener("eldoria:structure-move", this.receiveStructureMove);
       this.background = undefined;
       this.collisionLayer = undefined;
     });
@@ -373,8 +415,11 @@ export class MosswardScene extends Phaser.Scene {
     if (!this.player || !this.keys) return;
     const previousPlayerX = this.player.x;
     const previousPlayerY = this.player.y;
-    this.player.x = Phaser.Math.Linear(this.player.x, this.target.x, 0.28);
-    this.player.y = Phaser.Math.Linear(this.player.y, this.target.y, 0.28);
+    // Exponential damping is frame-rate independent. A fixed lerp factor made the same walk ease and
+    // slide differently at 60 Hz, 120 Hz and on a busy mobile frame.
+    const follow = 1 - Math.exp(-Math.min(delta, 50) / 55);
+    this.player.x = Phaser.Math.Linear(this.player.x, this.target.x, follow);
+    this.player.y = Phaser.Math.Linear(this.player.y, this.target.y, follow);
     const renderedDeltaX = this.player.x - previousPlayerX;
     const renderedDeltaY = this.player.y - previousPlayerY;
     const renderedDistance = Math.hypot(renderedDeltaX, renderedDeltaY);
@@ -386,6 +431,7 @@ export class MosswardScene extends Phaser.Scene {
     if (keyboardMagnitude > 0) {
       this.clickTarget = undefined;
       this.pathQueue = [];
+      this.journeyDestination = undefined;
       this.pendingInteraction = undefined;
       this.disengage();
       this.destinationMarker?.setVisible(false);
@@ -395,6 +441,7 @@ export class MosswardScene extends Phaser.Scene {
       this.pendingInteraction = undefined;
       this.clickTarget = undefined;
       this.pathQueue = [];
+      this.journeyDestination = undefined;
       this.destinationMarker?.setVisible(false);
     }
     if (this.pendingLoot && Phaser.Math.Distance.Between(this.target.x, this.target.y, this.pendingLoot.drop.x, this.pendingLoot.drop.y) <= 54) {
@@ -402,15 +449,18 @@ export class MosswardScene extends Phaser.Scene {
       this.pendingLoot = undefined;
       this.clickTarget = undefined;
       this.pathQueue = [];
+      this.journeyDestination = undefined;
       this.destinationMarker?.setVisible(false);
       this.playLootPickup(loot);
     }
-    if (this.pendingSleep && Phaser.Math.Distance.Between(this.target.x, this.target.y, this.pendingSleep.x, this.pendingSleep.y) <= 92) {
-      this.pendingSleep = undefined;
+    if (this.pendingStructureEntry && Phaser.Math.Distance.Between(this.target.x, this.target.y, this.pendingStructureEntry.x, this.pendingStructureEntry.y) <= 92) {
+      const structureId = this.pendingStructureEntry.id;
+      this.pendingStructureEntry = undefined;
       this.clickTarget = undefined;
       this.pathQueue = [];
+      this.journeyDestination = undefined;
       this.destinationMarker?.setVisible(false);
-      this.playSleepMotion();
+      window.dispatchEvent(new CustomEvent("eldoria:structure-enter", { detail: structureId }));
     }
     this.syncEquipmentLayers();
     this.pursueEngagedAnimal();
@@ -435,7 +485,10 @@ export class MosswardScene extends Phaser.Scene {
       if (distance <= 12) {
         // Step onto the next corner of the route rather than ending the journey at the first one.
         this.clickTarget = this.pathQueue.shift();
-        if (!this.clickTarget) this.destinationMarker?.setVisible(false);
+        if (!this.clickTarget) {
+          this.journeyDestination = undefined;
+          this.destinationMarker?.setVisible(false);
+        }
       } else {
         // Collapse the route as it opens up. Tile-centre corners make a walk zig-zag sideways long
         // after the obstacle that caused them is behind you, so drop any corner you can already see past.
@@ -461,9 +514,15 @@ export class MosswardScene extends Phaser.Scene {
       if (zone) {
         const nextX = Phaser.Math.Clamp(this.target.x + direction.x * step, 30, zone.width - 30);
         const nextY = Phaser.Math.Clamp(this.target.y + direction.y * step, 45, zone.height - 25);
-        if (isPositionWalkable(this.zoneId, nextX, nextY)) this.target.set(nextX, nextY);
-        else if (isPositionWalkable(this.zoneId, nextX, this.target.y)) this.target.x = nextX;
-        else if (isPositionWalkable(this.zoneId, this.target.x, nextY)) this.target.y = nextY;
+        let advanced = false;
+        if (this.isSceneWalkable(nextX, nextY)) { this.target.set(nextX, nextY); advanced = true; }
+        else if (this.isSceneWalkable(nextX, this.target.y)) { this.target.x = nextX; advanced = true; }
+        else if (this.isSceneWalkable(this.target.x, nextY)) { this.target.y = nextY; advanced = true; }
+        // A newly placed house or an updated resource state can invalidate an existing route. Keep
+        // the original destination and ask A* for another corridor instead of walking in place.
+        if (!advanced && this.clickTarget && this.journeyDestination && this.time.now >= this.lastPathRefreshAt) {
+          this.refreshJourneyPath(zone);
+        }
       }
       if (this.time.now - this.lastLocalStateAt >= 250) {
         this.lastLocalStateAt = this.time.now;
@@ -475,8 +534,7 @@ export class MosswardScene extends Phaser.Scene {
     const renderedDirection = renderedDistance > 0.025
       ? { x: renderedDeltaX / renderedDistance, y: renderedDeltaY / renderedDistance }
       : { x: 0, y: 0 };
-    const renderedSpeed = delta > 0 ? renderedDistance * 1000 / delta : 0;
-    this.animateWalk(renderedDirection, renderedSpeed);
+    this.animateWalk(renderedDirection, renderedDistance);
     // Equipment must consume the frame selected above. Updating it first left hands and tools one
     // pose behind the body, which was especially visible at the ends of each stride.
     this.syncHeldItem();
@@ -511,22 +569,69 @@ export class MosswardScene extends Phaser.Scene {
   };
 
   private syncStructures(structures: BuiltStructure[]) {
-    const active = new Set(structures.map((structure) => structure.id));
+    const pending = structures.find((structure) => structure.zoneId === this.zoneId && structure.x < 0 && structure.y < 0);
+    if (pending && this.placingStructure?.id !== pending.id) this.beginStructurePlacement(pending);
+    if (!pending && this.placingStructure) {
+      this.placingStructure = undefined;
+      this.placementPreview?.destroy();
+      this.placementPreview = undefined;
+    }
+    const placed = structures.filter((structure) => structure.x >= 0 && structure.y >= 0);
+    const active = new Set(placed.map((structure) => structure.id));
     for (const [id, image] of this.builtStructures) if (!active.has(id)) { image.destroy(); this.builtStructures.delete(id); }
-    for (const structure of structures) {
-      if (structure.zoneId !== this.zoneId || this.builtStructures.has(structure.id)) continue;
+    for (const structure of placed) {
+      if (structure.zoneId !== this.zoneId) continue;
+      const existing = this.builtStructures.get(structure.id);
+      if (existing) {
+        existing.setPosition(structure.x, structure.y).setDepth(8 + structure.y / WORLD_HEIGHT).setVisible(true);
+        continue;
+      }
       const image = this.add.image(structure.x, structure.y, "structure.log-shelter").setDisplaySize(190, 134).setOrigin(0.5, 0.86).setDepth(8 + structure.y / WORLD_HEIGHT).setInteractive({ useHandCursor: true });
+      image.on("pointerover", () => this.showStructureEntryHint(structure));
+      image.on("pointerout", () => this.hideStructureEntryHint());
       image.on("pointerdown", () => {
+        this.hideStructureEntryHint();
         const distance = Phaser.Math.Distance.Between(this.target.x, this.target.y, structure.x, structure.y);
-        if (distance <= 92) this.playSleepMotion();
+        if (distance <= 92) window.dispatchEvent(new CustomEvent("eldoria:structure-enter", { detail: structure.id }));
         else {
-          this.pendingSleep = { x: structure.x, y: structure.y };
+          this.pendingStructureEntry = structure;
           const angle = Phaser.Math.Angle.Between(structure.x, structure.y, this.target.x, this.target.y);
           this.walkTo(structure.x + Math.cos(angle) * 72, structure.y + Math.sin(angle) * 72);
         }
       });
       this.builtStructures.set(structure.id, image);
     }
+  }
+
+  private showStructureEntryHint(structure: BuiltStructure) {
+    this.structureEntryArrow ??= this.add.triangle(0, 0, 0, 0, 14, 0, 7, 10, 0xf3df7e, 1).setOrigin(0.5).setDepth(45);
+    this.structureEntryLabel ??= this.add.text(0, 0, "", { fontFamily: GAME_FONT, fontSize: "11px", color: "#f3e7b6", backgroundColor: "#0b1512e6", padding: { x: 7, y: 4 } }).setOrigin(0.5, 1).setDepth(45).setResolution(Math.min(2, window.devicePixelRatio || 1));
+    this.tweens.killTweensOf(this.structureEntryArrow);
+    this.structureEntryArrow.setPosition(structure.x + 25, structure.y - 62).setAlpha(1).setVisible(true);
+    this.structureEntryLabel.setPosition(structure.x + 25, structure.y - 75).setText(this.game.canvas.parentElement?.dataset.language === "ko" ? "들어가기" : "Enter").setVisible(true);
+    this.tweens.add({ targets: this.structureEntryArrow, y: structure.y - 55, duration: 420, yoyo: true, repeat: -1, ease: "Sine.InOut" });
+  }
+
+  private hideStructureEntryHint() {
+    if (this.structureEntryArrow) this.tweens.killTweensOf(this.structureEntryArrow);
+    this.structureEntryArrow?.setVisible(false);
+    this.structureEntryLabel?.setVisible(false);
+  }
+
+  private beginStructurePlacement(structure: BuiltStructure) {
+    this.placingStructure = structure;
+    this.builtStructures.get(structure.id)?.setVisible(false);
+    this.placementPreview?.destroy();
+    this.placementPreview = this.add.image(this.target.x, this.target.y, "structure.log-shelter")
+      .setDisplaySize(190, 134).setOrigin(0.5, 0.86).setTint(0x9fcb88).setAlpha(0.72).setDepth(40);
+  }
+
+  private canPlaceStructure(x: number, y: number) {
+    const zone = getZoneDefinition(this.zoneId);
+    if (!zone || x < 95 || y < 80 || x > zone.width - 95 || y > zone.height - 45) return false;
+    if (![[-52, -24], [52, -24], [-52, 18], [52, 18], [0, 0]].every(([offsetX, offsetY]) => isPositionWalkable(this.zoneId, x + offsetX!, y + offsetY!))) return false;
+    if (zone.layers.objects.some((object) => Phaser.Math.Distance.Between(x, y, object.x, object.y) < 105)) return false;
+    return [...this.builtStructures.values()].every((building) => Phaser.Math.Distance.Between(x, y, building.x, building.y) >= 170);
   }
 
   private playSleepMotion() {
@@ -542,6 +647,14 @@ export class MosswardScene extends Phaser.Scene {
     this.cameras.main.setZoom(zoom);
   }
 
+  private contextualObjectName(type: string) {
+    const equipped = this.game.canvas.parentElement?.dataset.equipped ?? "";
+    if (type === "wildTree" && (equipped === "tool.hand-axe" || equipped.endsWith("-axe"))) return { en: "Tree", ko: "나무" };
+    if ((type.endsWith("OreDeposit") || type === "coalDeposit") && (equipped === "tool.pickaxe" || equipped.endsWith("-pickaxe"))) return { en: "Rock face", ko: "바위" };
+    if ((type === "fishingWater" || type === "riverFishingWater") && (equipped === "tool.fishing-rod" || equipped.endsWith("-fishing-rod"))) return { en: "Fishing water", ko: "낚시터" };
+    return OBJECT_NAMES[type];
+  }
+
   /** One reusable outline and label, moved to whatever the cursor is over. */
   private showHover(x: number, y: number, width: number, height: number, name?: { en: string; ko: string }, spriteOutline?: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite) {
     const korean = this.game.canvas.parentElement?.dataset.language === "ko";
@@ -552,10 +665,10 @@ export class MosswardScene extends Phaser.Scene {
       color: "#f2e3ad",
       backgroundColor: "#0b1512e0",
       padding: { x: 6, y: 3 },
-    }).setOrigin(0.5, 1).setDepth(12);
+    }).setOrigin(0.5, 1).setDepth(12).setResolution(Math.min(2, window.devicePixelRatio || 1));
     if (spriteOutline) {
       this.hoverOutline.setVisible(false);
-      spriteOutline.setVisible(true).setAlpha(0.9);
+      spriteOutline.setVisible(true);
     } else {
       this.hoverOutline.setPosition(x, y).setSize(width, height).setDisplaySize(width, height).setVisible(true);
     }
@@ -563,7 +676,7 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   private hideHover(spriteOutline?: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite) {
-    spriteOutline?.setVisible(false).setAlpha(0.9);
+    spriteOutline?.setVisible(false);
     this.hoverOutline?.setVisible(false);
     this.hoverLabel?.setVisible(false);
   }
@@ -639,7 +752,7 @@ export class MosswardScene extends Phaser.Scene {
         this.worldObjects.push(animal);
         continue;
       }
-      const interactiveTypes = ["fishingWater", "wildTree", "wildFruitTree", "animalDenEntrance", "animalDenExit", "copperOreDeposit", "coalDeposit", "ironOreDeposit", "looseStone", "fallenBranch"];
+      const interactiveTypes = ["fishingWater", "riverFishingWater", "wildTree", "wildFruitTree", "animalDenEntrance", "animalDenExit", "copperOreDeposit", "coalDeposit", "ironOreDeposit", "looseStone", "fallenBranch"];
       if (!interactiveTypes.includes(object.type)) continue;
       const region = OBJECT_REGIONS[object.type] ?? DEFAULT_REGION;
       const regionY = object.y + region.offsetY;
@@ -649,16 +762,20 @@ export class MosswardScene extends Phaser.Scene {
         pointer.event.stopPropagation();
         this.requestInteraction(object.id, object.x, object.y);
       });
-      hitArea.on("pointerover", () => this.showHover(object.x, regionY, region.width, region.height, OBJECT_NAMES[object.type], outline));
+      hitArea.on("pointerover", () => this.showHover(object.x, regionY, region.width, region.height, this.contextualObjectName(object.type), outline));
       hitArea.on("pointerout", () => this.hideHover(outline));
       this.worldObjects.push(hitArea);
 
       let outline: Phaser.GameObjects.Image | undefined;
       const art = RESOURCE_ART[object.type];
       if (art) {
-        const shadow = this.add.ellipse(0, 1, art.shadowWidth, art.shadowHeight, 0x020604, 0.55);
-        outline = this.add.image(0, 0, art.texture).setOrigin(0.5, 1).setDisplaySize(art.width + 6, art.height + 6).setTint(0xeadb78).setAlpha(0.42).setVisible(false);
-        const sprite = this.add.image(0, 0, art.texture).setOrigin(0.5, 1).setDisplaySize(art.width, art.height);
+        const isRootedTree = object.type === "wildTree" || object.type === "wildFruitTree";
+        const shadow = this.add.ellipse(0, isRootedTree ? -2 : 1, art.shadowWidth, isRootedTree ? Math.max(9, art.shadowHeight - 5) : art.shadowHeight, 0x020604, isRootedTree ? 0.34 : 0.55);
+        // Keep the highlight exactly behind the object. Enlarging a full tinted copy produced a
+        // translucent duplicate that looked like a motion trail beside trees and rocks.
+        const groundOrigin = object.type === "wildFruitTree" ? 0.92 : object.type === "wildTree" ? 0.99 : 1;
+        outline = this.add.image(0, 0, art.texture).setOrigin(0.5, groundOrigin).setDisplaySize(art.width, art.height).setTint(0xeadb78).setAlpha(0.28).setVisible(false);
+        const sprite = this.add.image(0, 0, art.texture).setOrigin(0.5, groundOrigin).setDisplaySize(art.width, art.height);
         const barY = -art.height - 8;
         const barFrame = this.add.rectangle(0, barY, RESOURCE_BAR_WIDTH, 5, 0x0b1512, 0.92).setStrokeStyle(1, 0x000000, 0.75).setVisible(false);
         const barFill = this.add.rectangle(-RESOURCE_BAR_WIDTH / 2 + 1, barY, RESOURCE_BAR_WIDTH - 2, 3, 0x9eaa63).setOrigin(0, 0.5).setVisible(false);
@@ -869,11 +986,9 @@ export class MosswardScene extends Phaser.Scene {
       return;
     }
     const itemFlipped = vertical ? frameIndex >= 8 : sprite.flipX;
-    // Phaser mirrors pixels around the sprite origin, but a grip measured in texture coordinates
-    // mirrors with the art. Keeping the unflipped X origin made the actual end of the handle jump to
-    // the opposite side of the wrist, so long tools crossed the face and torso when walking left.
-    // Anchor the mirrored grip itself to the anatomical right hand instead.
-    this.heldItem.setOrigin(itemFlipped ? 1 - art.grip[0] : art.grip[0], art.grip[1]);
+    // Phaser preserves the configured origin while flipping the rendered pixels. Mirroring the origin
+    // a second time detached the handle from the wrist in front/back poses.
+    this.heldItem.setOrigin(art.grip[0], art.grip[1]);
     const source = this.textures.get(art.key).getSourceImage();
     this.heldItem.setDisplaySize((art.height * source.width) / source.height, art.height);
     const rotationSide = itemFlipped ? -1 : 1;
@@ -886,7 +1001,7 @@ export class MosswardScene extends Phaser.Scene {
     this.heldItem
       .setPosition(sprite.x + handOffsetX, sprite.y + (pose.fy - 1) * height)
       .setFlipX(itemFlipped)
-      .setRotation(sprite.rotation + rotationSide * pose.angle)
+      .setRotation(sprite.rotation + rotationSide * (pose.angle + (vertical ? 0 : art.outwardAngle ?? 0)))
       .setVisible(true);
     // Seen from behind, the hand and torso occlude the grip. From the front the tool stays visible.
     if (vertical && frameIndex < 8) this.player?.moveBelow(this.heldItem, sprite);
@@ -952,22 +1067,75 @@ export class MosswardScene extends Phaser.Scene {
   private walkTo(x: number, y: number) {
     const zone = getZoneDefinition(this.zoneId);
     if (!zone) return;
-    const destination = new Phaser.Math.Vector2(
+    const requested = new Phaser.Math.Vector2(
       Phaser.Math.Clamp(x, 30, zone.width - 30),
       Phaser.Math.Clamp(y, 45, zone.height - 25),
     );
+    const destination = this.nearestWalkableDestination(requested, zone);
+    this.journeyDestination = destination.clone();
     this.pathQueue = this.findPath(this.target, destination, zone);
     this.clickTarget = this.pathQueue.shift() ?? destination;
+    this.lastPathRefreshAt = this.time.now + 280;
     this.destinationMarker?.setPosition(destination.x, destination.y).setVisible(true);
+  }
+
+  private refreshJourneyPath(zone: NonNullable<ReturnType<typeof getZoneDefinition>>) {
+    if (!this.journeyDestination) return;
+    this.pathQueue = this.findPath(this.target, this.journeyDestination, zone);
+    this.clickTarget = this.pathQueue.shift() ?? this.journeyDestination.clone();
+    this.lastPathRefreshAt = this.time.now + 360;
+  }
+
+  private nearestWalkableDestination(requested: Phaser.Math.Vector2, zone: NonNullable<ReturnType<typeof getZoneDefinition>>) {
+    if (this.isSceneWalkable(requested.x, requested.y)) return requested;
+    for (let radius = 18; radius <= zone.tileSize * 4; radius += 18) {
+      for (let sample = 0; sample < 16; sample += 1) {
+        const angle = sample / 16 * Math.PI * 2;
+        const x = Phaser.Math.Clamp(requested.x + Math.cos(angle) * radius, 30, zone.width - 30);
+        const y = Phaser.Math.Clamp(requested.y + Math.sin(angle) * radius, 45, zone.height - 25);
+        if (this.isSceneWalkable(x, y)) return new Phaser.Math.Vector2(x, y);
+      }
+    }
+    return this.target.clone();
+  }
+
+  private isSceneWalkable(x: number, y: number) {
+    if (!isPositionWalkable(this.zoneId, x, y)) return false;
+    for (const building of this.builtStructures.values()) {
+      if (!building.visible) continue;
+      const dx = (x - building.x) / 82;
+      const dy = (y - building.y) / 38;
+      if (dx * dx + dy * dy < 1) return false;
+    }
+    return true;
   }
 
   private findPath(from: Phaser.Math.Vector2, to: Phaser.Math.Vector2, zone: NonNullable<ReturnType<typeof getZoneDefinition>>): Phaser.Math.Vector2[] {
     const { tileSize, columns, rows } = zone;
     const toTile = (point: Phaser.Math.Vector2) => ({ tx: Phaser.Math.Clamp(Math.floor(point.x / tileSize), 0, columns - 1), ty: Phaser.Math.Clamp(Math.floor(point.y / tileSize), 0, rows - 1) });
     const centre = (tx: number, ty: number) => new Phaser.Math.Vector2(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2);
-    const open = (tx: number, ty: number) => isPositionWalkable(this.zoneId, tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2);
+    const open = (tx: number, ty: number) => this.isSceneWalkable(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2);
     const start = toTile(from);
-    const goal = toTile(to);
+    let goal = toTile(to);
+    // The requested point can be clear while its 32px tile centre still falls under a house eave or
+    // tree footprint. A* works on centres, so choose the nearest open centre and finish with the
+    // precise requested point; otherwise it falsely reports no route and walks straight into water.
+    if (!open(goal.tx, goal.ty)) {
+      let replacement: { tx: number; ty: number } | undefined;
+      for (let radius = 1; radius <= 5 && !replacement; radius += 1) {
+        const candidates: Array<{ tx: number; ty: number }> = [];
+        for (let dx = -radius; dx <= radius; dx += 1) {
+          candidates.push({ tx: goal.tx + dx, ty: goal.ty - radius }, { tx: goal.tx + dx, ty: goal.ty + radius });
+        }
+        for (let dy = -radius + 1; dy < radius; dy += 1) {
+          candidates.push({ tx: goal.tx - radius, ty: goal.ty + dy }, { tx: goal.tx + radius, ty: goal.ty + dy });
+        }
+        replacement = candidates
+          .filter((candidate) => candidate.tx >= 0 && candidate.ty >= 0 && candidate.tx < columns && candidate.ty < rows && open(candidate.tx, candidate.ty))
+          .sort((left, right) => Phaser.Math.Distance.Between(left.tx, left.ty, to.x / tileSize, to.y / tileSize) - Phaser.Math.Distance.Between(right.tx, right.ty, to.x / tileSize, to.y / tileSize))[0];
+      }
+      if (replacement) goal = replacement;
+    }
     if (start.tx === goal.tx && start.ty === goal.ty) return [to];
 
     const key = (tx: number, ty: number) => ty * columns + tx;
@@ -1020,7 +1188,7 @@ export class MosswardScene extends Phaser.Scene {
     const steps = Math.ceil(Phaser.Math.Distance.BetweenPoints(from, to) / 12);
     for (let step = 1; step <= steps; step += 1) {
       const ratio = step / steps;
-      if (!isPositionWalkable(this.zoneId, from.x + (to.x - from.x) * ratio, from.y + (to.y - from.y) * ratio)) return false;
+      if (!this.isSceneWalkable(from.x + (to.x - from.x) * ratio, from.y + (to.y - from.y) * ratio)) return false;
     }
     return true;
   }
@@ -1047,6 +1215,7 @@ export class MosswardScene extends Phaser.Scene {
     }
     this.clickTarget = undefined;
     this.pathQueue = [];
+    this.journeyDestination = undefined;
     this.destinationMarker?.setVisible(false);
     if (this.time.now < this.nextStrikeAt) return;
     this.nextStrikeAt = this.time.now + STRIKE_INTERVAL_MS;
@@ -1058,7 +1227,7 @@ export class MosswardScene extends Phaser.Scene {
 
   private requestInteraction(id: string, x: number, y: number) {
     const object = getZoneDefinition(this.zoneId)?.layers.objects.find((candidate) => candidate.id === id);
-    const reach = object?.type === "fishingWater" ? 112
+    const reach = object?.type === "fishingWater" || object?.type === "riverFishingWater" ? 112
       : object?.type === "animalDenEntrance" || object?.type === "animalDenExit" ? 92
         : object?.type === "wildTree" || object?.type === "wildFruitTree" ? 76
           : 62;
@@ -1363,10 +1532,13 @@ export class MosswardScene extends Phaser.Scene {
     animal.fill.setFillStyle(remaining > 0.5 ? 0xb8523f : remaining > 0.25 ? 0xc47a3a : 0xd4483a);
 
     if (!success) {
+      this.playCombatSound("miss");
       // A miss: the animal breaks away rather than absorbing anything.
       this.tweens.add({ targets: animal.sprite, x: Math.sign(animal.container.x - this.player.x) * 7, duration: 110, yoyo: true, repeat: 1, ease: "Sine.InOut", onComplete: () => animal.sprite.setX(0) });
       return;
     }
+
+    this.playCombatSound("hit");
 
     const knock = Math.sign(animal.container.x - this.player.x) || 1;
     animal.sprite.setTint(0xffd9c9);
@@ -1431,6 +1603,7 @@ export class MosswardScene extends Phaser.Scene {
       ease: "Quad.In",
       onYoyo: () => {
         if (!this.player || !this.playerSprite) return;
+        this.playCombatSound("hurt");
         this.playerSprite.setTint(0xff7a68);
         this.time.delayedCall(140, () => this.playerSprite?.clearTint());
         this.cameras.main.shake(animal.profile.key === "bear" || animal.profile.key === "bison" ? 190 : 120, playerDefeated ? 0.012 : 0.006);
@@ -1461,6 +1634,7 @@ export class MosswardScene extends Phaser.Scene {
   private playStrikeMotion(targetX: number) {
     const sprite = this.playerSprite;
     if (!sprite || !this.player) return;
+    this.playCombatSound("swing");
     this.gatherUntil = this.time.now + 420;
     this.tweens.killTweensOf(sprite);
     const toward = Math.sign(targetX - this.player.x) || 1;
@@ -1479,6 +1653,40 @@ export class MosswardScene extends Phaser.Scene {
       ],
     });
     this.showFistArc(toward);
+  }
+
+  /** Short synthesized cues keep combat responsive without shipping one repeated sampled hit. */
+  private playCombatSound(kind: "swing" | "hit" | "hurt" | "miss") {
+    try {
+      this.combatAudio ??= new AudioContext();
+      const context = this.combatAudio;
+      if (context.state === "suspended") void context.resume();
+      const now = context.currentTime;
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(kind === "hurt" ? 0.14 : 0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (kind === "hit" || kind === "hurt" ? 0.16 : 0.11));
+      gain.connect(context.destination);
+      const oscillator = context.createOscillator();
+      oscillator.type = kind === "swing" || kind === "miss" ? "sawtooth" : "triangle";
+      const from = kind === "swing" ? 260 : kind === "miss" ? 180 : kind === "hurt" ? 105 : 145;
+      const to = kind === "swing" ? 72 : kind === "miss" ? 115 : kind === "hurt" ? 48 : 62;
+      oscillator.frequency.setValueAtTime(from, now);
+      oscillator.frequency.exponentialRampToValueAtTime(to, now + 0.12);
+      oscillator.connect(gain);
+      oscillator.start(now);
+      oscillator.stop(now + 0.17);
+      if (kind === "hit" || kind === "hurt") {
+        const buffer = context.createBuffer(1, Math.floor(context.sampleRate * 0.08), context.sampleRate);
+        const channel = buffer.getChannelData(0);
+        for (let index = 0; index < channel.length; index += 1) channel[index] = (Math.random() * 2 - 1) * (1 - index / channel.length);
+        const noise = context.createBufferSource();
+        noise.buffer = buffer;
+        noise.connect(gain);
+        noise.start(now);
+      }
+    } catch {
+      // Audio can be unavailable in a muted or policy-restricted browser; combat must still continue.
+    }
   }
 
   /** A short arc where the fist travels, so the blow lands somewhere the eye can follow. */
@@ -1621,7 +1829,7 @@ export class MosswardScene extends Phaser.Scene {
     });
   }
 
-  private animateWalk(direction: { x: number; y: number }, renderedSpeed: number) {
+  private animateWalk(direction: { x: number; y: number }, renderedDistance: number) {
     if (!this.player || !this.playerSprite || !this.playerShadow) return;
     this.moving = Math.hypot(direction.x, direction.y) > 0.05;
     // A swing or a stoop owns the sprite until it finishes. Walk handling runs every frame and would
@@ -1630,7 +1838,9 @@ export class MosswardScene extends Phaser.Scene {
     const nextAnimation = Math.abs(direction.y) > Math.abs(direction.x) ? direction.y < 0 ? this.northWalkAnimation : this.southWalkAnimation : this.sideWalkAnimation;
     if (Math.abs(direction.x) > 0.08 && nextAnimation === this.sideWalkAnimation) this.playerSprite.setFlipX(direction.x < 0);
     if (!this.moving) {
-      this.playerSprite.stop().setFrame(0).setPosition(0, 0).setRotation(0);
+      const idleFrame = this.activeWalkAnimation === this.southWalkAnimation ? 8 : 0;
+      this.walkPhase = 0;
+      this.playerSprite.stop().setFrame(idleFrame).setPosition(0, 0).setRotation(0);
       this.playerShadow.setScale(1, 1).setAlpha(0.52);
       return;
     }
@@ -1642,19 +1852,21 @@ export class MosswardScene extends Phaser.Scene {
       this.playerSprite.stop().setTexture(vertical ? this.verticalWalkTexture : this.sideWalkTexture).setScale(vertical ? 0.212 : female ? 0.14 : 0.16).setFlipX(false);
       this.restingScale = this.playerSprite.scaleY;
     }
-    if (!this.playerSprite.anims.isPlaying || this.playerSprite.anims.currentAnim?.key !== nextAnimation) this.playerSprite.play(nextAnimation, true);
-    // One eight-frame cycle covers roughly one full stride in the art. Tie that cycle to real screen
-    // speed so the planted foot does not skate when movement slows near a destination.
-    const speedRatio = Phaser.Math.Clamp(renderedSpeed / 52, 0.45, 1.35);
-    this.playerSprite.anims.timeScale = 0.78 + speedRatio * 0.4;
-    const frameIndex = Number.parseInt(this.playerSprite.frame.name, 10) || 0;
-    const gaitPhase = (frameIndex % 8) / 8 * Math.PI * 2;
-    const footfall = Math.abs(Math.sin(gaitPhase));
-    this.playerSprite.setY(-footfall * 1.15).setRotation(Math.sin(gaitPhase) * 0.006);
+    // Drive the gait from distance travelled, not a timer. Feet now slow down with the body near a
+    // destination and advance by the same amount on high-refresh and low-refresh displays.
+    this.walkPhase = (this.walkPhase + renderedDistance / WALK_STRIDE_DISTANCE * Math.PI * 2) % (Math.PI * 2);
+    const cycleFrame = Math.floor(this.walkPhase / (Math.PI * 2) * 8) % 8;
+    const frameIndex = nextAnimation === this.southWalkAnimation ? cycleFrame + 8 : cycleFrame;
+    this.playerSprite.stop().setFrame(frameIndex);
+    const footfall = Math.abs(Math.sin(this.walkPhase));
+    const sideCenters = nextAnimation === this.sideWalkAnimation ? SIDE_BODY_CENTERS[this.sideWalkTexture] : undefined;
+    const bodyCenter = sideCenters?.[cycleFrame] ?? 0.5;
+    const bodyOffsetX = (0.5 - bodyCenter) * this.playerSprite.frame.width * this.playerSprite.scaleX;
+    this.playerSprite.setX(bodyOffsetX).setY(-footfall * 1.15).setRotation(nextAnimation === this.sideWalkAnimation ? Math.sin(this.walkPhase) * 0.006 : 0);
     this.playerShadow.setScale(1 - footfall * 0.08, 1 - footfall * 0.05).setAlpha(0.52 - footfall * 0.08);
     if (this.time.now - this.lastDustAt > 180) {
       this.lastDustAt = this.time.now;
-      const dust = this.add.circle(this.player.x - direction.x * 12, this.player.y + 22, 3, 0xcbb57a, 0.34).setDepth(8);
+      const dust = this.add.circle(this.player.x - direction.x * 12, this.player.y + 1, 3, 0xcbb57a, 0.34).setDepth(8);
       this.tweens.add({ targets: dust, alpha: 0, scale: 2.2, y: dust.y - 4, duration: 360, onComplete: () => dust.destroy() });
     }
   }

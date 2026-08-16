@@ -188,11 +188,12 @@ export function useGameConnection(user: User): GameConnection {
         let actionId = "";
         let reward: { itemId: string; quantity: number } | null = null;
         let message = "이 대상은 아직 사용할 수 없습니다.";
-        if (object.type === "fishingWater") {
-          const hasFishingRod = (character.survival.inventory ?? []).some((stack) => (stack.itemId === "tool.fishing-rod" || stack.itemId.endsWith("-fishing-rod")) && stack.quantity > 0);
+        if (object.type === "fishingWater" || object.type === "riverFishingWater") {
+          const hasFishingRod = Boolean(equipped && (equipped === "tool.fishing-rod" || equipped.endsWith("-fishing-rod")))
+            || (character.survival.inventory ?? []).some((stack) => (stack.itemId === "tool.fishing-rod" || stack.itemId.endsWith("-fishing-rod")) && stack.quantity > 0);
           if (!hasFishingRod) { setState((current) => ({ ...current, message: "낚싯대가 있어야 낚시할 수 있습니다." })); return; }
           const caught = pondFish[Math.floor(Math.random() * pondFish.length)]!;
-          actionId = "fishing.cast"; reward = { itemId: caught.itemId, quantity: 1 }; message = `연못에서 ${caught.ko}를 낚았습니다.`;
+          actionId = "fishing.cast"; reward = { itemId: caught.itemId, quantity: 1 }; message = `${object.type === "riverFishingWater" ? "강" : "연못"}에서 ${caught.ko}를 낚았습니다.`;
         } else if (object.type === "wildTree") {
           if (!isAxe) { setState((current) => ({ ...current, message: "나무를 베려면 도끼가 필요합니다." })); return; }
           actionId = "material.process"; reward = { itemId: "wood.raw-log", quantity: 1 }; message = "나무에서 통나무를 얻었습니다.";
@@ -242,12 +243,27 @@ export function useGameConnection(user: User): GameConnection {
         } }));
         if (playerDefeated) recoverDefeatedCharacter(updated);
       };
+      const handleStructurePlacement = (event: Event) => {
+        const detail = (event as CustomEvent<{ id: string; zoneId: string; x: number; y: number }>).detail;
+        const character = stateRef.current.selectedCharacter;
+        if (!detail || !character) return;
+        const structures = (character.survival.structures ?? []).map((structure) => structure.id === detail.id
+          ? { ...structure, zoneId: detail.zoneId, x: detail.x, y: detail.y }
+          : structure);
+        if (!structures.some((structure) => structure.id === detail.id)) return;
+        const survival = { ...character.survival, structures };
+        const updated = { ...character, survival };
+        setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: "통나무 집을 배치했습니다." }));
+        void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() });
+        window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));
+      };
       window.addEventListener("eldoria:player-state", persistPosition);
       window.addEventListener("eldoria:interact", handleWildlifeCombat);
       window.addEventListener("eldoria:interact", handleLocalResource);
       window.addEventListener("eldoria:wildlife-aggression", handleWildlifeAggression);
       window.addEventListener("eldoria:loot", handleLoot);
       window.addEventListener("eldoria:sleep", handleSleep);
+      window.addEventListener("eldoria:structure-place", handleStructurePlacement);
       void getDocs(query(collection(firestore, "characters"), where("ownerUid", "==", user.uid))).then((snapshot) => {
         if (cancelled) return;
         const characters = snapshot.docs.map((document) => {
@@ -270,12 +286,17 @@ export function useGameConnection(user: User): GameConnection {
       return () => {
         cancelled = true;
         if (positionSave !== undefined) window.clearTimeout(positionSave);
+        // A reload can happen inside the one-second debounce window. Flush that last coordinate so
+        // the same character resumes at the exact place they stopped instead of an older checkpoint.
+        const characterId = selectedCharacterIdRef.current;
+        if (pendingPosition && characterId) void updateDoc(doc(firestore, "characters", characterId), { position: pendingPosition, updatedAt: serverTimestamp() });
         window.removeEventListener("eldoria:player-state", persistPosition);
         window.removeEventListener("eldoria:interact", handleWildlifeCombat);
         window.removeEventListener("eldoria:interact", handleLocalResource);
         window.removeEventListener("eldoria:wildlife-aggression", handleWildlifeAggression);
         window.removeEventListener("eldoria:loot", handleLoot);
         window.removeEventListener("eldoria:sleep", handleSleep);
+        window.removeEventListener("eldoria:structure-place", handleStructurePlacement);
       };
     }
 
@@ -536,7 +557,9 @@ export function useGameConnection(user: User): GameConnection {
       let structures = character.survival.structures ?? [];
       let built: BuiltStructure | undefined;
       if (recipe.output.itemId === "structure.log-shelter") {
-        built = { id: crypto.randomUUID(), type: "log-shelter", zoneId: character.position.zoneId, x: Math.min(1570, character.position.x + 115), y: Math.min(875, character.position.y + 55) };
+        // Negative coordinates represent a crafted but not yet placed structure. The scene presents a
+        // placement preview and persists the chosen clear ground through eldoria:structure-place.
+        built = { id: crypto.randomUUID(), type: "log-shelter", zoneId: character.position.zoneId, x: -1, y: -1 };
         structures = [...structures, built];
       } else {
         const output = remaining.find((stack) => stack.itemId === recipe.output.itemId);
@@ -545,7 +568,7 @@ export function useGameConnection(user: User): GameConnection {
       }
       const survival = { ...character.survival, inventory: remaining, structures };
       const updated = { ...character, survival };
-      const message = `${recipe.name.ko} 제작을 완료했습니다.`;
+      const message = recipe.output.itemId === "structure.log-shelter" ? "통나무 집 제작을 완료했습니다. 월드의 원하는 빈 땅을 클릭해 배치하세요." : `${recipe.name.ko} 제작을 완료했습니다.`;
       setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message, lastCraft: { recipeId, success: true, message, chance: 1 } }));
       void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));
       if (built) window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));

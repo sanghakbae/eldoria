@@ -129,10 +129,24 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .crafting-overlay header h2 { margin-bottom: 0; }
 .crafting-overlay header button { width: 34px; height: 34px; color: #c9c5a4; border: 1px solid #8590714a; background: #111e19; font-size: 22px; cursor: pointer; }
 .recipe-list { display: grid; gap: 8px; align-content: start; margin: 0; padding: 0 6px 0 0; min-height: 0; overflow-y: auto; list-style: none; }
-.recipe-groups { display: grid; gap: 14px; overflow-y: auto; min-height: 0; padding-right: 4px; }
+.crafting-content { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; min-height: 0; }
+.recipe-tabs { display: grid; align-content: start; gap: 6px; padding-right: 10px; border-right: 1px solid #76836e2b; }
+.recipe-tabs button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 11px 10px; color: #829087; border: 1px solid transparent; background: transparent; font: 500 10px "KoPubWorld Dotum"; text-align: left; cursor: pointer; }
+.recipe-tabs button:hover { color: #c8d9a7; background: #101d18; }
+.recipe-tabs button.is-active { color: #e2dbad; border-color: #9a956054; background: linear-gradient(90deg, #29392b, #101d18); }
+.recipe-tabs small { min-width: 22px; padding: 1px 5px; border-radius: 10px; color: #819388; background: #0a1411; font-size: 8px; text-align: center; }
+.recipe-tabs button.is-active small { color: #c7d3a9; background: #314735; }
+.recipe-group { min-height: 0; overflow: hidden; }
 .recipe-group > h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 7px; color: #c8d9a7; font-size: 13px; letter-spacing: .06em; }
 .recipe-group > h3 small { min-width: 22px; padding: 1px 6px; border-radius: 10px; background: #233a2e; color: #9fbd8f; text-align: center; }
+.recipe-family-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 9px; padding: 0 0 7px; border-bottom: 1px solid #76836e2b; }
+.recipe-family-tabs button { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 7px 11px; color: #809087; border: 1px solid #76836e2b; background: #0b1612; font: 500 9px "KoPubWorld Dotum"; cursor: pointer; }
+.recipe-family-tabs button.is-active { color: #e3ddb7; border-color: #b6ad706b; background: #26372b; }
+.recipe-family-tabs small { color: #718178; font-size: 8px; }
+.recipe-family-tabs button.is-active small { color: #b7c69f; }
 .recipe-group .recipe-list { overflow: visible; }
+.crafting-content .recipe-group .recipe-list { height: calc(100% - 70px); overflow-y: auto; }
+.crafting-content .recipe-group:not(:has(.recipe-family-tabs)) .recipe-list { height: calc(100% - 28px); }
 .recipe { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid #76836e2b; background: #0c1713; }
 .recipe strong { display: block; color: #d9dfd2; font: 500 12px "KoPubWorld Dotum"; letter-spacing: .04em; }
 .recipe small { display: block; margin-top: 4px; color: #77877c; font: 400 9px "KoPubWorld Dotum"; }
@@ -141,6 +155,14 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .recipe-result--made { color: #8fb07f; } .recipe-result--botched { color: #c98a6a; }
 .recipe-result b { color: #d3c37f; font-weight: 400; }
 .recipe button:disabled { color: #6c7a70; background: #1a2620; cursor: default; }
+.shelter-interior { position: absolute; z-index: 8; inset: 0; overflow: hidden; color: #ded7b6; background: linear-gradient(90deg, #07050480, transparent 42%, #07050424 70%, #07050470), url("/assets/world/structures/player-log-shelter-interior.png") center / cover no-repeat; box-shadow: inset 0 0 110px #000c; }
+.shelter-interior::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 77% 75%, #e878241c, transparent 28%), linear-gradient(#0003, transparent 22% 75%, #0006); }
+.shelter-interior-copy { position: absolute; z-index: 1; left: 4%; top: 5%; padding: 13px 17px; border: 1px solid #c0a86955; border-left: 3px solid #c0a869; background: #100c08c7; box-shadow: 0 10px 28px #0008; backdrop-filter: blur(6px); }
+.shelter-interior-copy span, .shelter-interior-copy strong { display: block; }
+.shelter-interior-copy span { color: #c6b572; font: 500 10px "KoPubWorld Dotum"; letter-spacing: .16em; }
+.shelter-interior-copy strong { margin-top: 7px; font: 400 13px "KoPubWorld Dotum"; }
+.shelter-actions { position: absolute; z-index: 1; right: 4%; top: 5%; display: flex; gap: 8px; padding: 6px; border: 1px solid #c0a86935; background: #100c08ad; backdrop-filter: blur(6px); }
+.shelter-actions button { padding: 10px 15px; color: #17110b; border: 1px solid #e6d99055; background: #c9bd77; font: 500 10px "KoPubWorld Dotum"; cursor: pointer; box-shadow: 0 4px 12px #0006; }
 .inventory-slot--equipped { border-color: #d3c37f; box-shadow: inset 0 0 0 1px #d3c37f55; }
 .inventory-eat--equip { background: #c9bd77; }
 .auth-only-google { margin-top: 14px; color: #6f7d72; font: 400 9px "KoPubWorld Dotum"; letter-spacing: .06em; }
@@ -279,6 +301,9 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
   .inventory-toggle { right: 10px; top: 10px; }
   .world-map-overlay, .inventory-overlay, .crafting-overlay { inset: 8px; padding: 13px; }
   .inventory-overlay header, .crafting-overlay header { margin-bottom: 9px; }
+  .crafting-content { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 9px; }
+  .recipe-tabs { display: flex; overflow-x: auto; padding: 0 0 7px; border-right: 0; border-bottom: 1px solid #76836e2b; }
+  .recipe-tabs button { flex: 0 0 auto; width: auto; min-width: 96px; padding: 8px 10px; }
   .command-deck { min-height: 62px; grid-template-columns: 1fr; padding-top: 0; }
   .chat-preview, .build-mark { display: none; }
   .quickbar { justify-self: center; gap: 4px; }

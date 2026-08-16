@@ -94,6 +94,24 @@
             "y": 235
           },
           {
+            "id": "wilds.river-north",
+            "type": "riverFishingWater",
+            "x": 335,
+            "y": 175
+          },
+          {
+            "id": "wilds.river-middle",
+            "type": "riverFishingWater",
+            "x": 230,
+            "y": 475
+          },
+          {
+            "id": "wilds.river-south",
+            "type": "riverFishingWater",
+            "x": 185,
+            "y": 760
+          },
+          {
             "id": "wilds.crabapple",
             "type": "wildFruitTree",
             "x": 620,
@@ -212,6 +230,30 @@
             "type": "wildTree",
             "x": 1104,
             "y": 884
+          },
+          {
+            "id": "wilds.branch-arrival",
+            "type": "fallenBranch",
+            "x": 760,
+            "y": 535
+          },
+          {
+            "id": "wilds.branch-north",
+            "type": "fallenBranch",
+            "x": 1025,
+            "y": 410
+          },
+          {
+            "id": "wilds.branch-west",
+            "type": "fallenBranch",
+            "x": 480,
+            "y": 380
+          },
+          {
+            "id": "wilds.branch-east",
+            "type": "fallenBranch",
+            "x": 1375,
+            "y": 650
           }
         ],
         "spawn": [

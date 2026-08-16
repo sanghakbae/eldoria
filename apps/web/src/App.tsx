@@ -194,8 +194,14 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [craftingOpen, setCraftingOpen] = useState(false);
+  const [insideShelter, setInsideShelter] = useState<string | null>(null);
   const [systemMessages, setSystemMessages] = useState<string[]>(() => [localizedSystemMessage(connection.message, language)]);
   const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["untamedWilds"]') as string[]));
+  useEffect(() => {
+    const enterShelter = (event: Event) => setInsideShelter((event as CustomEvent<string>).detail);
+    window.addEventListener("eldoria:structure-enter", enterShelter);
+    return () => window.removeEventListener("eldoria:structure-enter", enterShelter);
+  }, []);
   useEffect(() => {
     if (!connection.message) return;
     const localized = localizedSystemMessage(connection.message, language);
@@ -325,6 +331,14 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           {skillsOpen && <SkillCodexOverlay character={character} onSetLock={connection.setSkillLock} onClose={() => setSkillsOpen(false)} />}
           {inventoryOpen && <InventoryOverlay character={character} onEat={connection.eatItem} onEquip={connection.equipItem} onClose={() => setInventoryOpen(false)} />}
           {craftingOpen && <CraftingOverlay character={character} lastCraft={connection.lastCraft} onCraft={connection.craft} onClose={() => setCraftingOpen(false)} />}
+          {insideShelter && <section className="shelter-interior" aria-label={language === "ko" ? "통나무 집 내부" : "Log shelter interior"}>
+            <div className="shelter-interior-copy"><span>{language === "ko" ? "통나무 집 내부" : "Inside the log shelter"}</span><strong>{language === "ko" ? "바람을 피할 수 있는 안전한 공간" : "A safe place out of the wind"}</strong></div>
+            <div className="shelter-actions">
+              <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("eldoria:sleep"))}>{language === "ko" ? "잠자기" : "Sleep"}</button>
+              <button type="button" onClick={() => { window.dispatchEvent(new CustomEvent("eldoria:structure-move", { detail: insideShelter })); setInsideShelter(null); }}>{language === "ko" ? "집 옮기기" : "Move house"}</button>
+              <button type="button" onClick={() => setInsideShelter(null)}>{language === "ko" ? "밖으로 나가기" : "Exit"}</button>
+            </div>
+          </section>}
         </section>
 
         <aside className="journal-panel panel">
@@ -528,12 +542,32 @@ function ItemIcon({ itemId }: { itemId: string }) {
 
 function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character: CharacterSummary; lastCraft: GameConnection["lastCraft"]; onCraft: (recipeId: string) => void; onClose: () => void }) {
   const { t, language } = useLanguage();
+  const [activeGroupId, setActiveGroupId] = useState("tools");
+  const [activeFamilyId, setActiveFamilyId] = useState("axe");
   const carried = new Map((character.survival.inventory ?? []).map((stack) => [stack.itemId, stack.quantity]));
+  const legacyToolAliases = new Set(["tool.hand-axe", "tool.pickaxe", "tool.fishing-rod"]);
   const groups = [
-    { id: "tools", label: language === "ko" ? "도구·무기" : "Tools & weapons", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("toolmaking.")) },
+    { id: "tools", label: language === "ko" ? "도구·무기" : "Tools & weapons", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("toolmaking.") && !legacyToolAliases.has(recipe.output.itemId)) },
     { id: "construction", label: language === "ko" ? "건축" : "Construction", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("shelter.")) },
     { id: "materials", label: language === "ko" ? "재료 가공" : "Materials", recipes: craftingRecipes.filter((recipe) => !recipe.id.startsWith("toolmaking.") && !recipe.id.startsWith("shelter.")) },
   ].filter((group) => group.recipes.length > 0);
+  const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
+  const toolFamilyOf = (itemId: string) => itemId.includes("pickaxe") ? "pickaxe"
+    : itemId.includes("fishing-rod") ? "fishing-rod"
+      : itemId.includes("longsword") ? "longsword"
+        : itemId.includes("dagger") ? "dagger"
+          : itemId.includes("spear") ? "spear"
+            : itemId.includes("bow") ? "bow"
+              : itemId.includes("axe") ? "axe" : "other";
+  const familyLabels: Record<string, { en: string; ko: string }> = {
+    axe: { en: "Axes", ko: "도끼" }, pickaxe: { en: "Pickaxes", ko: "곡괭이" }, dagger: { en: "Daggers", ko: "단검" }, longsword: { en: "Longswords", ko: "장검" },
+    "fishing-rod": { en: "Fishing rods", ko: "낚싯대" }, bow: { en: "Bows", ko: "활" }, spear: { en: "Spears", ko: "창" }, other: { en: "Other", ko: "기타" },
+  };
+  const toolFamilies = activeGroup?.id === "tools"
+    ? Object.keys(familyLabels).map((id) => ({ id, label: familyLabels[id]![language], recipes: activeGroup.recipes.filter((recipe) => toolFamilyOf(recipe.output.itemId) === id) })).filter((family) => family.recipes.length > 0)
+    : [];
+  const activeFamily = toolFamilies.find((family) => family.id === activeFamilyId) ?? toolFamilies[0];
+  const visibleRecipes = activeFamily?.recipes ?? activeGroup?.recipes ?? [];
 
   return (
     <section className="crafting-overlay" aria-modal="true" role="dialog" aria-label={t("craftingTitle")}>
@@ -544,11 +578,32 @@ function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character
         </div>
         <button onClick={onClose} aria-label={t("closeCrafting")}>×</button>
       </header>
-      <div className="recipe-groups">
-      {groups.map((group) => <section className="recipe-group" key={group.id}>
-        <h3>{group.label}<small>{group.recipes.length}</small></h3>
+      <div className="crafting-content">
+        <nav className="recipe-tabs" role="tablist" aria-label={language === "ko" ? "제작 카테고리" : "Crafting categories"}>
+          {groups.map((group) => (
+            <button
+              className={group.id === activeGroup?.id ? "is-active" : ""}
+              key={group.id}
+              type="button"
+              role="tab"
+              aria-selected={group.id === activeGroup?.id}
+              onClick={() => setActiveGroupId(group.id)}
+            >
+              <span>{group.label}</span><small>{group.recipes.length}</small>
+            </button>
+          ))}
+        </nav>
+      {activeGroup && <section className="recipe-group" role="tabpanel" aria-label={activeGroup.label}>
+        <h3>{activeGroup.label}<small>{activeGroup.recipes.length}</small></h3>
+        {toolFamilies.length > 0 && <nav className="recipe-family-tabs" aria-label={language === "ko" ? "도구 종류" : "Tool families"}>
+          {toolFamilies.map((family) => (
+            <button className={family.id === activeFamily?.id ? "is-active" : ""} key={family.id} type="button" onClick={() => setActiveFamilyId(family.id)}>
+              {family.label}<small>{family.recipes.length}</small>
+            </button>
+          ))}
+        </nav>}
         <ul className="recipe-list">
-        {group.recipes.map((recipe) => {
+        {visibleRecipes.map((recipe) => {
           const ready = recipe.inputs.every((input) => (carried.get(input.itemId) ?? 0) >= input.quantity);
           return (
             <li key={recipe.id} className="recipe">
@@ -570,7 +625,7 @@ function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character
           );
         })}
         </ul>
-      </section>)}
+      </section>}
       </div>
     </section>
   );
