@@ -34,6 +34,8 @@ Food is content data, not a generic hunger value. The catalog contains at least 
 
 The server tracks protein, fat, carbohydrate, iron, vitamins A/C/D/B12, calcium, iodine, and water. Deficiencies become explicit body conditions rather than an unexplained debuff: blood and heart, eyes, gums and skin, bones and muscles, nervous system, thyroid, kidneys, and brain can each become strained or critical. A meat-only diet therefore cannot maintain the character indefinitely; gathered greens, roots, fruits, berries, and other foods are required for balance. Catalog numbers are game-balance values, not clinical nutrition guidance.
 
+Fish cannot appear as a generic gathering, hunting, or ground-loot reward. Every fish definition declares `fishing` as its sole acquisition method. Catching requires reachable fishing water and a constructed or acquired method such as a hand line, hook and line, net, trap, or spear; method, material, weather, water, skill, and species determine success.
+
 Death is followed by a physical recovery state. The character returns home incapacitated in bed for a server-calculated duration based on trauma, nutrition, rest quality, and available care. There is no trainable Healing skill.
 
 ## Progression direction

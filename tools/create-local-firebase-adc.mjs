@@ -1,11 +1,17 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, writeFileSync } from "node:fs";
+import { chmodSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const require = createRequire(import.meta.url);
 const globalNodeModules = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
-const firebaseToolsRoot = join(globalNodeModules, "firebase-tools");
+let firebaseToolsRoot = join(globalNodeModules, "firebase-tools");
+try {
+  require.resolve(join(firebaseToolsRoot, "lib/auth.js"));
+} catch {
+  const firebaseExecutable = execFileSync("which", ["firebase"], { encoding: "utf8" }).trim();
+  firebaseToolsRoot = resolve(dirname(realpathSync(firebaseExecutable)), "../..");
+}
 const auth = require(join(firebaseToolsRoot, "lib/auth.js"));
 const api = require(join(firebaseToolsRoot, "lib/api.js"));
 const account = auth.getGlobalDefaultAccount();

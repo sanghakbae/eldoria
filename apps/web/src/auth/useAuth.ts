@@ -16,12 +16,19 @@ type AuthState = {
   loading: boolean;
   error: string | null;
   pending: boolean;
+  admin: boolean;
 };
 
 export function useAuth(language: Language) {
-  const [state, setState] = useState<AuthState>({ user: null, loading: true, error: null, pending: false });
+  const [state, setState] = useState<AuthState>({ user: null, loading: true, error: null, pending: false, admin: false });
 
-  useEffect(() => onAuthStateChanged(auth, (user) => setState((current) => ({ ...current, user, loading: false }))), []);
+  useEffect(() => onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      setState((current) => ({ ...current, user: null, loading: false, admin: false }));
+      return;
+    }
+    void user.getIdTokenResult().then((token) => setState((current) => ({ ...current, user, loading: false, admin: token.claims.admin === true }))).catch(() => setState((current) => ({ ...current, user, loading: false, admin: false })));
+  }), []);
 
   const perform = async (operation: () => Promise<unknown>) => {
     setState((current) => ({ ...current, pending: true, error: null }));

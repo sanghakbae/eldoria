@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateBodyConditions, foodCatalog, getZoneDefinition, initialNutrition, isPositionWalkable, parseWorldDefinition, worldDefinition } from "./index";
+import { calculateSkillGain, defaultSkillProgression, evaluateBodyConditions, findSkillForAction, foodCatalog, getZoneDefinition, initialNutrition, isPositionWalkable, parseWorldDefinition, skillSystemDefinition, worldDefinition } from "./index";
 
 describe("zone collision data", () => {
   it("blocks Mossward buildings while leaving the road open", () => {
@@ -22,9 +22,28 @@ describe("zone collision data", () => {
   });
 });
 
+describe("survival skill system", () => {
+  it("loads the GDD's 40 skills and cap rules", () => {
+    expect(defaultSkillProgression).toHaveLength(40);
+    expect(skillSystemDefinition).toMatchObject({ totalSkillCap: 720, individualSkillCap: 120 });
+    expect(findSkillForAction("bow.shot")?.id).toBe("hunting");
+  });
+
+  it("applies the adjustable gain only after the configured action count", () => {
+    const bowHunting = { ...findSkillForAction("bow.shot")!, actionsPerGain: 10, gainAmount: 0.1 };
+    expect(calculateSkillGain({ skill: bowHunting, completedActions: 9, currentValue: 0, totalSkillValue: 0, difficultyFactor: 1 })).toBe(0);
+    expect(calculateSkillGain({ skill: bowHunting, completedActions: 10, currentValue: 0, totalSkillValue: 0, difficultyFactor: 1 })).toBe(0.1);
+    expect(calculateSkillGain({ skill: bowHunting, completedActions: 20, currentValue: 100, totalSkillValue: 100, difficultyFactor: 1 })).toBe(0);
+  });
+});
+
 describe("nutrition content", () => {
   it("contains at least 50 foods in every requested category", () => {
     for (const category of ["fish", "bird", "meat", "vegetable", "fruit"]) expect(foodCatalog.filter((food) => food.category === category)).toHaveLength(50);
+  });
+
+  it("allows fish to be obtained through fishing only", () => {
+    expect(foodCatalog.filter((food) => food.category === "fish").every((food) => food.acquisitionMethods.length === 1 && food.acquisitionMethods[0] === "fishing")).toBe(true);
   });
 
   it("maps nutrient deficiencies to affected body regions", () => {

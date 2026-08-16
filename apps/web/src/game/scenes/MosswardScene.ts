@@ -21,15 +21,16 @@ export class MosswardScene extends Phaser.Scene {
   private playerShadow?: Phaser.GameObjects.Ellipse;
   private playerMarker?: Phaser.GameObjects.Triangle;
   private keys?: DirectionKeys;
-  private target = new Phaser.Math.Vector2(900, 700);
+  private target = new Phaser.Math.Vector2(420, 450);
   private background?: Phaser.GameObjects.Image;
   private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
-  private zoneId = "mossward";
+  private zoneId = "greythorn";
   private previousDirection = "0,0";
   private clickTarget?: Phaser.Math.Vector2;
   private destinationMarker?: Phaser.GameObjects.Arc;
   private moving = false;
   private lastDustAt = 0;
+  private cameraZoomFactor = 1;
 
   constructor() {
     super("mossward");
@@ -41,14 +42,14 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   create() {
-    this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, "world.mossward").setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
-    this.createCollisionTileLayer("mossward");
-    this.playerShadow = this.add.ellipse(0, 1, 30, 9, 0x020604, 0.52);
-    this.playerSprite = this.add.sprite(0, 0, "player.walk", 0).setScale(0.15).setOrigin(0.5, 0.79);
-    this.anims.create({ key: "wanderer.walk", frames: this.anims.generateFrameNumbers("player.walk", { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
-    this.playerMarker = this.add.triangle(0, -84, 0, 0, 12, 0, 6, 9, 0xf4df82, 1).setOrigin(0.5);
+    this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, "world.greythorn").setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
+    this.createCollisionTileLayer("greythorn");
+    this.playerShadow = this.add.ellipse(0, 1, 15, 5, 0x020604, 0.52);
+    this.playerSprite = this.add.sprite(0, 0, "player.walk", 0).setScale(0.1).setOrigin(0.5, 0.74);
+    this.anims.create({ key: "wanderer.walk", frames: this.anims.generateFrameNumbers("player.walk", { start: 0, end: 7 }), frameRate: 7, repeat: -1 });
+    this.playerMarker = this.add.triangle(0, -35, 0, 0, 8, 0, 4, 6, 0xf4df82, 1).setOrigin(0.5);
     this.player = this.add.container(this.target.x, this.target.y, [this.playerShadow, this.playerSprite, this.playerMarker]).setDepth(10);
-    this.tweens.add({ targets: this.playerMarker, y: -84, alpha: 0.58, duration: 650, yoyo: true, repeat: -1, ease: "Sine.InOut" });
+    this.tweens.add({ targets: this.playerMarker, y: -39, alpha: 0.58, duration: 650, yoyo: true, repeat: -1, ease: "Sine.InOut" });
 
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT).startFollow(this.player, true, 0.12, 0.12);
     this.layoutCamera();
@@ -65,6 +66,11 @@ export class MosswardScene extends Phaser.Scene {
         Phaser.Math.Clamp(point.y, 45, WORLD_HEIGHT - 25),
       );
       this.destinationMarker?.setPosition(this.clickTarget.x, this.clickTarget.y).setVisible(true);
+    });
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _objects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
+      const zoomStep = deltaY < 0 ? 1.12 : 1 / 1.12;
+      this.cameraZoomFactor = Phaser.Math.Clamp(this.cameraZoomFactor * zoomStep, 1, 2.5);
+      this.layoutCamera();
     });
     window.addEventListener("eldoria:player-state", this.receivePlayerState);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => window.removeEventListener("eldoria:player-state", this.receivePlayerState));
@@ -120,7 +126,8 @@ export class MosswardScene extends Phaser.Scene {
   private layoutCamera() {
     const visibleWorldWidth = 900;
     const visibleWorldHeight = 540;
-    const zoom = Math.max(this.scale.width / visibleWorldWidth, this.scale.height / visibleWorldHeight, 1);
+    const fitZoom = Math.max(this.scale.width / visibleWorldWidth, this.scale.height / visibleWorldHeight, 1);
+    const zoom = fitZoom * this.cameraZoomFactor;
     this.cameras.main.setZoom(zoom);
   }
 

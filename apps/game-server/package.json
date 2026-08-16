@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "node ../../tools/create-local-firebase-adc.mjs && GOOGLE_APPLICATION_CREDENTIALS=/tmp/eldoria-firebase-adc.json tsx watch src/main.ts",
     "seed:foods": "node ../../tools/create-local-firebase-adc.mjs && GOOGLE_APPLICATION_CREDENTIALS=/tmp/eldoria-firebase-adc.json tsx src/seed-food-catalog.ts",
+    "seed:skills": "node ../../tools/create-local-firebase-adc.mjs && GOOGLE_APPLICATION_CREDENTIALS=/tmp/eldoria-firebase-adc.json tsx src/seed-skill-config.ts",
+    "grant:admin": "node ../../tools/create-local-firebase-adc.mjs && GOOGLE_APPLICATION_CREDENTIALS=/tmp/eldoria-firebase-adc.json tsx src/grant-admin.ts",
     "start": "node dist/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --pretty false"

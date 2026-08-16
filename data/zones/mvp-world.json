@@ -46,6 +46,7 @@
         ],
         "objects": [],
         "spawn": [
+          { "id": "arrival", "x": 420, "y": 450 },
           { "id": "west-road", "x": 35, "y": 555 },
           { "id": "east-road", "x": 1637, "y": 555 }
         ]

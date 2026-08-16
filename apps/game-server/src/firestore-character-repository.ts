@@ -18,10 +18,15 @@ export class FirestoreCharacterRepository implements CharacterRepository {
 
   async list(ownerUid: string): Promise<CharacterSummary[]> {
     const snapshot = await this.firestore.collection("characters").where("ownerUid", "==", ownerUid).get();
-    const missingSurvival = snapshot.docs.filter((document) => !document.data().survival);
-    if (missingSurvival.length > 0) {
+    const documentsToMigrate = snapshot.docs.filter((document) => !document.data().survival || isLegacyVillageStart(document.data().position));
+    if (documentsToMigrate.length > 0) {
       const batch = this.firestore.batch();
-      for (const document of missingSurvival) batch.set(document.ref, { survival: createInitialSurvivalState(document.data().createdAt?.toDate?.().toISOString()) }, { merge: true });
+      for (const document of documentsToMigrate) {
+        const update: Record<string, unknown> = {};
+        if (!document.data().survival) update.survival = createInitialSurvivalState(document.data().createdAt?.toDate?.().toISOString());
+        if (isLegacyVillageStart(document.data().position)) update.position = STARTING_POSITION;
+        batch.set(document.ref, update, { merge: true });
+      }
       await batch.commit();
     }
     return snapshot.docs.map(toCharacter).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -46,7 +51,10 @@ export class FirestoreCharacterRepository implements CharacterRepository {
   async getOwned(ownerUid: string, characterId: string): Promise<CharacterSummary | null> {
     const snapshot = await this.firestore.collection("characters").doc(characterId).get();
     if (!snapshot.exists || snapshot.data()?.ownerUid !== ownerUid) return null;
-    if (!snapshot.data()?.survival) await snapshot.ref.set({ survival: createInitialSurvivalState(snapshot.data()?.createdAt?.toDate?.().toISOString()) }, { merge: true });
+    const update: Record<string, unknown> = {};
+    if (!snapshot.data()?.survival) update.survival = createInitialSurvivalState(snapshot.data()?.createdAt?.toDate?.().toISOString());
+    if (isLegacyVillageStart(snapshot.data()?.position)) update.position = STARTING_POSITION;
+    if (Object.keys(update).length > 0) await snapshot.ref.set(update, { merge: true });
     return toCharacter(snapshot);
   }
 
@@ -69,5 +77,9 @@ function toCharacter(snapshot: { id: string; data(): unknown }): CharacterSummar
   const data = snapshot.data() as StoredCharacter | undefined;
   if (!data) throw new Error(`Character ${snapshot.id} has no data.`);
   const createdAt = data.createdAt.toDate().toISOString();
-  return { id: snapshot.id, name: data.name, position: data.position, createdAt, survival: data.survival ?? createInitialSurvivalState(createdAt) };
+  return { id: snapshot.id, name: data.name, position: isLegacyVillageStart(data.position) ? { ...STARTING_POSITION } : data.position, createdAt, survival: data.survival ?? createInitialSurvivalState(createdAt) };
+}
+
+function isLegacyVillageStart(position: unknown): boolean {
+  return typeof position === "object" && position !== null && "zoneId" in position && "x" in position && "y" in position && position.zoneId === "mossward" && position.x === 900 && position.y === 700;
 }

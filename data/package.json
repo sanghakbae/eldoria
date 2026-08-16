@@ -6,6 +6,7 @@
   "exports": {
     "./zones": "./zones/mvp-world.json",
     "./nutrition": "./nutrition/definitions.json",
-    "./foods": "./foods/catalog.json"
+    "./foods": "./foods/catalog.json",
+    "./skills": "./skills/progression.json"
   }
 }

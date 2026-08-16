@@ -7,6 +7,7 @@ import type { User } from "firebase/auth";
 import { useEffect, useState, type FormEvent } from "react";
 import { evaluateBodyConditions } from "@eldoria/game-data";
 import type { CharacterSummary } from "@eldoria/game-protocol";
+import { AdminSkillSettings } from "./admin/AdminSkillSettings";
 
 const quickSlots: TranslationKey[] = ["fists", "gather", "fire", "map"];
 const zoneTranslationKeys: Record<string, TranslationKey> = { mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" };
@@ -53,23 +54,28 @@ export function App() {
     return <AuthScreen error={session.error} pending={session.pending} onSignIn={session.signIn} onRegister={session.register} onGoogle={session.signInWithGoogle} />;
   }
 
-  return <AuthenticatedApp user={session.user} onSignOut={session.signOut} />;
+  return <AuthenticatedApp user={session.user} isAdmin={session.admin} onSignOut={session.signOut} />;
 }
 
-function AuthenticatedApp({ user, onSignOut }: { user: User; onSignOut: () => Promise<void> }) {
+function AuthenticatedApp({ user, isAdmin, onSignOut }: { user: User; isAdmin: boolean; onSignOut: () => Promise<void> }) {
+  if (isAdmin && new URLSearchParams(window.location.search).get("admin") === "skills") return <AdminSkillSettings user={user} onExit={() => { window.location.href = "/"; }} />;
+  return <GameSession user={user} isAdmin={isAdmin} onSignOut={onSignOut} />;
+}
+
+function GameSession({ user, isAdmin, onSignOut }: { user: User; isAdmin: boolean; onSignOut: () => Promise<void> }) {
   const connection = useGameConnection(user);
-  if (!connection.selectedCharacter) return <CharacterScreen connection={connection} onSignOut={onSignOut} />;
-  return <WorldScreen connection={connection} character={connection.selectedCharacter} onSignOut={onSignOut} />;
+  if (!connection.selectedCharacter) return <CharacterScreen connection={connection} isAdmin={isAdmin} onSignOut={onSignOut} />;
+  return <WorldScreen connection={connection} character={connection.selectedCharacter} isAdmin={isAdmin} onSignOut={onSignOut} />;
 }
 
-function WorldScreen({ connection, character, onSignOut }: { connection: GameConnection; character: CharacterSummary; onSignOut: () => Promise<void> }) {
+function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection: GameConnection; character: CharacterSummary; isAdmin: boolean; onSignOut: () => Promise<void> }) {
   const { t, language } = useLanguage();
   const bodyConditions = evaluateBodyConditions(character.survival.nutrition);
-  const [zoneId, setZoneId] = useState("mossward");
-  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "mossward", x: 900, y: 700 });
+  const [zoneId, setZoneId] = useState("greythorn");
+  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "greythorn", x: 420, y: 450 });
   const [exploredTrail, setExploredTrail] = useState<MapPoint[]>(loadExploredTrail);
   const [mapOpen, setMapOpen] = useState(false);
-  const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["mossward"]') as string[]));
+  const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["greythorn"]') as string[]));
   useEffect(() => {
     const handleZone = (event: Event) => {
       const nextZone = (event as CustomEvent<string>).detail;
@@ -117,6 +123,7 @@ function WorldScreen({ connection, character, onSignOut }: { connection: GameCon
           <span>{connection.label}</span>
           {connection.latency !== null && <strong>{connection.latency}ms</strong>}
           <LanguageToggle />
+          {isAdmin && <button className="signout-button" type="button" onClick={() => { window.location.search = "?admin=skills"; }}>ADMIN</button>}
           <button className="signout-button" type="button" onClick={() => void onSignOut()}>{t("signOut")}</button>
         </div>
       </header>
@@ -145,7 +152,7 @@ function WorldScreen({ connection, character, onSignOut }: { connection: GameCon
           </div>
           <div className="divider" />
           <p className="panel-label">{t("activeSkills")}</p>
-          <Skill name={t("unarmed")} value="0.0" />
+          <Skill name={t("observation")} value="0.0" />
           <Skill name={t("butchering")} value="0.0" />
           <Skill name={t("lumberjacking")} value="11.2" />
         </aside>
@@ -159,7 +166,7 @@ function WorldScreen({ connection, character, onSignOut }: { connection: GameCon
               <small>{t(zoneId === "mossward" ? "safeSettlement" : "wildZone")}</small>
             </div>
           </div>
-          <div className="world-hint">{t("clickMove")} · {t("roadHint")}</div>
+          <div className="world-hint">{t("clickMove")} · {t("wheelZoom")} · {t("roadHint")}</div>
           {mapOpen && <WorldMapOverlay position={playerPosition} exploredTrail={exploredTrail} visitedZones={visitedZones} onClose={() => setMapOpen(false)} />}
         </section>
 
@@ -189,7 +196,7 @@ function WorldScreen({ connection, character, onSignOut }: { connection: GameCon
   );
 }
 
-function CharacterScreen({ connection, onSignOut }: { connection: GameConnection; onSignOut: () => Promise<void> }) {
+function CharacterScreen({ connection, isAdmin, onSignOut }: { connection: GameConnection; isAdmin: boolean; onSignOut: () => Promise<void> }) {
   const { t } = useLanguage();
   const [name, setName] = useState("");
   const submit = (event: FormEvent) => {
@@ -204,7 +211,7 @@ function CharacterScreen({ connection, onSignOut }: { connection: GameConnection
       <section className="character-select-card">
         <div className="character-select-header">
           <div><p className="eyebrow">{t("frontier")}</p><h1>ELDORIA</h1></div>
-          <div><LanguageToggle /><button className="signout-button" onClick={() => void onSignOut()}>{t("signOut")}</button></div>
+          <div><LanguageToggle />{isAdmin && <button className="signout-button" onClick={() => { window.location.search = "?admin=skills"; }}>ADMIN</button>}<button className="signout-button" onClick={() => void onSignOut()}>{t("signOut")}</button></div>
         </div>
         <div className="character-select-title"><p className="eyebrow">{t("characterArchive")}</p><h2>{t("chooseCharacter")}</h2><p>{t("characterPersistence")}</p></div>
         <div className="character-list">

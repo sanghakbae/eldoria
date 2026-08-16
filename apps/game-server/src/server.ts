@@ -1,26 +1,22 @@
-import { createServer, type Server as HttpServer } from "node:http";
+import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import { decodeClientMessage, encodeMessage, type CharacterSummary } from "@eldoria/game-protocol";
 import { WebSocketServer } from "ws";
 import type { GameServerConfig } from "./config";
 import type { VerifyIdToken } from "./auth-verifier";
 import { CharacterRepositoryError, type CharacterRepository } from "./character-repository";
 import { RuntimeWorld } from "./world";
+import { MemorySkillConfigRepository, SkillConfigError, type SkillConfigRepository } from "./skill-config-repository";
 
 export type RunningGameServer = {
   address: string;
   close: () => Promise<void>;
 };
 
-export function createGameServer(config: GameServerConfig, dependencies: { verifyIdToken: VerifyIdToken; characters: CharacterRepository }): Promise<RunningGameServer> {
+export function createGameServer(config: GameServerConfig, dependencies: { verifyIdToken: VerifyIdToken; characters: CharacterRepository; skills?: SkillConfigRepository }): Promise<RunningGameServer> {
   const world = new RuntimeWorld();
+  const skills = dependencies.skills ?? new MemorySkillConfigRepository();
   const httpServer: HttpServer = createServer((request, response) => {
-    if (request.url === "/health") {
-      response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify({ status: "ok", service: "eldoria-game-server" }));
-      return;
-    }
-    response.writeHead(404, { "content-type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify({ error: "not_found" }));
+    void handleHttpRequest(request, response, dependencies.verifyIdToken, skills);
   });
 
   const webSocketServer = new WebSocketServer({ server: httpServer, maxPayload: 16 * 1024 });
@@ -144,4 +140,48 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
 
 function sendError(socket: { send(data: string): void }, requestId: string, code: string, message: string) {
   socket.send(encodeMessage({ type: "error", requestId, payload: { code, message } }));
+}
+
+async function handleHttpRequest(request: IncomingMessage, response: ServerResponse, verifyIdToken: VerifyIdToken, skills: SkillConfigRepository) {
+  response.setHeader("access-control-allow-origin", request.headers.origin === "https://eldoria.sanghak.kr" ? request.headers.origin : "http://localhost:5173");
+  response.setHeader("access-control-allow-headers", "authorization,content-type");
+  response.setHeader("access-control-allow-methods", "GET,PUT,OPTIONS");
+  if (request.method === "OPTIONS") return sendJson(response, 204, null);
+  if (request.url === "/health") return sendJson(response, 200, { status: "ok", service: "eldoria-game-server" });
+  if (request.url !== "/admin/skill-config") return sendJson(response, 404, { error: "not_found" });
+
+  try {
+    const authorization = request.headers.authorization;
+    if (!authorization?.startsWith("Bearer ")) return sendJson(response, 401, { error: "auth.required" });
+    const identity = await verifyIdToken(authorization.slice(7));
+    if (!identity.admin) return sendJson(response, 403, { error: "admin.required" });
+    if (request.method === "GET") return sendJson(response, 200, { skills: await skills.list() });
+    if (request.method === "PUT") {
+      const body = await readJsonBody(request);
+      if (!isRecord(body) || typeof body.skillId !== "string" || typeof body.actionsPerGain !== "number" || typeof body.gainAmount !== "number") return sendJson(response, 400, { error: "skill.invalid_payload" });
+      return sendJson(response, 200, { skill: await skills.update(body.skillId, { actionsPerGain: body.actionsPerGain, gainAmount: body.gainAmount }, identity.uid) });
+    }
+    return sendJson(response, 405, { error: "method_not_allowed" });
+  } catch (error) {
+    const known = error instanceof SkillConfigError ? error : undefined;
+    return sendJson(response, known ? 400 : 401, { error: known?.code ?? "auth.invalid", message: known?.message });
+  }
+}
+
+function sendJson(response: ServerResponse, status: number, body: unknown) {
+  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.end(body === null ? undefined : JSON.stringify(body));
+}
+
+async function readJsonBody(request: IncomingMessage): Promise<unknown> {
+  let body = "";
+  for await (const chunk of request) {
+    body += chunk;
+    if (body.length > 16_384) throw new Error("Request body is too large.");
+  }
+  return JSON.parse(body);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

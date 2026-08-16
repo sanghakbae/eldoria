@@ -2,7 +2,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const GOOGLE_FIREBASE_KEYS = createRemoteJWKSet(new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"));
 
-export type VerifyIdToken = (idToken: string) => Promise<{ uid: string }>;
+export type VerifyIdToken = (idToken: string) => Promise<{ uid: string; admin: boolean }>;
 
 export function createFirebaseTokenVerifier(projectId: string): VerifyIdToken {
   return async (idToken) => {
@@ -12,6 +12,6 @@ export function createFirebaseTokenVerifier(projectId: string): VerifyIdToken {
       issuer: `https://securetoken.google.com/${projectId}`,
     });
     if (!payload.sub) throw new Error("Firebase token has no subject");
-    return { uid: payload.sub };
+    return { uid: payload.sub, admin: payload.admin === true };
   };
 }

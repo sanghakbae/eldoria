@@ -3,12 +3,15 @@ import { createGameServer } from "./server";
 import { createFirebaseTokenVerifier } from "./auth-verifier";
 import { createFirestoreCharacterRepository } from "./firestore-character-repository";
 import { MemoryCharacterRepository } from "./character-repository";
+import { createFirestoreSkillConfigRepository, MemorySkillConfigRepository } from "./skill-config-repository";
 
 const config = loadConfig();
 const characters = process.env.CHARACTER_STORE === "memory" ? new MemoryCharacterRepository() : createFirestoreCharacterRepository(config.firebaseProjectId);
+const skills = process.env.CHARACTER_STORE === "memory" ? new MemorySkillConfigRepository() : createFirestoreSkillConfigRepository(config.firebaseProjectId);
 const server = await createGameServer(config, {
   verifyIdToken: createFirebaseTokenVerifier(config.firebaseProjectId),
   characters,
+  skills,
 });
 
 console.info(JSON.stringify({ event: "server.start", address: server.address }));
