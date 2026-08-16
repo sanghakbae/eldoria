@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
-import type { BuiltStructure } from "@eldoria/game-protocol";
+import type { BuiltStructure, CharacterSummary } from "@eldoria/game-protocol";
 import { createGameConfig } from "./config";
 
-export function GameCanvas({ gender, language, equipped, equipment, structures }: { gender: "female" | "male"; language: "en" | "ko"; equipped: string | null; equipment: Record<string, string | null | undefined>; structures: BuiltStructure[] }) {
+export function GameCanvas({ gender, language, position, equipped, equipment, hasFishingRod, structures }: { gender: "female" | "male"; language: "en" | "ko"; position: CharacterSummary["position"]; equipped: string | null; equipment: Record<string, string | null | undefined>; hasFishingRod: boolean; structures: BuiltStructure[] }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
 
@@ -11,6 +11,7 @@ export function GameCanvas({ gender, language, equipped, equipment, structures }
     if (!hostRef.current || gameRef.current) return;
     const host = hostRef.current;
     host.dataset.gender = gender;
+    host.dataset.position = JSON.stringify(position);
     gameRef.current = new Phaser.Game(createGameConfig(host));
     // The drawing buffer has to be sized in device pixels. Sized in CSS pixels it was a 1x image
     // stretched over a 2x screen, which is what made the whole world look smeared. The camera derives
@@ -44,10 +45,17 @@ export function GameCanvas({ gender, language, equipped, equipment, structures }
     if (!hostRef.current) return;
     hostRef.current.dataset.language = language;
     hostRef.current.dataset.equipped = equipped ?? "";
+    hostRef.current.dataset.hasFishingRod = String(hasFishingRod || Boolean(equipped && (equipped === "tool.fishing-rod" || equipped.endsWith("-fishing-rod"))));
     hostRef.current.dataset.equipment = JSON.stringify(Object.fromEntries(Object.entries(equipment).filter(([, itemId]) => Boolean(itemId))));
     hostRef.current.dataset.structures = JSON.stringify(structures);
     window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));
-  }, [language, equipped, equipment, structures]);
+  }, [language, equipped, equipment, hasFishingRod, structures]);
+
+  useEffect(() => {
+    if (!hostRef.current) return;
+    hostRef.current.dataset.position = JSON.stringify(position);
+    window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: position }));
+  }, [position.zoneId, position.x, position.y]);
 
   return <div ref={hostRef} className="game-canvas" />;
 }

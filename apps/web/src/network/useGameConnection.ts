@@ -29,6 +29,9 @@ type ConnectionState = Omit<GameConnection, "createCharacter" | "selectCharacter
 const initialState: ConnectionState = { status: "connecting", label: "Connecting", message: "Opening a path to the realm…", latency: null, characters: [], charactersReady: false, selectedCharacter: null, lastOutcome: null, lastCraft: null };
 
 const localCharacterKey = (uid: string) => `eldoria.local-character.${uid}`;
+const localPositionKey = (uid: string, characterId: string) => `eldoria.position.${uid}.${characterId}`;
+
+type LocalPositionCheckpoint = { position: CharacterSummary["position"]; savedAt: number };
 
 function readLocalCharacter(uid: string): CharacterSummary | null {
   try {
@@ -41,6 +44,22 @@ function readLocalCharacter(uid: string): CharacterSummary | null {
 
 function writeLocalCharacter(uid: string, character: CharacterSummary) {
   localStorage.setItem(localCharacterKey(uid), JSON.stringify(character));
+}
+
+function readLocalPosition(uid: string, characterId: string): LocalPositionCheckpoint | null {
+  try {
+    const raw = localStorage.getItem(localPositionKey(uid, characterId));
+    if (!raw) return null;
+    const checkpoint = JSON.parse(raw) as LocalPositionCheckpoint;
+    if (!checkpoint?.position || typeof checkpoint.position.x !== "number" || typeof checkpoint.position.y !== "number" || typeof checkpoint.position.zoneId !== "string" || typeof checkpoint.savedAt !== "number") return null;
+    return checkpoint;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalPosition(uid: string, characterId: string, position: CharacterSummary["position"]) {
+  localStorage.setItem(localPositionKey(uid, characterId), JSON.stringify({ position, savedAt: Date.now() } satisfies LocalPositionCheckpoint));
 }
 
 function fallbackCharacterName(user: User): string {
@@ -92,7 +111,7 @@ export function useGameConnection(user: User): GameConnection {
           const survival = { ...latest.survival, health: { current: latest.survival.health?.maximum ?? 100, maximum: latest.survival.health?.maximum ?? 100 } };
           const recovered = { ...latest, position, survival };
           setState((current) => ({ ...current, selectedCharacter: recovered, characters: current.characters.map((candidate) => candidate.id === recovered.id ? recovered : candidate), message: "You regain consciousness in the meadow." }));
-          void updateDoc(doc(firestore, "characters", recovered.id), { position, survival, updatedAt: serverTimestamp() });
+          void updateDoc(doc(firestore, "characters", recovered.id), { position, survival, positionUpdatedAt: serverTimestamp(), updatedAt: serverTimestamp() });
           window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: position }));
           window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: position.zoneId }));
         }, 1200);
@@ -102,6 +121,10 @@ export function useGameConnection(user: User): GameConnection {
         const characterId = selectedCharacterIdRef.current;
         if (!position || !characterId) return;
         pendingPosition = position;
+        // Browser reload can terminate Firestore's last debounced request. This synchronous,
+        // per-account checkpoint preserves the exact final coordinate and is reconciled with the DB
+        // timestamp on the next load rather than replacing Firestore as the shared authority.
+        writeLocalPosition(user.uid, characterId, position);
         setState((current) => ({
           ...current,
           selectedCharacter: current.selectedCharacter ? { ...current.selectedCharacter, position } : current.selectedCharacter,
@@ -113,8 +136,8 @@ export function useGameConnection(user: User): GameConnection {
           if (!pendingPosition) return;
           const saved = pendingPosition;
           pendingPosition = undefined;
-          void updateDoc(doc(firestore, "characters", characterId), { position: saved, updatedAt: serverTimestamp() });
-        }, 1000);
+          void updateDoc(doc(firestore, "characters", characterId), { position: saved, positionUpdatedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        }, 250);
       };
       const handleWildlifeCombat = (event: Event) => {
         const interaction = (event as CustomEvent<{ objectId: string; x?: number; y?: number }>).detail;
@@ -269,11 +292,18 @@ export function useGameConnection(user: User): GameConnection {
         const characters = snapshot.docs.map((document) => {
           const data = document.data();
           const createdAt = typeof data.createdAt?.toDate === "function" ? data.createdAt.toDate().toISOString() : new Date().toISOString();
+          const databasePosition = data.position && typeof data.position.x === "number" ? data.position as CharacterSummary["position"] : { zoneId: "untamedWilds", x: 836, y: 470 };
+          // Inventory, combat and sleep also update the character document. Only a position-specific
+          // timestamp can tell whether the DB coordinate is newer than the synchronous checkpoint.
+          const databasePositionUpdatedAt = typeof data.positionUpdatedAt?.toMillis === "function" ? data.positionUpdatedAt.toMillis() : 0;
+          const checkpoint = readLocalPosition(user.uid, document.id);
+          const position = checkpoint && checkpoint.savedAt > databasePositionUpdatedAt ? checkpoint.position : databasePosition;
+          if (checkpoint && checkpoint.savedAt > databasePositionUpdatedAt) void updateDoc(doc(firestore, "characters", document.id), { position, positionUpdatedAt: serverTimestamp(), updatedAt: serverTimestamp() });
           return {
             id: document.id,
             name: String(data.name ?? "Wanderer"),
             gender: data.gender === "female" ? "female" as const : "male" as const,
-            position: data.position && typeof data.position.x === "number" ? data.position : { zoneId: "untamedWilds", x: 836, y: 470 },
+            position,
             createdAt,
             survival: data.survival ?? createInitialSurvivalState(createdAt),
           } satisfies CharacterSummary;
@@ -289,7 +319,7 @@ export function useGameConnection(user: User): GameConnection {
         // A reload can happen inside the one-second debounce window. Flush that last coordinate so
         // the same character resumes at the exact place they stopped instead of an older checkpoint.
         const characterId = selectedCharacterIdRef.current;
-        if (pendingPosition && characterId) void updateDoc(doc(firestore, "characters", characterId), { position: pendingPosition, updatedAt: serverTimestamp() });
+        if (pendingPosition && characterId) void updateDoc(doc(firestore, "characters", characterId), { position: pendingPosition, positionUpdatedAt: serverTimestamp(), updatedAt: serverTimestamp() });
         window.removeEventListener("eldoria:player-state", persistPosition);
         window.removeEventListener("eldoria:interact", handleWildlifeCombat);
         window.removeEventListener("eldoria:interact", handleLocalResource);
@@ -485,7 +515,7 @@ export function useGameConnection(user: User): GameConnection {
       }
       const createdAt = new Date().toISOString();
       const survival = createInitialSurvivalState(createdAt);
-      void addDoc(collection(firestore, "characters"), { ownerUid: user.uid, name: name.trim(), gender, position: { zoneId: "untamedWilds", x: 836, y: 470 }, survival, startVersion: 2, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }).then((reference) => {
+      void addDoc(collection(firestore, "characters"), { ownerUid: user.uid, name: name.trim(), gender, position: { zoneId: "untamedWilds", x: 836, y: 470 }, positionUpdatedAt: serverTimestamp(), survival, startVersion: 2, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }).then((reference) => {
         const character: CharacterSummary = { id: reference.id, name: name.trim(), gender, position: { zoneId: "untamedWilds", x: 836, y: 470 }, createdAt, survival };
         setState((current) => ({ ...current, characters: [...current.characters, character], message: `${character.name} is ready.` }));
       }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));

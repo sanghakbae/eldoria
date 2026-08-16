@@ -194,14 +194,33 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [craftingOpen, setCraftingOpen] = useState(false);
-  const [insideShelter, setInsideShelter] = useState<string | null>(null);
+  const shelterStorageKey = `eldoria.shelter-state.${character.id}`;
+  const [insideShelter, setInsideShelter] = useState<string | null>(() => {
+    try { return (JSON.parse(localStorage.getItem(shelterStorageKey) ?? "null") as { structureId?: string } | null)?.structureId ?? null; } catch { return null; }
+  });
+  const [sleepingInShelter, setSleepingInShelter] = useState(() => {
+    try { return Boolean((JSON.parse(localStorage.getItem(shelterStorageKey) ?? "null") as { sleeping?: boolean } | null)?.sleeping); } catch { return false; }
+  });
   const [systemMessages, setSystemMessages] = useState<string[]>(() => [localizedSystemMessage(connection.message, language)]);
   const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["untamedWilds"]') as string[]));
+  const equippedItem = character.survival.equipment?.mainHand ?? character.survival.equipped ?? null;
+  const hasFishingRod = Boolean(equippedItem && (equippedItem === "tool.fishing-rod" || equippedItem.endsWith("-fishing-rod")))
+    || (character.survival.inventory ?? []).some((stack) => (stack.itemId === "tool.fishing-rod" || stack.itemId.endsWith("-fishing-rod")) && stack.quantity > 0);
+  const nearbyFishingWater = getZoneDefinition(playerPosition.zoneId)?.layers.objects.find((object) => (object.type === "fishingWater" || object.type === "riverFishingWater") && Math.hypot(playerPosition.x - object.x, playerPosition.y - object.y) <= 260);
   useEffect(() => {
-    const enterShelter = (event: Event) => setInsideShelter((event as CustomEvent<string>).detail);
+    const enterShelter = (event: Event) => {
+      const structureId = (event as CustomEvent<string>).detail;
+      localStorage.setItem(shelterStorageKey, JSON.stringify({ structureId, sleeping: false }));
+      setSleepingInShelter(false);
+      setInsideShelter(structureId);
+    };
     window.addEventListener("eldoria:structure-enter", enterShelter);
     return () => window.removeEventListener("eldoria:structure-enter", enterShelter);
-  }, []);
+  }, [shelterStorageKey]);
+  useEffect(() => {
+    if (!insideShelter) localStorage.removeItem(shelterStorageKey);
+    else localStorage.setItem(shelterStorageKey, JSON.stringify({ structureId: insideShelter, sleeping: sleepingInShelter }));
+  }, [insideShelter, shelterStorageKey, sleepingInShelter]);
   useEffect(() => {
     if (!connection.message) return;
     const localized = localizedSystemMessage(connection.message, language);
@@ -295,7 +314,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           <div className="divider" />
           <p className="panel-label">{t("bodyCondition")}</p>
           <div className={`body-condition ${bodyConditions.length === 0 ? "body-condition--healthy" : "body-condition--warning"}`}>
-            <BodyConditionFigure conditions={bodyConditions} gender={character.gender} />
+            <BodyConditionFigure conditions={bodyConditions} gender={character.gender} language={language} />
             <div>
               {bodyConditions.length === 0 && <><strong>{t("wholeBodyHealthy")}</strong><small>{t("nutritionBalanced")}</small></>}
               {bodyConditions.slice(0, 3).map((condition) => <span key={condition.id}><strong>{condition.name[language]}</strong><small>{condition.effect[language]}</small></span>)}
@@ -314,8 +333,9 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
         </aside>
 
         <section className="world-frame" aria-label={t("worldAria")}>
-          <GameCanvas gender={character.gender} language={language} equipped={character.survival.equipment?.mainHand ?? character.survival.equipped ?? null} equipment={character.survival.equipment ?? {}} structures={character.survival.structures ?? []} />
+          <GameCanvas gender={character.gender} language={language} position={character.position} equipped={equippedItem} equipment={character.survival.equipment ?? {}} hasFishingRod={hasFishingRod} structures={character.survival.structures ?? []} />
           <MiniMap position={playerPosition} language={language} onOpen={() => setMapOpen(true)} />
+          {hasFishingRod && nearbyFishingWater && <button type="button" className="shore-fishing-action" onClick={() => window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: nearbyFishingWater.id } }))}>{language === "ko" ? "낚시하기" : "Fish here"}</button>}
           <button type="button" className="inventory-toggle" onClick={() => setInventoryOpen(true)} aria-label={t("inventory")}>
             <QuickSlotIcon slot="inventory" /><span>{t("inventory")}</span><kbd>I</kbd>
           </button>
@@ -333,10 +353,16 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           {craftingOpen && <CraftingOverlay character={character} lastCraft={connection.lastCraft} onCraft={connection.craft} onClose={() => setCraftingOpen(false)} />}
           {insideShelter && <section className="shelter-interior" aria-label={language === "ko" ? "통나무 집 내부" : "Log shelter interior"}>
             <div className="shelter-interior-copy"><span>{language === "ko" ? "통나무 집 내부" : "Inside the log shelter"}</span><strong>{language === "ko" ? "바람을 피할 수 있는 안전한 공간" : "A safe place out of the wind"}</strong></div>
+            {sleepingInShelter && <div className={`shelter-sleeper shelter-sleeper--${character.gender}`} role="img" aria-label={language === "ko" ? `${character.name}이(가) 침대에서 자는 모습` : `${character.name} sleeping in bed`} />}
             <div className="shelter-actions">
-              <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("eldoria:sleep"))}>{language === "ko" ? "잠자기" : "Sleep"}</button>
-              <button type="button" onClick={() => { window.dispatchEvent(new CustomEvent("eldoria:structure-move", { detail: insideShelter })); setInsideShelter(null); }}>{language === "ko" ? "집 옮기기" : "Move house"}</button>
-              <button type="button" onClick={() => setInsideShelter(null)}>{language === "ko" ? "밖으로 나가기" : "Exit"}</button>
+              <button type="button" aria-pressed={sleepingInShelter} onClick={() => {
+                const nextSleeping = !sleepingInShelter;
+                localStorage.setItem(shelterStorageKey, JSON.stringify({ structureId: insideShelter, sleeping: nextSleeping }));
+                setSleepingInShelter(nextSleeping);
+                if (nextSleeping) window.dispatchEvent(new CustomEvent("eldoria:sleep"));
+              }}>{sleepingInShelter ? (language === "ko" ? "일어나기" : "Wake up") : (language === "ko" ? "잠자기" : "Sleep")}</button>
+              <button type="button" onClick={() => { window.dispatchEvent(new CustomEvent("eldoria:structure-move", { detail: insideShelter })); localStorage.removeItem(shelterStorageKey); setSleepingInShelter(false); setInsideShelter(null); }}>{language === "ko" ? "집 옮기기" : "Move house"}</button>
+              <button type="button" onClick={() => { localStorage.removeItem(shelterStorageKey); setSleepingInShelter(false); setInsideShelter(null); }}>{language === "ko" ? "밖으로 나가기" : "Exit"}</button>
             </div>
           </section>}
         </section>
@@ -380,26 +406,52 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
   );
 }
 
-const bodyRegionPoints: Record<string, Array<[number, number]>> = {
-  blood: [[40, 50]],
-  eyes: [[37, 15], [43, 15]],
-  gumsSkin: [[40, 21]],
-  bonesMuscles: [[18, 58], [62, 58], [32, 111], [48, 111]],
-  muscles: [[21, 55], [59, 55], [33, 91], [47, 91]],
-  nervousSystem: [[40, 15]],
-  thyroid: [[40, 29]],
-  kidneysBrain: [[40, 15], [35, 68], [45, 68]],
-};
+type BodyPartId = "head" | "chest" | "abdomen" | "leftArm" | "rightArm" | "leftLeg" | "rightLeg";
+const bodyParts: Array<{ id: BodyPartId; ko: string; en: string; regions: string[]; anchor: [number, number]; label: [number, number]; side: "left" | "right" }> = [
+  { id: "head", ko: "머리", en: "Head", regions: ["eyes", "gumsSkin", "nervousSystem", "kidneysBrain"], anchor: [91, 18], label: [4, 16], side: "left" },
+  { id: "rightArm", ko: "오른팔", en: "Right arm", regions: ["blood", "bonesMuscles", "muscles", "nervousSystem"], anchor: [77, 58], label: [4, 58], side: "left" },
+  { id: "rightLeg", ko: "오른다리", en: "Right leg", regions: ["blood", "bonesMuscles", "muscles", "nervousSystem"], anchor: [86, 121], label: [4, 130], side: "left" },
+  { id: "chest", ko: "가슴", en: "Chest", regions: ["blood", "bonesMuscles", "muscles", "thyroid", "nervousSystem"], anchor: [91, 48], label: [176, 38], side: "right" },
+  { id: "leftArm", ko: "왼팔", en: "Left arm", regions: ["blood", "bonesMuscles", "muscles", "nervousSystem"], anchor: [105, 58], label: [176, 58], side: "right" },
+  { id: "abdomen", ko: "복부", en: "Abdomen", regions: ["blood", "kidneysBrain"], anchor: [91, 76], label: [176, 78], side: "right" },
+  { id: "leftLeg", ko: "왼다리", en: "Left leg", regions: ["blood", "bonesMuscles", "muscles", "nervousSystem"], anchor: [97, 121], label: [176, 130], side: "right" },
+];
 
-/** A calm body-status silhouette. Internal anatomy stays hidden until a condition marks a region. */
-function BodyConditionFigure({ conditions, gender }: { conditions: BodyCondition[]; gender: "female" | "male" }) {
-  const markers = conditions.flatMap((condition) => (bodyRegionPoints[condition.region] ?? [[40, 52]]).map(([x, y]) => ({ x, y, severity: condition.severity, id: condition.id })));
+function bodyPartSeverity(part: (typeof bodyParts)[number], conditions: BodyCondition[]) {
+  const affected = conditions.filter((condition) => part.regions.includes(condition.region));
+  return affected.some((condition) => condition.severity === "critical") ? "critical" : affected.length > 0 ? "strained" : "healthy";
+}
+
+/** The character art stays central while its traced outline and side callouts report each body part. */
+function BodyConditionFigure({ conditions, gender, language }: { conditions: BodyCondition[]; gender: "female" | "male"; language: "ko" | "en" }) {
+  const statusByPart = Object.fromEntries(bodyParts.map((part) => [part.id, bodyPartSeverity(part, conditions)])) as Record<BodyPartId, "healthy" | "strained" | "critical">;
+  const statusLabel = (status: "healthy" | "strained" | "critical") => language === "ko" ? ({ healthy: "정상", strained: "주의", critical: "위험" }[status]) : ({ healthy: "Stable", strained: "Strained", critical: "Critical" }[status]);
+  const outlineColor = conditions.some((condition) => condition.severity === "critical") ? "#e05a4c" : conditions.length > 0 ? "#d69a5d" : "#8fcf7b";
   return (
-    <svg className="body-condition-figure" viewBox="0 0 80 144" role="img" aria-label={conditions.length === 0 ? "Healthy body" : conditions.map((condition) => condition.name.en).join(", ")}>
-      <ellipse className="body-silhouette-halo" cx="40" cy="137" rx="20" ry="3" />
-      <image className="body-character-image" href={`/assets/characters/body-condition-${gender}.png`} x="0" y="2" width="80" height="140" preserveAspectRatio="xMidYMax meet" />
-      {markers.map((marker, index) => <circle key={`${marker.id}-${index}`} className={`body-marker body-marker--${marker.severity}`} cx={marker.x} cy={marker.y} r="4.5" />)}
-    </svg>
+    <div className="body-condition-anatomy">
+      <svg className="body-condition-figure" viewBox="0 0 180 160" role="img" aria-label={conditions.length === 0 ? (language === "ko" ? "모든 신체 부위 정상" : "All body parts stable") : conditions.map((condition) => condition.name[language]).join(", ")}>
+        <defs>
+          <filter id="body-alpha-outline" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.35" result="expanded" />
+            <feComposite in="expanded" in2="SourceAlpha" operator="out" result="edge" />
+            <feFlood floodColor={outlineColor} result="color" />
+            <feComposite in="color" in2="edge" operator="in" />
+          </filter>
+        </defs>
+        <image className="body-character-source" href={`/assets/characters/body-condition-${gender}.png`} x="59" y="2" width="64" height="154" preserveAspectRatio="xMidYMax meet" />
+        <image className="body-outline-source" href={`/assets/characters/body-condition-${gender}.png`} x="59" y="2" width="64" height="154" preserveAspectRatio="xMidYMax meet" filter="url(#body-alpha-outline)" />
+        {bodyParts.map((part) => {
+          const status = statusByPart[part.id];
+          const elbowX = part.side === "left" ? 51 : 130;
+          const lineEndX = part.side === "left" ? 43 : 137;
+          return <g key={part.id} className={`body-callout body-callout--${status}`}>
+            <polyline points={`${part.anchor[0]},${part.anchor[1]} ${elbowX},${part.label[1]} ${lineEndX},${part.label[1]}`} />
+            <circle cx={part.anchor[0]} cy={part.anchor[1]} r="1.8" />
+            <text x={part.label[0]} y={part.label[1] + 2.5} textAnchor={part.side === "left" ? "start" : "end"}>{part[language]} · {statusLabel(status)}</text>
+          </g>;
+        })}
+      </svg>
+    </div>
   );
 }
 

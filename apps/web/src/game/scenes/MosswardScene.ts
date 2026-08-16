@@ -319,8 +319,21 @@ export class MosswardScene extends Phaser.Scene {
     this.southWalkAnimation = female ? "wanderer.female.walk.south" : "wanderer.walk.south";
     this.strikeAnimation = female ? "wanderer.female.strike" : "wanderer.strike";
     this.activeWalkAnimation = this.sideWalkAnimation;
-    this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, "world.untamedWilds").setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
-    this.createCollisionTileLayer("untamedWilds");
+    const savedPosition = this.game.canvas.parentElement?.dataset.position;
+    if (savedPosition) {
+      try {
+        const position = JSON.parse(savedPosition) as { zoneId: string; x: number; y: number };
+        if (getZoneDefinition(position.zoneId) && Number.isFinite(position.x) && Number.isFinite(position.y)) {
+          this.zoneId = position.zoneId;
+          this.target.set(position.x, position.y);
+        }
+      } catch {
+        // A malformed DOM snapshot should fall back to the safe meadow spawn.
+      }
+    }
+    const initialZone = getZoneDefinition(this.zoneId) ?? getZoneDefinition("untamedWilds")!;
+    this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, initialZone.layers.terrain.assetId).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
+    this.createCollisionTileLayer(this.zoneId);
     this.playerShadow = this.add.ellipse(0, 1, 22, 7, 0x020604, 0.68);
     // The measured poses put the feet on the container's own origin, so the figure stands where it stands.
     this.playerSprite = this.add.sprite(0, 0, this.sideWalkTexture, 0).setScale(female ? 0.14 : 0.16).setOrigin(0.5, 1);
@@ -359,7 +372,7 @@ export class MosswardScene extends Phaser.Scene {
     this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as DirectionKeys | undefined;
     this.interactKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.destinationMarker = this.add.circle(this.target.x, this.target.y, 10, 0xdacb78, 0.22).setStrokeStyle(2, 0xeadf9a, 0.8).setDepth(8).setVisible(false);
-    this.createWorldObjects("untamedWilds");
+    this.createWorldObjects(this.zoneId);
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
       if (!pointer.leftButtonDown()) return;
       const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
@@ -369,6 +382,11 @@ export class MosswardScene extends Phaser.Scene {
         this.placingStructure = undefined;
         this.placementPreview?.destroy();
         this.placementPreview = undefined;
+        return;
+      }
+      const fishingWater = this.fishingWaterNear(point.x, point.y);
+      if (fishingWater && this.game.canvas.parentElement?.dataset.hasFishingRod === "true") {
+        this.requestInteraction(fishingWater.id, fishingWater.x, fishingWater.y);
         return;
       }
       if (currentlyOver.length > 0) return;
@@ -1241,6 +1259,23 @@ export class MosswardScene extends Phaser.Scene {
     const approach = new Phaser.Math.Vector2(x + Math.cos(angle) * approachDistance, y + Math.sin(angle) * approachDistance);
     this.pendingInteraction = { id, x, y, reach };
     this.walkTo(approach.x, approach.y);
+  }
+
+  /**
+   * Water is an area, not a tiny object hotspot. The generous shore ellipse lets a cast begin from
+   * any visible bank around a pond or any adjacent stretch of river while still excluding open land.
+   */
+  private fishingWaterNear(x: number, y: number) {
+    const zone = getZoneDefinition(this.zoneId);
+    if (!zone) return undefined;
+    return zone.layers.objects.find((object) => {
+      if (object.type !== "fishingWater" && object.type !== "riverFishingWater") return false;
+      const radiusX = object.type === "fishingWater" ? 165 : 135;
+      const radiusY = object.type === "fishingWater" ? 100 : 85;
+      const dx = (x - object.x) / radiusX;
+      const dy = (y - object.y) / radiusY;
+      return dx * dx + dy * dy <= 1;
+    });
   }
 
   /**
