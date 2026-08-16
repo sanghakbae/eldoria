@@ -2,5 +2,18 @@
   "name": "@eldoria/game-data",
   "version": "0.0.0",
   "private": true,
-  "description": "Typed gameplay content loaders and schemas placeholder."
+  "description": "Typed gameplay content and zone collision definitions.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }

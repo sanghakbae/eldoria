@@ -60,6 +60,9 @@ importers:
 
   apps/game-server:
     dependencies:
+      '@eldoria/game-data':
+        specifier: workspace:*
+        version: link:../../packages/game-data
       '@eldoria/game-protocol':
         specifier: workspace:*
         version: link:../../packages/game-protocol
@@ -125,7 +128,14 @@ importers:
 
   packages/game-core: {}
 
-  packages/game-data: {}
+  packages/game-data:
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12))
 
   packages/game-protocol:
     devDependencies:

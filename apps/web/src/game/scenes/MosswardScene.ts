@@ -21,12 +21,17 @@ type DirectionKeys = {
 };
 
 export class MosswardScene extends Phaser.Scene {
-  private player?: Phaser.GameObjects.Image;
+  private player?: Phaser.GameObjects.Container;
+  private playerSprite?: Phaser.GameObjects.Image;
   private keys?: DirectionKeys;
   private target = new Phaser.Math.Vector2(836, 555);
   private background?: Phaser.GameObjects.Image;
   private zoneId = "mossward";
   private previousDirection = "0,0";
+  private clickTarget?: Phaser.Math.Vector2;
+  private destinationMarker?: Phaser.GameObjects.Arc;
+  private moving = false;
+  private lastDustAt = 0;
 
   constructor() {
     super("mossward");
@@ -42,8 +47,9 @@ export class MosswardScene extends Phaser.Scene {
 
   create() {
     this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, "world.mossward").setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
-    this.add.ellipse(this.target.x, this.target.y + 23, 34, 12, 0x020604, 0.42).setDepth(9);
-    this.player = this.add.image(this.target.x, this.target.y, "player.wanderer").setDisplaySize(47, 70).setOrigin(0.5, 0.82).setDepth(10);
+    const shadow = this.add.ellipse(0, 23, 34, 12, 0x020604, 0.42);
+    this.playerSprite = this.add.image(0, 0, "player.wanderer").setDisplaySize(47, 70).setOrigin(0.5, 0.82);
+    this.player = this.add.container(this.target.x, this.target.y, [shadow, this.playerSprite]).setDepth(10);
 
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT).startFollow(this.player, true, 0.12, 0.12);
     this.layoutCamera();
@@ -51,6 +57,16 @@ export class MosswardScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off(Phaser.Scale.Events.RESIZE, this.layoutCamera, this));
 
     this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as DirectionKeys | undefined;
+    this.destinationMarker = this.add.circle(this.target.x, this.target.y, 10, 0xdacb78, 0.22).setStrokeStyle(2, 0xeadf9a, 0.8).setDepth(8).setVisible(false);
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (!pointer.leftButtonDown()) return;
+      const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      this.clickTarget = new Phaser.Math.Vector2(
+        Phaser.Math.Clamp(point.x, 30, WORLD_WIDTH - 30),
+        Phaser.Math.Clamp(point.y, 45, WORLD_HEIGHT - 25),
+      );
+      this.destinationMarker?.setPosition(this.clickTarget.x, this.clickTarget.y).setVisible(true);
+    });
     window.addEventListener("eldoria:player-state", this.receivePlayerState);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => window.removeEventListener("eldoria:player-state", this.receivePlayerState));
   }
@@ -62,13 +78,29 @@ export class MosswardScene extends Phaser.Scene {
 
     const x = Number(this.keys.D.isDown || this.keys.RIGHT.isDown) - Number(this.keys.A.isDown || this.keys.LEFT.isDown);
     const y = Number(this.keys.S.isDown || this.keys.DOWN.isDown) - Number(this.keys.W.isDown || this.keys.UP.isDown);
-    const magnitude = Math.hypot(x, y);
-    const direction = magnitude > 0 ? { x: x / magnitude, y: y / magnitude } : { x: 0, y: 0 };
+    const keyboardMagnitude = Math.hypot(x, y);
+    if (keyboardMagnitude > 0) {
+      this.clickTarget = undefined;
+      this.destinationMarker?.setVisible(false);
+    }
+    let direction = keyboardMagnitude > 0 ? { x: x / keyboardMagnitude, y: y / keyboardMagnitude } : { x: 0, y: 0 };
+    if (keyboardMagnitude === 0 && this.clickTarget) {
+      const deltaX = this.clickTarget.x - this.target.x;
+      const deltaY = this.clickTarget.y - this.target.y;
+      const distance = Math.hypot(deltaX, deltaY);
+      if (distance <= 10) {
+        this.clickTarget = undefined;
+        this.destinationMarker?.setVisible(false);
+      } else {
+        direction = { x: deltaX / distance, y: deltaY / distance };
+      }
+    }
     const signature = `${direction.x},${direction.y}`;
     if (signature !== this.previousDirection) {
       this.previousDirection = signature;
       window.dispatchEvent(new CustomEvent("eldoria:move-intent", { detail: direction }));
     }
+    this.animateWalk(direction);
   }
 
   private receivePlayerState = (event: Event) => {
@@ -88,5 +120,25 @@ export class MosswardScene extends Phaser.Scene {
     const visibleWorldHeight = 540;
     const zoom = Math.max(this.scale.width / visibleWorldWidth, this.scale.height / visibleWorldHeight, 1);
     this.cameras.main.setZoom(zoom);
+  }
+
+  private animateWalk(direction: { x: number; y: number }) {
+    if (!this.player || !this.playerSprite) return;
+    this.moving = Math.hypot(direction.x, direction.y) > 0.05;
+    if (Math.abs(direction.x) > 0.08) this.playerSprite.setFlipX(direction.x < 0);
+    if (!this.moving) {
+      this.playerSprite.y = Phaser.Math.Linear(this.playerSprite.y, 0, 0.3);
+      this.playerSprite.rotation = Phaser.Math.Linear(this.playerSprite.rotation, 0, 0.3);
+      return;
+    }
+
+    const phase = this.time.now * 0.018;
+    this.playerSprite.y = Math.sin(phase) * 2.2;
+    this.playerSprite.rotation = Math.sin(phase * 0.5) * 0.025;
+    if (this.time.now - this.lastDustAt > 180) {
+      this.lastDustAt = this.time.now;
+      const dust = this.add.circle(this.player.x - direction.x * 12, this.player.y + 22, 3, 0xcbb57a, 0.34).setDepth(8);
+      this.tweens.add({ targets: dust, alpha: 0, scale: 2.2, y: dust.y - 4, duration: 360, onComplete: () => dust.destroy() });
+    }
   }
 }

@@ -15,6 +15,7 @@ const translations = {
     createAccount: "Create account", or: "or", google: "Continue with Google", newAccount: "New to Eldoria? Create an account", existingAccount: "Already have an account? Sign in",
     originalWorld: "ORIGINAL WORLD · PRE-ALPHA", authInvalid: "The email or password is incorrect.", authExists: "That email is already in use.", authWeak: "Password must be at least 6 characters.",
     authCancelled: "Google sign-in was cancelled.", authDisabled: "Enable this sign-in method in Firebase Console.", authGeneric: "Sign-in failed. Please try again shortly.",
+    worldMap: "WORLD MAP", explored: "Explored", undiscovered: "Undiscovered region", close: "Close map", clickMove: "Click a path to move",
   },
   ko: {
     frontier: "초록 변경의 세계", wanderer: "방랑자", location: "모스워드 · 새벽", health: "생명력", mana: "마나", stamina: "기력",
@@ -28,6 +29,7 @@ const translations = {
     createAccount: "계정 만들기", or: "또는", google: "Google로 계속", newAccount: "처음 오셨나요? 계정 만들기", existingAccount: "이미 계정이 있나요? 로그인",
     originalWorld: "오리지널 세계 · 프리 알파", authInvalid: "이메일 또는 비밀번호가 올바르지 않습니다.", authExists: "이미 사용 중인 이메일입니다.", authWeak: "비밀번호는 6자 이상이어야 합니다.",
     authCancelled: "Google 로그인이 취소되었습니다.", authDisabled: "Firebase Console에서 이 로그인 방식을 활성화해야 합니다.", authGeneric: "로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
+    worldMap: "전체 지도", explored: "탐험 완료", undiscovered: "미발견 지역", close: "지도 닫기", clickMove: "길을 클릭하면 이동합니다",
   },
 } as const;
 

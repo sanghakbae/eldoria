@@ -18,4 +18,13 @@ describe("RuntimeWorld", () => {
     world.tick(1);
     expect(player.position.x).toBeGreaterThan(836);
   });
+
+  it("rejects movement through map obstacles", () => {
+    const world = new RuntimeWorld();
+    const player = world.join("user-1");
+    player.position = { zoneId: "mossward", x: 700, y: 390 };
+    world.setDirection("user-1", { x: 0, y: -1 }, 1);
+    world.tick(1);
+    expect(player.position.y).toBe(390);
+  });
 });

@@ -1,0 +1,31 @@
+{
+  "id": "verdant-frontier",
+  "name": { "en": "The Verdant Frontier", "ko": "초록 변경" },
+  "width": 16384,
+  "height": 16384,
+  "regionSize": 4096,
+  "regions": [
+    { "id": "frostcrown", "grid": [0, 0], "name": { "en": "Frostcrown Range", "ko": "서리왕관 산맥" }, "status": "planned" },
+    { "id": "pale-reaches", "grid": [1, 0], "name": { "en": "Pale Reaches", "ko": "창백한 변경" }, "status": "planned" },
+    { "id": "starfall", "grid": [2, 0], "name": { "en": "Starfall Tundra", "ko": "별무리 툰드라" }, "status": "planned" },
+    { "id": "stormbreak", "grid": [3, 0], "name": { "en": "Stormbreak Coast", "ko": "폭풍가름 해안" }, "status": "planned" },
+    { "id": "ironwood", "grid": [0, 1], "name": { "en": "Ironwood Vale", "ko": "무쇠숲 골짜기" }, "status": "planned" },
+    { "id": "caelmont", "grid": [1, 1], "name": { "en": "Caelmont Highlands", "ko": "케일몬트 고원" }, "status": "planned" },
+    { "id": "sunmere", "grid": [2, 1], "name": { "en": "Sunmere Basin", "ko": "선미어 분지" }, "status": "planned" },
+    { "id": "ash-coast", "grid": [3, 1], "name": { "en": "Ashen Coast", "ko": "잿빛 해안" }, "status": "planned" },
+    { "id": "western-marches", "grid": [0, 2], "name": { "en": "Western Marches", "ko": "서부 변경" }, "status": "planned" },
+    { "id": "lumenreach", "grid": [1, 2], "name": { "en": "Lumenreach Plains", "ko": "루멘리치 평원" }, "status": "planned" },
+    { "id": "amber-steppe", "grid": [2, 2], "name": { "en": "Amber Steppe", "ko": "호박빛 초원" }, "status": "planned" },
+    { "id": "redwater", "grid": [3, 2], "name": { "en": "Redwater Expanse", "ko": "붉은물 벌판" }, "status": "planned" },
+    { "id": "mossward-reach", "grid": [0, 3], "name": { "en": "Mossward Reach", "ko": "모스워드 권역" }, "status": "playable", "zoneIds": ["mossward", "greythorn", "amberfen", "hollowVault"] },
+    { "id": "elderfen", "grid": [1, 3], "name": { "en": "Elderfen Wetlands", "ko": "엘더펜 습지" }, "status": "planned" },
+    { "id": "shattered-fields", "grid": [2, 3], "name": { "en": "Shattered Fields", "ko": "부서진 들판" }, "status": "planned" },
+    { "id": "emberwild", "grid": [3, 3], "name": { "en": "Emberwild", "ko": "불씨 황야" }, "status": "planned" }
+  ],
+  "settlements": [
+    { "id": "mossward", "regionId": "mossward-reach", "name": { "en": "Mossward", "ko": "모스워드" }, "status": "playable" },
+    { "id": "caelmont-city", "regionId": "caelmont", "name": { "en": "Caelmont", "ko": "케일몬트" }, "status": "planned" },
+    { "id": "lumenreach-city", "regionId": "lumenreach", "name": { "en": "Lumenreach", "ko": "루멘리치" }, "status": "planned" },
+    { "id": "ashharbor", "regionId": "ash-coast", "name": { "en": "Ashharbor", "ko": "애시하버" }, "status": "planned" }
+  ]
+}

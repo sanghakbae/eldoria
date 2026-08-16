@@ -24,8 +24,18 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
   const connection = useGameConnection(user);
   const { t } = useLanguage();
   const [zoneId, setZoneId] = useState("mossward");
+  const [mapOpen, setMapOpen] = useState(false);
+  const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["mossward"]') as string[]));
   useEffect(() => {
-    const handleZone = (event: Event) => setZoneId((event as CustomEvent<string>).detail);
+    const handleZone = (event: Event) => {
+      const nextZone = (event as CustomEvent<string>).detail;
+      setZoneId(nextZone);
+      setVisitedZones((current) => {
+        const next = new Set(current).add(nextZone);
+        localStorage.setItem("eldoria.visited-zones", JSON.stringify([...next]));
+        return next;
+      });
+    };
     window.addEventListener("eldoria:zone-change", handleZone);
     return () => window.removeEventListener("eldoria:zone-change", handleZone);
   }, []);
@@ -79,7 +89,8 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
               <small>{t(zoneId === "mossward" ? "safeSettlement" : "wildZone")}</small>
             </div>
           </div>
-          <div className="world-hint">{t("roadHint")}</div>
+          <div className="world-hint">{t("clickMove")} · {t("roadHint")}</div>
+          {mapOpen && <WorldMapOverlay currentZone={zoneId} visitedZones={visitedZones} onClose={() => setMapOpen(false)} />}
         </section>
 
         <aside className="journal-panel panel">
@@ -100,7 +111,7 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
           <p>{connection.message}</p>
         </div>
         <nav className="quickbar" aria-label={t("quickActions")}>
-          {quickSlots.map((slot, index) => <button key={slot} title={t(slot)}><kbd>{index + 1}</kbd><QuickSlotIcon slot={slot} /><small>{t(slot)}</small></button>)}
+          {quickSlots.map((slot, index) => <button key={slot} title={t(slot)} onClick={() => slot === "map" && setMapOpen(true)}><kbd>{index + 1}</kbd><QuickSlotIcon slot={slot} /><small>{t(slot)}</small></button>)}
         </nav>
         <div className="build-mark"><span>PRE-ALPHA</span><small>{t("foundation")}</small></div>
       </footer>
@@ -121,4 +132,33 @@ function QuickSlotIcon({ slot }: { slot: TranslationKey }) {
   if (slot === "bandage") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 11h16v10H8z" /><path d="M13 14h6v4h-6zM5 12l3-1v10l-3-1V12zm22 0l-3-1v10l3-1V12z" /></svg>;
   if (slot === "torch") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M13 14h6l-2 15h-2l-2-15z" /><path d="M16 3c5 4 4 8 0 11-4-2-5-6 0-11z" /></svg>;
   return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 7l8-3 8 3 8-3v21l-8 3-8-3-8 3V7z" /><path d="M12 4v21m8-18v21" /></svg>;
+}
+
+function WorldMapOverlay({ currentZone, visitedZones, onClose }: { currentZone: string; visitedZones: Set<string>; onClose: () => void }) {
+  const { t } = useLanguage();
+  // Every currently playable scene is a subzone of the south-western Mossward region.
+  const zoneCells: Record<string, number> = { mossward: 12, greythorn: 12, amberfen: 12, hollowVault: 12 };
+  const revealedCells = new Set([...visitedZones].map((zoneId) => zoneCells[zoneId]).filter((cell): cell is number => cell !== undefined));
+  const currentCell = zoneCells[currentZone] ?? 12;
+  return (
+    <section className="world-map-overlay" aria-modal="true" role="dialog" aria-label={t("worldMap")}>
+      <header>
+        <div>
+          <p className="eyebrow">16,384 × 16,384 · THE VERDANT FRONTIER</p>
+          <h2>{t("worldMap")}</h2>
+        </div>
+        <button onClick={onClose} aria-label={t("close")}>×</button>
+      </header>
+      <div className="world-atlas">
+        <div className="fog-grid">
+          {Array.from({ length: 16 }, (_, index) => (
+            <div key={index} className={revealedCells.has(index) ? "revealed" : "fogged"}>
+              <span>{revealedCells.has(index) ? t("explored") : t("undiscovered")}</span>
+            </div>
+          ))}
+        </div>
+        <i className="atlas-player" style={{ left: `${((currentCell % 4) + 0.5) * 25}%`, top: `${(Math.floor(currentCell / 4) + 0.5) * 25}%` }}><b /></i>
+      </div>
+    </section>
+  );
 }

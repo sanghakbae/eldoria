@@ -1,3 +1,5 @@
+import { isPositionWalkable } from "@eldoria/game-data";
+
 export type RuntimePlayer = {
   uid: string;
   position: { zoneId: string; x: number; y: number };
@@ -32,8 +34,16 @@ export class RuntimeWorld {
 
   tick(deltaSeconds: number): RuntimePlayer[] {
     for (const player of this.players.values()) {
-      player.position.x = clamp(player.position.x + player.direction.x * MOVEMENT_SPEED * deltaSeconds, 30, WORLD_WIDTH - 30);
-      player.position.y = clamp(player.position.y + player.direction.y * MOVEMENT_SPEED * deltaSeconds, 45, WORLD_HEIGHT - 25);
+      const nextX = clamp(player.position.x + player.direction.x * MOVEMENT_SPEED * deltaSeconds, 30, WORLD_WIDTH - 30);
+      const nextY = clamp(player.position.y + player.direction.y * MOVEMENT_SPEED * deltaSeconds, 45, WORLD_HEIGHT - 25);
+      if (isPositionWalkable(player.position.zoneId, nextX, nextY)) {
+        player.position.x = nextX;
+        player.position.y = nextY;
+      } else if (isPositionWalkable(player.position.zoneId, nextX, player.position.y)) {
+        player.position.x = nextX;
+      } else if (isPositionWalkable(player.position.zoneId, player.position.x, nextY)) {
+        player.position.y = nextY;
+      }
       this.applyZoneTransition(player);
     }
     return [...this.players.values()];
