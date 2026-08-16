@@ -1,6 +1,7 @@
 import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore, type Firestore } from "firebase-admin/firestore";
 import type { CharacterSummary, Position } from "@eldoria/game-protocol";
+import { createInitialSurvivalState } from "@eldoria/game-data";
 import { CharacterRepositoryError, MAX_CHARACTERS_PER_ACCOUNT, STARTING_POSITION, validateCharacterName, type CharacterRepository } from "./character-repository";
 
 type StoredCharacter = {
@@ -9,6 +10,7 @@ type StoredCharacter = {
   position: Position;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  survival?: CharacterSummary["survival"];
 };
 
 export class FirestoreCharacterRepository implements CharacterRepository {
@@ -16,6 +18,12 @@ export class FirestoreCharacterRepository implements CharacterRepository {
 
   async list(ownerUid: string): Promise<CharacterSummary[]> {
     const snapshot = await this.firestore.collection("characters").where("ownerUid", "==", ownerUid).get();
+    const missingSurvival = snapshot.docs.filter((document) => !document.data().survival);
+    if (missingSurvival.length > 0) {
+      const batch = this.firestore.batch();
+      for (const document of missingSurvival) batch.set(document.ref, { survival: createInitialSurvivalState(document.data().createdAt?.toDate?.().toISOString()) }, { merge: true });
+      await batch.commit();
+    }
     return snapshot.docs.map(toCharacter).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
@@ -24,7 +32,7 @@ export class FirestoreCharacterRepository implements CharacterRepository {
     const characterRef = this.firestore.collection("characters").doc();
     const ownerRef = this.firestore.collection("users").doc(ownerUid);
     const now = Timestamp.now();
-    const stored: StoredCharacter = { ownerUid, name, position: { ...STARTING_POSITION }, createdAt: now, updatedAt: now };
+    const stored: StoredCharacter = { ownerUid, name, position: { ...STARTING_POSITION }, createdAt: now, updatedAt: now, survival: createInitialSurvivalState(now.toDate().toISOString()) };
 
     await this.firestore.runTransaction(async (transaction) => {
       const existing = await transaction.get(this.firestore.collection("characters").where("ownerUid", "==", ownerUid));
@@ -38,6 +46,7 @@ export class FirestoreCharacterRepository implements CharacterRepository {
   async getOwned(ownerUid: string, characterId: string): Promise<CharacterSummary | null> {
     const snapshot = await this.firestore.collection("characters").doc(characterId).get();
     if (!snapshot.exists || snapshot.data()?.ownerUid !== ownerUid) return null;
+    if (!snapshot.data()?.survival) await snapshot.ref.set({ survival: createInitialSurvivalState(snapshot.data()?.createdAt?.toDate?.().toISOString()) }, { merge: true });
     return toCharacter(snapshot);
   }
 
@@ -59,5 +68,6 @@ export function createFirestoreCharacterRepository(projectId: string): Firestore
 function toCharacter(snapshot: { id: string; data(): unknown }): CharacterSummary {
   const data = snapshot.data() as StoredCharacter | undefined;
   if (!data) throw new Error(`Character ${snapshot.id} has no data.`);
-  return { id: snapshot.id, name: data.name, position: data.position, createdAt: data.createdAt.toDate().toISOString() };
+  const createdAt = data.createdAt.toDate().toISOString();
+  return { id: snapshot.id, name: data.name, position: data.position, createdAt, survival: data.survival ?? createInitialSurvivalState(createdAt) };
 }

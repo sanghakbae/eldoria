@@ -1,0 +1,33 @@
+{
+  "nutrients": [
+    { "id": "protein", "name": { "en": "Protein", "ko": "단백질" } },
+    { "id": "fat", "name": { "en": "Fat", "ko": "지방" } },
+    { "id": "carbohydrate", "name": { "en": "Carbohydrate", "ko": "탄수화물" } },
+    { "id": "iron", "name": { "en": "Iron", "ko": "철분" } },
+    { "id": "vitaminA", "name": { "en": "Vitamin A", "ko": "비타민 A" } },
+    { "id": "vitaminC", "name": { "en": "Vitamin C", "ko": "비타민 C" } },
+    { "id": "vitaminD", "name": { "en": "Vitamin D", "ko": "비타민 D" } },
+    { "id": "vitaminB12", "name": { "en": "Vitamin B12", "ko": "비타민 B12" } },
+    { "id": "calcium", "name": { "en": "Calcium", "ko": "칼슘" } },
+    { "id": "iodine", "name": { "en": "Iodine", "ko": "요오드" } },
+    { "id": "water", "name": { "en": "Water", "ko": "수분" } }
+  ],
+  "conditions": [
+    { "id": "anemia", "region": "blood", "nutrients": ["iron", "vitaminB12"], "threshold": 38, "name": { "en": "Anemia risk", "ko": "빈혈 위험" }, "effect": { "en": "Low endurance and dizziness", "ko": "지구력 저하와 어지럼증" } },
+    { "id": "nightVision", "region": "eyes", "nutrients": ["vitaminA"], "threshold": 35, "name": { "en": "Poor night vision", "ko": "야간 시력 저하" }, "effect": { "en": "Reduced sight after dusk", "ko": "해가 진 뒤 시야 감소" } },
+    { "id": "scurvy", "region": "gumsSkin", "nutrients": ["vitaminC"], "threshold": 32, "name": { "en": "Weak gums and skin", "ko": "잇몸·피부 약화" }, "effect": { "en": "Bleeding and slow wound recovery", "ko": "출혈과 상처 회복 지연" } },
+    { "id": "weakBones", "region": "bonesMuscles", "nutrients": ["calcium", "vitaminD"], "threshold": 36, "name": { "en": "Weak bones and muscles", "ko": "뼈·근육 약화" }, "effect": { "en": "Higher fracture risk and lower power", "ko": "골절 위험 증가와 힘 감소" } },
+    { "id": "wasting", "region": "muscles", "nutrients": ["protein"], "threshold": 30, "name": { "en": "Muscle wasting", "ko": "근육 소모" }, "effect": { "en": "Lower carry weight and damage", "ko": "운반 중량과 공격력 감소" } },
+    { "id": "neuropathy", "region": "nervousSystem", "nutrients": ["vitaminB12", "fat"], "threshold": 28, "name": { "en": "Nerve impairment", "ko": "신경 기능 저하" }, "effect": { "en": "Slower reactions and numbness", "ko": "반응 저하와 감각 둔화" } },
+    { "id": "goiter", "region": "thyroid", "nutrients": ["iodine"], "threshold": 34, "name": { "en": "Thyroid strain", "ko": "갑상선 이상" }, "effect": { "en": "Slower metabolism and fatigue", "ko": "대사 저하와 피로" } },
+    { "id": "dehydration", "region": "kidneysBrain", "nutrients": ["water"], "threshold": 45, "name": { "en": "Dehydration", "ko": "탈수" }, "effect": { "en": "Headache, confusion, and kidney strain", "ko": "두통·혼란과 신장 부담" } }
+  ],
+  "foods": [
+    { "id": "roastedLiver", "source": "animalOrgan", "nutrients": { "protein": 18, "fat": 8, "iron": 24, "vitaminA": 30, "vitaminB12": 28 } },
+    { "id": "roastedMuscle", "source": "animalMeat", "nutrients": { "protein": 24, "fat": 12, "iron": 8, "vitaminB12": 7 } },
+    { "id": "roastedBrain", "source": "animalOrgan", "nutrients": { "protein": 12, "fat": 24, "vitaminB12": 10 } },
+    { "id": "wildGreens", "source": "gatheredPlant", "nutrients": { "carbohydrate": 5, "vitaminA": 15, "vitaminC": 18, "calcium": 8, "water": 12 } },
+    { "id": "forestBerries", "source": "gatheredFruit", "nutrients": { "carbohydrate": 14, "vitaminC": 22, "water": 16 } },
+    { "id": "wildTuber", "source": "gatheredRoot", "nutrients": { "carbohydrate": 28, "vitaminC": 8, "water": 7 } }
+  ]
+}

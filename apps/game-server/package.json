@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "CHARACTER_STORE=memory tsx watch src/main.ts",
+    "dev": "node ../../tools/create-local-firebase-adc.mjs && GOOGLE_APPLICATION_CREDENTIALS=/tmp/eldoria-firebase-adc.json tsx watch src/main.ts",
+    "seed:foods": "node ../../tools/create-local-firebase-adc.mjs && GOOGLE_APPLICATION_CREDENTIALS=/tmp/eldoria-firebase-adc.json tsx src/seed-food-catalog.ts",
     "start": "node dist/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --pretty false"

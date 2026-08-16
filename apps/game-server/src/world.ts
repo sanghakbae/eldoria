@@ -1,4 +1,4 @@
-import { isPositionWalkable } from "@eldoria/game-data";
+import { getZoneDefinition, isPositionWalkable } from "@eldoria/game-data";
 
 export type RuntimePlayer = {
   uid: string;
@@ -7,15 +7,17 @@ export type RuntimePlayer = {
   sequence: number;
 };
 
-const WORLD_WIDTH = 1672;
-const WORLD_HEIGHT = 941;
 const MOVEMENT_SPEED = 180;
 
 export class RuntimeWorld {
   private readonly players = new Map<string, RuntimePlayer>();
 
-  join(uid: string, position = { zoneId: "mossward", x: 836, y: 555 }): RuntimePlayer {
-    const player = { uid, position: { ...position }, direction: { x: 0, y: 0 }, sequence: 0 };
+  join(uid: string, position = { zoneId: "mossward", x: 900, y: 700 }): RuntimePlayer {
+    const zone = getZoneDefinition(position.zoneId);
+    const safePosition = zone && isPositionWalkable(position.zoneId, position.x, position.y)
+      ? position
+      : getSafeSpawn("mossward");
+    const player = { uid, position: { ...safePosition }, direction: { x: 0, y: 0 }, sequence: 0 };
     this.players.set(uid, player);
     return player;
   }
@@ -38,8 +40,10 @@ export class RuntimeWorld {
 
   tick(deltaSeconds: number): RuntimePlayer[] {
     for (const player of this.players.values()) {
-      const nextX = clamp(player.position.x + player.direction.x * MOVEMENT_SPEED * deltaSeconds, 30, WORLD_WIDTH - 30);
-      const nextY = clamp(player.position.y + player.direction.y * MOVEMENT_SPEED * deltaSeconds, 45, WORLD_HEIGHT - 25);
+      const zone = getZoneDefinition(player.position.zoneId);
+      if (!zone) continue;
+      const nextX = clamp(player.position.x + player.direction.x * MOVEMENT_SPEED * deltaSeconds, 30, zone.width - 30);
+      const nextY = clamp(player.position.y + player.direction.y * MOVEMENT_SPEED * deltaSeconds, 45, zone.height - 25);
       if (isPositionWalkable(player.position.zoneId, nextX, nextY)) {
         player.position.x = nextX;
         player.position.y = nextY;
@@ -54,16 +58,21 @@ export class RuntimeWorld {
   }
 
   private applyZoneTransition(player: RuntimePlayer) {
-    if (player.position.x < 31) {
-      const previous: Record<string, string | undefined> = { greythorn: "mossward", amberfen: "greythorn", hollowVault: "amberfen" };
-      const zoneId = previous[player.position.zoneId];
-      if (zoneId) player.position = { zoneId, x: WORLD_WIDTH - 35, y: player.position.y };
-    } else if (player.position.x > WORLD_WIDTH - 31) {
-      const next: Record<string, string | undefined> = { mossward: "greythorn", greythorn: "amberfen", amberfen: "hollowVault" };
-      const zoneId = next[player.position.zoneId];
-      if (zoneId) player.position = { zoneId, x: 35, y: player.position.y };
-    }
+    const zone = getZoneDefinition(player.position.zoneId);
+    if (!zone) return;
+    const edge = player.position.x < 31 ? "west" : player.position.x > zone.width - 31 ? "east" : null;
+    if (!edge) return;
+    const exit = zone.exits.find((candidate) => candidate.edge === edge);
+    const destination = exit ? getZoneDefinition(exit.toZoneId) : undefined;
+    const spawn = destination?.layers.spawn.find((candidate) => candidate.id === exit?.toSpawnId);
+    if (exit && spawn) player.position = { zoneId: exit.toZoneId, x: spawn.x, y: spawn.y };
   }
+}
+
+function getSafeSpawn(zoneId: string) {
+  const zone = getZoneDefinition(zoneId);
+  const spawn = zone?.layers.spawn.find((candidate) => candidate.id === "arrival") ?? zone?.layers.spawn[0];
+  return { zoneId, x: spawn?.x ?? 900, y: spawn?.y ?? 700 };
 }
 
 function clamp(value: number, minimum: number, maximum: number) {

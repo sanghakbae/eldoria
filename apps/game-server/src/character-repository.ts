@@ -1,6 +1,7 @@
 import type { CharacterSummary, Position } from "@eldoria/game-protocol";
+import { createInitialSurvivalState } from "@eldoria/game-data";
 
-export const STARTING_POSITION: Position = { zoneId: "mossward", x: 836, y: 555 };
+export const STARTING_POSITION: Position = { zoneId: "mossward", x: 900, y: 700 };
 export const MAX_CHARACTERS_PER_ACCOUNT = 5;
 
 export type CharacterRepository = {
@@ -33,7 +34,8 @@ export class MemoryCharacterRepository implements CharacterRepository {
   async create(ownerUid: string, rawName: string) {
     const name = validateCharacterName(rawName);
     if ((await this.list(ownerUid)).length >= MAX_CHARACTERS_PER_ACCOUNT) throw new CharacterRepositoryError("character.limit", "The account already has the maximum number of characters.");
-    const character = { id: crypto.randomUUID(), ownerUid, name, position: { ...STARTING_POSITION }, createdAt: new Date().toISOString() };
+    const createdAt = new Date().toISOString();
+    const character = { id: crypto.randomUUID(), ownerUid, name, position: { ...STARTING_POSITION }, createdAt, survival: createInitialSurvivalState(createdAt) };
     this.characters.set(character.id, character);
     return stripOwner(character);
   }
@@ -51,5 +53,5 @@ export class MemoryCharacterRepository implements CharacterRepository {
 }
 
 function stripOwner(character: CharacterSummary & { ownerUid: string }): CharacterSummary {
-  return { id: character.id, name: character.name, position: { ...character.position }, createdAt: character.createdAt };
+  return { id: character.id, name: character.name, position: { ...character.position }, createdAt: character.createdAt, survival: { nutrition: { ...character.survival.nutrition }, lastMetabolismAt: character.survival.lastMetabolismAt } };
 }

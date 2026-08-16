@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "data"
 
 catalog:
   "@types/node": ^24.10.13

@@ -12,6 +12,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit --pretty false"
   },
+  "dependencies": {
+    "@eldoria/content": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:"

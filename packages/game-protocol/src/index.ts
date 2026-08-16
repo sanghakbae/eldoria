@@ -1,10 +1,15 @@
 export type Position = { zoneId: string; x: number; y: number };
 
+export type NutrientId = "protein" | "fat" | "carbohydrate" | "iron" | "vitaminA" | "vitaminC" | "vitaminD" | "vitaminB12" | "calcium" | "iodine" | "water";
+export type NutritionState = Record<NutrientId, number>;
+export type SurvivalState = { nutrition: NutritionState; lastMetabolismAt: string };
+
 export type CharacterSummary = {
   id: string;
   name: string;
   position: Position;
   createdAt: string;
+  survival: SurvivalState;
 };
 
 export type ClientMessage =
@@ -74,7 +79,13 @@ function isPosition(value: unknown): value is { zoneId: string; x: number; y: nu
 }
 
 function isCharacter(value: unknown): value is CharacterSummary {
-  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.createdAt === "string" && isPosition(value.position);
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.createdAt === "string" && isPosition(value.position) && isSurvivalState(value.survival);
+}
+
+function isSurvivalState(value: unknown): value is SurvivalState {
+  if (!isRecord(value) || typeof value.lastMetabolismAt !== "string" || !isRecord(value.nutrition)) return false;
+  const nutrition = value.nutrition;
+  return ["protein", "fat", "carbohydrate", "iron", "vitaminA", "vitaminC", "vitaminD", "vitaminB12", "calcium", "iodine", "water"].every((key) => typeof nutrition[key] === "number");
 }
 
 function isDirection(value: unknown): value is { x: number; y: number } {

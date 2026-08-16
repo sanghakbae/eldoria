@@ -1,9 +1,108 @@
 {
   "worldId": "verdant-frontier",
+  "tileSize": 32,
   "zones": [
-    { "id": "mossward", "name": { "en": "Mossward Crossing", "ko": "모스워드 교차로" }, "width": 1672, "height": 941, "east": "greythorn" },
-    { "id": "greythorn", "name": { "en": "Greythorn Wood", "ko": "그레이쏜 숲" }, "width": 1672, "height": 941, "west": "mossward", "east": "amberfen" },
-    { "id": "amberfen", "name": { "en": "Amberfen Wilds", "ko": "앰버펜 황야" }, "width": 1672, "height": 941, "west": "greythorn", "east": "hollowVault" },
-    { "id": "hollowVault", "name": { "en": "The Hollow Vault", "ko": "공허의 금고" }, "width": 1672, "height": 941, "west": "amberfen" }
+    {
+      "id": "mossward",
+      "name": { "en": "Mossward Crossing", "ko": "모스워드 교차로" },
+      "width": 1672,
+      "height": 941,
+      "columns": 53,
+      "rows": 30,
+      "layers": {
+        "terrain": { "assetId": "world.mossward" },
+        "collision": [
+          { "x": 17, "y": 0, "width": 13, "height": 12 },
+          { "x": 4, "y": 9, "width": 16, "height": 12 },
+          { "x": 32, "y": 9, "width": 16, "height": 12 },
+          { "x": 0, "y": 18, "width": 10, "height": 12 },
+          { "x": 9, "y": 23, "width": 11, "height": 7 },
+          { "x": 22, "y": 14, "width": 5, "height": 5 }
+        ],
+        "objects": [],
+        "spawn": [
+          { "id": "arrival", "x": 900, "y": 700 },
+          { "id": "east-road", "x": 1637, "y": 555 }
+        ]
+      },
+      "exits": [{ "edge": "east", "toZoneId": "greythorn", "toSpawnId": "west-road" }]
+    },
+    {
+      "id": "greythorn",
+      "name": { "en": "Greythorn Wood", "ko": "그레이쏜 숲" },
+      "width": 1672,
+      "height": 941,
+      "columns": 53,
+      "rows": 30,
+      "layers": {
+        "terrain": { "assetId": "world.greythorn" },
+        "collision": [
+          { "x": 21, "y": 0, "width": 10, "height": 14 },
+          { "x": 21, "y": 17, "width": 10, "height": 13 },
+          { "x": 0, "y": 0, "width": 6, "height": 9 },
+          { "x": 0, "y": 20, "width": 9, "height": 10 },
+          { "x": 45, "y": 0, "width": 8, "height": 8 },
+          { "x": 45, "y": 21, "width": 8, "height": 9 }
+        ],
+        "objects": [],
+        "spawn": [
+          { "id": "west-road", "x": 35, "y": 555 },
+          { "id": "east-road", "x": 1637, "y": 555 }
+        ]
+      },
+      "exits": [
+        { "edge": "west", "toZoneId": "mossward", "toSpawnId": "east-road" },
+        { "edge": "east", "toZoneId": "amberfen", "toSpawnId": "west-road" }
+      ]
+    },
+    {
+      "id": "amberfen",
+      "name": { "en": "Amberfen Wilds", "ko": "앰버펜 황야" },
+      "width": 1672,
+      "height": 941,
+      "columns": 53,
+      "rows": 30,
+      "layers": {
+        "terrain": { "assetId": "world.amberfen" },
+        "collision": [
+          { "x": 20, "y": 2, "width": 17, "height": 11 },
+          { "x": 20, "y": 20, "width": 17, "height": 10 },
+          { "x": 36, "y": 4, "width": 9, "height": 12 },
+          { "x": 0, "y": 21, "width": 12, "height": 9 },
+          { "x": 44, "y": 20, "width": 9, "height": 10 }
+        ],
+        "objects": [],
+        "spawn": [
+          { "id": "west-road", "x": 35, "y": 555 },
+          { "id": "east-road", "x": 1637, "y": 555 }
+        ]
+      },
+      "exits": [
+        { "edge": "west", "toZoneId": "greythorn", "toSpawnId": "east-road" },
+        { "edge": "east", "toZoneId": "hollowVault", "toSpawnId": "west-road" }
+      ]
+    },
+    {
+      "id": "hollowVault",
+      "name": { "en": "The Hollow Vault", "ko": "공허의 금고" },
+      "width": 1672,
+      "height": 941,
+      "columns": 53,
+      "rows": 30,
+      "layers": {
+        "terrain": { "assetId": "world.hollowVault" },
+        "collision": [
+          { "x": 0, "y": 0, "width": 6, "height": 30 },
+          { "x": 46, "y": 0, "width": 7, "height": 30 },
+          { "x": 5, "y": 0, "width": 42, "height": 4 },
+          { "x": 5, "y": 25, "width": 42, "height": 5 },
+          { "x": 14, "y": 8, "width": 9, "height": 7 },
+          { "x": 30, "y": 8, "width": 9, "height": 6 }
+        ],
+        "objects": [],
+        "spawn": [{ "id": "west-road", "x": 35, "y": 555 }]
+      },
+      "exits": [{ "edge": "west", "toZoneId": "amberfen", "toSpawnId": "east-road" }]
+    }
   ]
 }

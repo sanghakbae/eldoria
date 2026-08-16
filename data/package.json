@@ -1,0 +1,11 @@
+{
+  "name": "@eldoria/content",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./zones": "./zones/mvp-world.json",
+    "./nutrition": "./nutrition/definitions.json",
+    "./foods": "./foods/catalog.json"
+  }
+}

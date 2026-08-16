@@ -5,8 +5,10 @@ import { useAuth } from "./auth/useAuth";
 import { LanguageToggle, useLanguage, type TranslationKey } from "./i18n/LanguageContext";
 import type { User } from "firebase/auth";
 import { useEffect, useState, type FormEvent } from "react";
+import { evaluateBodyConditions } from "@eldoria/game-data";
+import type { CharacterSummary } from "@eldoria/game-protocol";
 
-const quickSlots: TranslationKey[] = ["blade", "bandage", "torch", "map"];
+const quickSlots: TranslationKey[] = ["fists", "gather", "fire", "map"];
 const zoneTranslationKeys: Record<string, TranslationKey> = { mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" };
 type PlayerPosition = { zoneId: string; x: number; y: number };
 type MapPoint = { x: number; y: number };
@@ -57,13 +59,14 @@ export function App() {
 function AuthenticatedApp({ user, onSignOut }: { user: User; onSignOut: () => Promise<void> }) {
   const connection = useGameConnection(user);
   if (!connection.selectedCharacter) return <CharacterScreen connection={connection} onSignOut={onSignOut} />;
-  return <WorldScreen connection={connection} playerName={connection.selectedCharacter.name} onSignOut={onSignOut} />;
+  return <WorldScreen connection={connection} character={connection.selectedCharacter} onSignOut={onSignOut} />;
 }
 
-function WorldScreen({ connection, playerName, onSignOut }: { connection: GameConnection; playerName: string; onSignOut: () => Promise<void> }) {
-  const { t } = useLanguage();
+function WorldScreen({ connection, character, onSignOut }: { connection: GameConnection; character: CharacterSummary; onSignOut: () => Promise<void> }) {
+  const { t, language } = useLanguage();
+  const bodyConditions = evaluateBodyConditions(character.survival.nutrition);
   const [zoneId, setZoneId] = useState("mossward");
-  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "mossward", x: 836, y: 555 });
+  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "mossward", x: 900, y: 700 });
   const [exploredTrail, setExploredTrail] = useState<MapPoint[]>(loadExploredTrail);
   const [mapOpen, setMapOpen] = useState(false);
   const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["mossward"]') as string[]));
@@ -123,7 +126,7 @@ function WorldScreen({ connection, playerName, onSignOut }: { connection: GameCo
           <div className="portrait"><img src="/assets/characters/wanderer-portrait.png" alt="" /></div>
           <div>
             <p className="eyebrow">{t("wanderer")}</p>
-            <h2>{playerName}</h2>
+            <h2>{character.name}</h2>
             <p className="location">{t(zoneKey)}</p>
           </div>
           <div className="vitals" aria-label="Character vitals">
@@ -132,8 +135,17 @@ function WorldScreen({ connection, playerName, onSignOut }: { connection: GameCo
             <Vital label={t("stamina")} value={93} tone="stamina" />
           </div>
           <div className="divider" />
+          <p className="panel-label">{t("bodyCondition")}</p>
+          <div className={`body-condition ${bodyConditions.length === 0 ? "body-condition--healthy" : "body-condition--warning"}`}>
+            <span className="body-condition-figure" aria-hidden="true">◇</span>
+            <div>
+              {bodyConditions.length === 0 && <><strong>{t("wholeBodyHealthy")}</strong><small>{t("nutritionBalanced")}</small></>}
+              {bodyConditions.slice(0, 3).map((condition) => <span key={condition.id}><strong>{condition.name[language]}</strong><small>{condition.effect[language]}</small></span>)}
+            </div>
+          </div>
+          <div className="divider" />
           <p className="panel-label">{t("activeSkills")}</p>
-          <Skill name={t("swordsmanship")} value="32.4" />
+          <Skill name={t("unarmed")} value="0.0" />
           <Skill name={t("butchering")} value="0.0" />
           <Skill name={t("lumberjacking")} value="11.2" />
         </aside>
@@ -222,9 +234,9 @@ function Skill({ name, value }: { name: string; value: string }) {
 }
 
 function QuickSlotIcon({ slot }: { slot: TranslationKey }) {
-  if (slot === "blade") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M23 4l5 1-1 5L14 23l-5-5L23 4zM7 20l5 5-3 3-5-5 3-3z" /><path d="M11 17l7 7" /></svg>;
-  if (slot === "bandage") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 11h16v10H8z" /><path d="M13 14h6v4h-6zM5 12l3-1v10l-3-1V12zm22 0l-3-1v10l3-1V12z" /></svg>;
-  if (slot === "torch") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M13 14h6l-2 15h-2l-2-15z" /><path d="M16 3c5 4 4 8 0 11-4-2-5-6 0-11z" /></svg>;
+  if (slot === "fists") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 14V8a2 2 0 014 0v5-7a2 2 0 014 0v7-6a2 2 0 014 0v7-4a2 2 0 014 0v8c0 6-4 10-10 10-5 0-8-3-9-8l-1-5a2 2 0 014-1l2 4v-4a2 2 0 014 0z" /></svg>;
+  if (slot === "gather") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V13M16 18c-6 0-9-4-9-9 6 0 9 3 9 9zm0-4c5 0 8-3 8-8-5 0-8 3-8 8z" /></svg>;
+  if (slot === "fire") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c7 7 9 12 6 19-2 5-10 7-15 2-5-5-2-11 2-15 0 5 2 7 4 7-2-6 1-9 3-13zm0 13c4 4 3 9 0 11-4-1-5-6 0-11z" /></svg>;
   return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 7l8-3 8 3 8-3v21l-8 3-8-3-8 3V7z" /><path d="M12 4v21m8-18v21" /></svg>;
 }
 

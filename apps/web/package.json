@@ -12,6 +12,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@eldoria/game-data": "workspace:*",
     "@eldoria/game-protocol": "workspace:*",
     "firebase": "catalog:",
     "phaser": "catalog:",

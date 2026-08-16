@@ -97,6 +97,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@eldoria/game-data':
+        specifier: workspace:*
+        version: link:../../packages/game-data
       '@eldoria/game-protocol':
         specifier: workspace:*
         version: link:../../packages/game-protocol
@@ -132,9 +135,15 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12))
 
+  data: {}
+
   packages/game-core: {}
 
   packages/game-data:
+    dependencies:
+      '@eldoria/content':
+        specifier: workspace:*
+        version: link:../../data
     devDependencies:
       typescript:
         specifier: 'catalog:'
