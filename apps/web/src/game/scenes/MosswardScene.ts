@@ -342,8 +342,13 @@ export class MosswardScene extends Phaser.Scene {
 
   update(_time: number, delta: number) {
     if (!this.player || !this.keys) return;
+    const previousPlayerX = this.player.x;
+    const previousPlayerY = this.player.y;
     this.player.x = Phaser.Math.Linear(this.player.x, this.target.x, 0.28);
     this.player.y = Phaser.Math.Linear(this.player.y, this.target.y, 0.28);
+    const renderedDeltaX = this.player.x - previousPlayerX;
+    const renderedDeltaY = this.player.y - previousPlayerY;
+    const renderedDistance = Math.hypot(renderedDeltaX, renderedDeltaY);
     this.player.setDepth(10 + this.player.y / WORLD_HEIGHT);
 
     const x = Number(this.keys.D.isDown || this.keys.RIGHT.isDown) - Number(this.keys.A.isDown || this.keys.LEFT.isDown);
@@ -364,11 +369,6 @@ export class MosswardScene extends Phaser.Scene {
       this.destinationMarker?.setVisible(false);
     }
     this.syncEquipmentLayers();
-    this.syncHeldItem();
-    if (this.rig && this.playerSprite) {
-      const frameName = this.playerSprite.frame.name;
-      this.rig.followBody(this.playerSprite, Number.parseInt(frameName, 10) || 0);
-    }
     this.pursueEngagedAnimal();
     this.triggerPredatorAggression();
     let nearest: (typeof this.resourceHighlights)[number] | undefined;
@@ -426,7 +426,20 @@ export class MosswardScene extends Phaser.Scene {
         window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: { zoneId: this.zoneId, x: this.target.x, y: this.target.y } }));
       }
     }
-    this.animateWalk(direction);
+    // Animate what actually moved on screen, not merely what the input requested. This keeps the legs
+    // walking through the camera-smoothing tail and prevents running in place against collision.
+    const renderedDirection = renderedDistance > 0.025
+      ? { x: renderedDeltaX / renderedDistance, y: renderedDeltaY / renderedDistance }
+      : { x: 0, y: 0 };
+    const renderedSpeed = delta > 0 ? renderedDistance * 1000 / delta : 0;
+    this.animateWalk(renderedDirection, renderedSpeed);
+    // Equipment must consume the frame selected above. Updating it first left hands and tools one
+    // pose behind the body, which was especially visible at the ends of each stride.
+    this.syncHeldItem();
+    if (this.rig && this.playerSprite) {
+      const frameName = this.playerSprite.frame.name;
+      this.rig.followBody(this.playerSprite, Number.parseInt(frameName, 10) || 0);
+    }
   }
 
   private receivePlayerState = (event: Event) => {
@@ -781,15 +794,16 @@ export class MosswardScene extends Phaser.Scene {
       this.heldItem.setVisible(false);
       return;
     }
-    // The visible near hand is the right-side hand in these side sheets even when the body is
-    // mirrored; mirroring this anchor placed pickaxes behind the shoulder instead of in the fist.
-    const bodySide = 1;
     const itemFlipped = vertical ? frameIndex >= 8 : sprite.flipX;
     const rotationSide = itemFlipped ? -1 : 1;
     const width = sprite.frame.width * sprite.scaleX;
     const height = sprite.frame.height * sprite.scaleY;
+    // Side frames are authored facing right. Mirroring the body must mirror its anatomical right-hand
+    // anchor as well; keeping the original X coordinate left the tool floating behind the shoulder.
+    // Vertical sheets already contain separate front/back right-hand coordinates.
+    const handOffsetX = (pose.fx - 0.5) * width * (vertical ? 1 : sprite.flipX ? -1 : 1);
     this.heldItem
-      .setPosition(sprite.x + bodySide * (pose.fx - 0.5) * width, sprite.y + (pose.fy - 1) * height)
+      .setPosition(sprite.x + handOffsetX, sprite.y + (pose.fy - 1) * height)
       .setFlipX(itemFlipped)
       .setRotation(sprite.rotation + rotationSide * pose.angle)
       .setVisible(true);
@@ -1448,7 +1462,7 @@ export class MosswardScene extends Phaser.Scene {
     });
   }
 
-  private animateWalk(direction: { x: number; y: number }) {
+  private animateWalk(direction: { x: number; y: number }, renderedSpeed: number) {
     if (!this.player || !this.playerSprite || !this.playerShadow) return;
     this.moving = Math.hypot(direction.x, direction.y) > 0.05;
     // A swing or a stoop owns the sprite until it finishes. Walk handling runs every frame and would
@@ -1470,8 +1484,14 @@ export class MosswardScene extends Phaser.Scene {
       this.restingScale = this.playerSprite.scaleY;
     }
     if (!this.playerSprite.anims.isPlaying || this.playerSprite.anims.currentAnim?.key !== nextAnimation) this.playerSprite.play(nextAnimation, true);
-    this.playerSprite.anims.timeScale = 1.18;
-    const footfall = Math.abs(Math.sin(this.time.now * 0.016));
+    // One eight-frame cycle covers roughly one full stride in the art. Tie that cycle to real screen
+    // speed so the planted foot does not skate when movement slows near a destination.
+    const speedRatio = Phaser.Math.Clamp(renderedSpeed / 52, 0.45, 1.35);
+    this.playerSprite.anims.timeScale = 0.78 + speedRatio * 0.4;
+    const frameIndex = Number.parseInt(this.playerSprite.frame.name, 10) || 0;
+    const gaitPhase = (frameIndex % 8) / 8 * Math.PI * 2;
+    const footfall = Math.abs(Math.sin(gaitPhase));
+    this.playerSprite.setY(-footfall * 1.15).setRotation(Math.sin(gaitPhase) * 0.006);
     this.playerShadow.setScale(1 - footfall * 0.08, 1 - footfall * 0.05).setAlpha(0.52 - footfall * 0.08);
     if (this.time.now - this.lastDustAt > 180) {
       this.lastDustAt = this.time.now;
