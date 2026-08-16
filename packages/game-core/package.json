@@ -1,0 +1,6 @@
+{
+  "name": "@eldoria/game-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Framework-neutral deterministic game rules placeholder."
+}

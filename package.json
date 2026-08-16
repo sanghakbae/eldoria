@@ -1,0 +1,20 @@
+{
+  "name": "eldoria",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A web-first, server-authoritative 2D sandbox MMORPG.",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=22 <25",
+    "pnpm": ">=10 <11"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "dev": "pnpm -r --parallel --if-present dev",
+    "format": "pnpm -r --if-present format",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck"
+  }
+}

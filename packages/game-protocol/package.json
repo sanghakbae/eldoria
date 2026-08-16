@@ -1,0 +1,19 @@
+{
+  "name": "@eldoria/game-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Versioned client/server protocol contracts.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

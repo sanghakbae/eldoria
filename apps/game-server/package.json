@@ -1,0 +1,25 @@
+{
+  "name": "@eldoria/game-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Eldoria authoritative real-time game server.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@eldoria/game-protocol": "workspace:*",
+    "ws": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

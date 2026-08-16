@@ -1,0 +1,18 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+catalog:
+  "@types/node": ^24.10.13
+  "@types/react": ^19.2.14
+  "@types/react-dom": ^19.2.3
+  "@types/ws": ^8.18.1
+  "@vitejs/plugin-react": ^6.0.5
+  phaser: ^4.2.1
+  react: ^19.2.8
+  react-dom: ^19.2.8
+  tsx: ^4.23.12
+  typescript: ^5.9.2
+  vite: ^8.2.1
+  vitest: ^4.1.10
+  ws: ^8.21.3

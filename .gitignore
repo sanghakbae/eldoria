@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+.vite/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+service-account*.json
+firebase-admin*.json
+
+# Firebase emulators
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Tooling and editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.tsbuildinfo
+
+# Logs
+*.log
+pnpm-debug.log*
