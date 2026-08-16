@@ -4,7 +4,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: hidden; background: radial-gradient(circle at 50% -20%, #183128 0, #091713 42%, #050b0a 100%); }
 button { font: inherit; }
-.app-shell { width: min(1680px, 100%); min-height: 100vh; margin: 0 auto; padding: 22px 28px 18px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 17px; }
+.app-shell { width: min(1680px, 100%); height: 100dvh; min-height: 620px; margin: 0 auto; padding: 22px 28px 18px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 17px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 72px; border-bottom: 1px solid #9eb47726; }
 .brand-lockup { display: flex; align-items: center; gap: 15px; }
 .brand-rune { display: grid; place-items: center; width: 48px; height: 54px; color: #d9c984; font: 600 25px "Cinzel"; border: 1px solid #a4b87966; clip-path: polygon(50% 0, 100% 20%, 86% 86%, 50% 100%, 14% 86%, 0 20%); background: linear-gradient(150deg, #263c2e, #0c1814); }
@@ -17,7 +17,7 @@ h1 { margin: 1px 0 0; color: #f0eacb; font: 600 27px/1 "Cinzel"; letter-spacing:
 .server-dot { width: 6px; height: 6px; border-radius: 50%; background: #d3a45d; box-shadow: 0 0 9px #d3a45d; }
 .server-pill--online .server-dot { background: #86bd78; box-shadow: 0 0 9px #86bd78; }
 .server-pill--offline .server-dot { background: #bd6c5e; box-shadow: 0 0 9px #bd6c5e; }
-.game-layout { min-height: 0; display: grid; grid-template-columns: 210px minmax(480px, 1fr) 220px; gap: 14px; }
+.game-layout { width: 100%; height: 100%; min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr) 220px; align-items: stretch; gap: 14px; }
 .panel { border: 1px solid #82916c2b; background: linear-gradient(165deg, #101d18eb, #08110fe8); box-shadow: inset 0 0 35px #0005; }
 .character-panel, .journal-panel { padding: 22px 18px; }
 .portrait { display: grid; place-items: center; width: 62px; height: 70px; margin-bottom: 17px; background: linear-gradient(145deg, #25392b, #101b16); color: #d2c584; font: 600 22px "Cinzel"; border: 1px solid #8fa1734f; clip-path: polygon(50% 0, 95% 22%, 86% 88%, 50% 100%, 14% 88%, 5% 22%); }
@@ -33,8 +33,9 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "Cinzel"; }
 .divider { height: 1px; margin: 22px 0; background: linear-gradient(90deg, transparent, #98a47745, transparent); }
 .skill-row { display: flex; justify-content: space-between; padding: 10px 0; color: #88988f; font-size: 10px; border-bottom: 1px solid #75866f17; }
 .skill-row strong { color: #c1b978; font: 400 10px "DM Mono"; }
-.world-frame { position: relative; min-height: 460px; overflow: hidden; border: 1px solid #9baa783e; background: #0c1d18; box-shadow: 0 25px 60px #0008; }
-.game-canvas, .game-canvas canvas { width: 100% !important; height: 100% !important; display: block; }
+.world-frame { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #9baa783e; background: #0c1d18; box-shadow: 0 25px 60px #0008; }
+.game-canvas { width: 100%; height: 100%; }
+.game-canvas canvas { display: block; max-width: 100%; max-height: 100%; margin: auto; }
 .world-frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 80px 15px #04100cbb; background: linear-gradient(180deg, #08130e4d, transparent 25%, transparent 72%, #04100a55); }
 .world-caption { position: absolute; z-index: 2; left: 22px; top: 20px; display: flex; gap: 11px; align-items: center; padding: 10px 14px; background: #07110edb; border-left: 2px solid #b9ad68; }
 .world-caption strong, .world-caption small { display: block; }
@@ -54,7 +55,7 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "Cinzel"; }
 .quickbar button { position: relative; width: 60px; height: 62px; padding: 0; color: #c7c6b2; border: 1px solid #7f927347; background: linear-gradient(145deg, #16251e, #0b1411); cursor: pointer; }
 .quickbar button:hover { border-color: #c1b66e; background: #1b3025; }
 .quickbar kbd { position: absolute; left: 4px; top: 3px; color: #718178; font: 400 8px "DM Mono"; }
-.quickbar button > span { display: block; color: #c9b970; font: 600 19px "Cinzel"; }
+.quickbar svg { display: block; width: 25px; height: 25px; margin: 0 auto; overflow: visible; fill: #b8aa67; stroke: #e0d28a; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 3px #0009); }
 .quickbar small { display: block; margin-top: 2px; color: #66776d; font: 400 7px "DM Mono"; text-transform: uppercase; }
 .build-mark { justify-self: end; text-align: right; } .build-mark span, .build-mark small { display: block; } .build-mark span { color: #9a9e6b; font: 400 9px "DM Mono"; } .build-mark small { margin-top: 4px; color: #53645b; font: 400 7px "DM Mono"; letter-spacing: .12em; }
 .auth-shell { position: relative; display: grid; place-items: center; min-height: 100vh; overflow: hidden; padding: 24px; background: radial-gradient(circle at 50% 30%, #1d3a2c 0, #091813 38%, #030807 78%); }
@@ -89,4 +90,4 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "Cinzel"; }
 .auth-footnote { position: absolute; bottom: 20px; color: #506159; font: 400 8px "DM Mono"; letter-spacing: .18em; }
 @keyframes drift { to { transform: translate(18px, -25px); opacity: .25; } } @keyframes pulse { to { filter: brightness(1.5); transform: scale(1.04); } }
 @media (max-width: 1000px) { .game-layout { grid-template-columns: 170px minmax(420px, 1fr); } .journal-panel { display: none; } }
-@media (max-width: 720px) { body { overflow: auto; } .app-shell { padding: 12px; } .topbar { min-height: 58px; } h1 { font-size: 20px; } .brand-rune { width: 38px; height: 44px; } .game-layout { display: flex; flex-direction: column; } .character-panel { display: grid; grid-template-columns: auto 1fr; gap: 12px; } .portrait { margin: 0; } .vitals { grid-column: 1 / -1; margin-top: 5px; } .character-panel .divider, .character-panel .panel-label, .skill-row { display: none; } .world-frame { min-height: 55vh; } .command-deck { grid-template-columns: 1fr; padding-top: 10px; } .chat-preview, .build-mark { display: none; } .quickbar { justify-self: center; } .server-pill strong { display: none; } }
+@media (max-width: 720px) { body { overflow: hidden; } .app-shell { height: 100dvh; min-height: 0; padding: 10px; gap: 9px; } .topbar { min-height: 52px; } h1 { font-size: 20px; } .brand-rune { width: 38px; height: 44px; } .game-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .character-panel { display: grid; grid-template-columns: auto 1fr; gap: 10px; width: 100%; padding: 10px 13px; } .portrait { width: 46px; height: 52px; margin: 0; } .vitals { display: none; } .character-panel .divider, .character-panel .panel-label, .skill-row { display: none; } .world-frame { width: 100%; height: 100%; min-height: 0; } .command-deck { min-height: 66px; grid-template-columns: 1fr; padding-top: 2px; } .chat-preview, .build-mark { display: none; } .quickbar { justify-self: center; } .quickbar button { width: 52px; height: 54px; } .server-pill strong, .signout-button { display: none; } }

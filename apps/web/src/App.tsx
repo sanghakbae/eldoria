@@ -91,7 +91,7 @@ function WorldScreen({ playerName, onSignOut }: { playerName: string; onSignOut:
           <p>{connection.message}</p>
         </div>
         <nav className="quickbar" aria-label={t("quickActions")}>
-          {quickSlots.map((slot, index) => <button key={slot}><kbd>{index + 1}</kbd><span>{t(slot).slice(0, 1)}</span><small>{t(slot)}</small></button>)}
+          {quickSlots.map((slot, index) => <button key={slot} title={t(slot)}><kbd>{index + 1}</kbd><QuickSlotIcon slot={slot} /><small>{t(slot)}</small></button>)}
         </nav>
         <div className="build-mark"><span>PRE-ALPHA</span><small>{t("foundation")}</small></div>
       </footer>
@@ -105,4 +105,11 @@ function Vital({ label, value, tone }: { label: string; value: number; tone: str
 
 function Skill({ name, value }: { name: string; value: string }) {
   return <div className="skill-row"><span>{name}</span><strong>{value}</strong></div>;
+}
+
+function QuickSlotIcon({ slot }: { slot: TranslationKey }) {
+  if (slot === "blade") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M23 4l5 1-1 5L14 23l-5-5L23 4zM7 20l5 5-3 3-5-5 3-3z" /><path d="M11 17l7 7" /></svg>;
+  if (slot === "bandage") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 11h16v10H8z" /><path d="M13 14h6v4h-6zM5 12l3-1v10l-3-1V12zm22 0l-3-1v10l3-1V12z" /></svg>;
+  if (slot === "torch") return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M13 14h6l-2 15h-2l-2-15z" /><path d="M16 3c5 4 4 8 0 11-4-2-5-6 0-11z" /></svg>;
+  return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 7l8-3 8 3 8-3v21l-8 3-8-3-8 3V7z" /><path d="M12 4v21m8-18v21" /></svg>;
 }
