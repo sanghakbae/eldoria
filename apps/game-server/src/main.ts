@@ -1,8 +1,9 @@
 import { loadConfig } from "./config";
 import { createGameServer } from "./server";
+import { createFirebaseTokenVerifier } from "./auth-verifier";
 
 const config = loadConfig();
-const server = await createGameServer(config);
+const server = await createGameServer(config, { verifyIdToken: createFirebaseTokenVerifier(config.firebaseProjectId) });
 
 console.info(JSON.stringify({ event: "server.start", address: server.address }));
 

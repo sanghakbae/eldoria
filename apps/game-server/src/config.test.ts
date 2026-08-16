@@ -3,7 +3,7 @@ import { loadConfig } from "./config";
 
 describe("loadConfig", () => {
   it("provides safe development defaults", () => {
-    expect(loadConfig({})).toEqual({ host: "0.0.0.0", port: 8787 });
+    expect(loadConfig({})).toEqual({ host: "0.0.0.0", port: 8787, firebaseProjectId: "eldoria-8e943" });
   });
 
   it("rejects invalid ports", () => {

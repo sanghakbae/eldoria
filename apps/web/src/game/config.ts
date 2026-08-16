@@ -7,7 +7,7 @@ export function createGameConfig(parent: HTMLElement): Phaser.Types.Core.GameCon
     parent,
     width: parent.clientWidth || 960,
     height: parent.clientHeight || 540,
-    backgroundColor: "#0c1d18",
+    transparent: true,
     pixelArt: true,
     antialias: false,
     scene: [MosswardScene],

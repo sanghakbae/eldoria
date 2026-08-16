@@ -3,6 +3,8 @@ import { useGameConnection } from "./network/useGameConnection";
 import { AuthScreen } from "./auth/AuthScreen";
 import { useAuth } from "./auth/useAuth";
 import { LanguageToggle, useLanguage, type TranslationKey } from "./i18n/LanguageContext";
+import type { User } from "firebase/auth";
+import { useEffect, useState } from "react";
 
 const quickSlots: TranslationKey[] = ["blade", "bandage", "torch", "map"];
 
@@ -15,12 +17,19 @@ export function App() {
     return <AuthScreen error={session.error} pending={session.pending} onSignIn={session.signIn} onRegister={session.register} onGoogle={session.signInWithGoogle} />;
   }
 
-  return <WorldScreen playerName={session.user.displayName ?? session.user.email?.split("@")[0] ?? "Wanderer"} onSignOut={session.signOut} />;
+  return <WorldScreen user={session.user} playerName={session.user.displayName ?? session.user.email?.split("@")[0] ?? "Wanderer"} onSignOut={session.signOut} />;
 }
 
-function WorldScreen({ playerName, onSignOut }: { playerName: string; onSignOut: () => Promise<void> }) {
-  const connection = useGameConnection();
+function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: string; onSignOut: () => Promise<void> }) {
+  const connection = useGameConnection(user);
   const { t } = useLanguage();
+  const [zoneId, setZoneId] = useState("mossward");
+  useEffect(() => {
+    const handleZone = (event: Event) => setZoneId((event as CustomEvent<string>).detail);
+    window.addEventListener("eldoria:zone-change", handleZone);
+    return () => window.removeEventListener("eldoria:zone-change", handleZone);
+  }, []);
+  const zoneKey = ({ mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" } as const)[zoneId as "mossward" | "greythorn" | "amberfen" | "hollowVault"] ?? "mossward";
 
   return (
     <main className="app-shell">
@@ -47,7 +56,7 @@ function WorldScreen({ playerName, onSignOut }: { playerName: string; onSignOut:
           <div>
             <p className="eyebrow">{t("wanderer")}</p>
             <h2>{playerName}</h2>
-            <p className="location">{t("location")}</p>
+            <p className="location">{t(zoneKey)}</p>
           </div>
           <div className="vitals" aria-label="Character vitals">
             <Vital label={t("health")} value={84} tone="health" />
@@ -66,8 +75,8 @@ function WorldScreen({ playerName, onSignOut }: { playerName: string; onSignOut:
           <div className="world-caption">
             <span className="compass">✦</span>
             <div>
-              <strong>{t("mossward")}</strong>
-              <small>{t("safeSettlement")}</small>
+              <strong>{t(zoneKey)}</strong>
+              <small>{t(zoneId === "mossward" ? "safeSettlement" : "wildZone")}</small>
             </div>
           </div>
           <div className="world-hint">{t("roadHint")}</div>

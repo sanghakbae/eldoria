@@ -8,9 +8,18 @@ export function GameCanvas() {
 
   useEffect(() => {
     if (!hostRef.current || gameRef.current) return;
-    gameRef.current = new Phaser.Game(createGameConfig(hostRef.current));
+    const host = hostRef.current;
+    gameRef.current = new Phaser.Game(createGameConfig(host));
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      if (!entry || !gameRef.current) return;
+      const width = Math.max(1, Math.round(entry.contentRect.width));
+      const height = Math.max(1, Math.round(entry.contentRect.height));
+      gameRef.current.scale.resize(width, height);
+    });
+    resizeObserver.observe(host);
 
     return () => {
+      resizeObserver.disconnect();
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };

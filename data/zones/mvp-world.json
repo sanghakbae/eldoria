@@ -1,0 +1,9 @@
+{
+  "worldId": "verdant-frontier",
+  "zones": [
+    { "id": "mossward", "name": { "en": "Mossward Crossing", "ko": "모스워드 교차로" }, "width": 1672, "height": 941, "east": "greythorn" },
+    { "id": "greythorn", "name": { "en": "Greythorn Wood", "ko": "그레이쏜 숲" }, "width": 1672, "height": 941, "west": "mossward", "east": "amberfen" },
+    { "id": "amberfen", "name": { "en": "Amberfen Wilds", "ko": "앰버펜 황야" }, "width": 1672, "height": 941, "west": "greythorn", "east": "hollowVault" },
+    { "id": "hollowVault", "name": { "en": "The Hollow Vault", "ko": "공허의 금고" }, "width": 1672, "height": 941, "west": "amberfen" }
+  ]
+}

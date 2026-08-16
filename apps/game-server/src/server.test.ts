@@ -8,7 +8,7 @@ afterEach(async () => server?.close());
 
 describe("game server", () => {
   it("reports health and completes the websocket handshake", async () => {
-    server = await createGameServer({ host: "127.0.0.1", port: 0 });
+    server = await createGameServer({ host: "127.0.0.1", port: 0, firebaseProjectId: "test" }, { verifyIdToken: async () => ({ uid: "test-user" }) });
     const health = await fetch(`${server.address}/health`);
     expect(await health.json()).toEqual({ status: "ok", service: "eldoria-game-server" });
 

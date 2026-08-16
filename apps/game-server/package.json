@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@eldoria/game-protocol": "workspace:*",
+    "jose": "catalog:",
     "ws": "catalog:"
   },
   "devDependencies": {

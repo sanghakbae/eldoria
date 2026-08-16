@@ -1,5 +1,6 @@
 import { decodeServerMessage, encodeMessage } from "@eldoria/game-protocol";
 import { useEffect, useState } from "react";
+import type { User } from "firebase/auth";
 import { resolveGameServerUrl } from "./connection";
 
 type ConnectionState = {
@@ -11,7 +12,7 @@ type ConnectionState = {
 
 const initialState: ConnectionState = { status: "connecting", label: "Connecting", message: "Opening a path to the realm…", latency: null };
 
-export function useGameConnection(): ConnectionState {
+export function useGameConnection(user: User): ConnectionState {
   const [state, setState] = useState(initialState);
 
   useEffect(() => {
@@ -20,6 +21,16 @@ export function useGameConnection(): ConnectionState {
     let pingTimer: number | undefined;
     let closed = false;
     const sentAt = new Map<string, number>();
+    let authenticatedUid: string | null = null;
+    let moveSequence = 0;
+
+    const sendMove = (event: Event) => {
+      const detail = (event as CustomEvent<{ x: number; y: number }>).detail;
+      if (!detail || socket?.readyState !== WebSocket.OPEN || !authenticatedUid) return;
+      moveSequence += 1;
+      socket.send(encodeMessage({ type: "player.move", requestId: `move-${moveSequence}`, payload: { sequence: moveSequence, direction: detail } }));
+    };
+    window.addEventListener("eldoria:move-intent", sendMove);
 
     const connect = () => {
       const url = resolveGameServerUrl(window.location, import.meta.env.VITE_GAME_SERVER_URL);
@@ -35,13 +46,27 @@ export function useGameConnection(): ConnectionState {
         const message = decodeServerMessage(String(event.data));
         if (!message) return;
         if (message.type === "connection.ready") {
-          setState({ status: "online", label: "Realm online", message: message.payload.motd, latency: null });
+          void user.getIdToken().then((idToken) => {
+            if (socket?.readyState !== WebSocket.OPEN) return;
+            const requestId = crypto.randomUUID();
+            socket.send(encodeMessage({ type: "auth", requestId, payload: { idToken } }));
+          });
+        }
+        if (message.type === "auth.success") {
+          authenticatedUid = message.payload.uid;
+          window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: message.payload.position }));
+          window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: message.payload.position.zoneId }));
+          setState({ status: "online", label: "Realm online", message: "The road to Mossward is open.", latency: null });
           pingTimer = window.setInterval(() => {
             if (socket?.readyState !== WebSocket.OPEN) return;
             const requestId = crypto.randomUUID();
             sentAt.set(requestId, performance.now());
             socket.send(encodeMessage({ type: "connection.ping", requestId, payload: {} }));
           }, 5000);
+        }
+        if (message.type === "player.state" && message.payload.uid === authenticatedUid) {
+          window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: message.payload.position }));
+          window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: message.payload.position.zoneId }));
         }
         if (message.type === "connection.pong") {
           const start = sentAt.get(message.requestId);
@@ -67,9 +92,10 @@ export function useGameConnection(): ConnectionState {
       closed = true;
       if (retry) window.clearTimeout(retry);
       if (pingTimer) window.clearInterval(pingTimer);
+      window.removeEventListener("eldoria:move-intent", sendMove);
       socket?.close();
     };
-  }, []);
+  }, [user]);
 
   return state;
 }
