@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateDifficultyFactor, calculateSkillGain, calculateSuccessChance, defaultSkillProgression, evaluateBodyConditions, findSkillForAction, foodCatalog, getZoneDefinition, initialNutrition, isPositionWalkable, parseWorldDefinition, resolveSkillAction, skillCategories, skillSystemDefinition, worldDefinition } from "./index";
+import { calculateDifficultyFactor, calculateSkillGain, calculateSuccessChance, craftingRecipes, defaultSkillProgression, evaluateBodyConditions, findSkillForAction, foodCatalog, getZoneDefinition, initialNutrition, isPositionWalkable, parseWorldDefinition, resolveSkillAction, skillCategories, skillSystemDefinition, toolDefinitions, worldDefinition } from "./index";
 
 describe("zone collision data", () => {
   it("blocks the Mossward river while leaving open meadow walkable", () => {
@@ -65,6 +65,18 @@ describe("survival skill system", () => {
     expect(skillCategories).toHaveLength(8);
     expect(defaultSkillProgression.every((skill) => skillCategories.some((category) => category.id === skill.category))).toBe(true);
     expect(defaultSkillProgression.filter((skill) => skill.mvp).map((skill) => skill.id)).toEqual(["observation", "foraging", "firecraft", "toolmaking", "hunting", "butchery", "cooking", "shelter", "firstAid"]);
+  });
+});
+
+describe("crafting catalog", () => {
+  it("provides ten material tiers for every requested tool family", () => {
+    for (const family of ["axe", "pickaxe", "dagger", "longsword", "fishing-rod", "bow", "spear"]) {
+      expect(toolDefinitions.filter((tool) => tool.itemId.endsWith(`-${family}`) && !["tool.hand-axe"].includes(tool.itemId))).toHaveLength(10);
+    }
+  });
+
+  it("includes a player-built shelter recipe", () => {
+    expect(craftingRecipes.find((recipe) => recipe.id === "shelter.log-house")).toMatchObject({ output: { itemId: "structure.log-shelter" } });
   });
 });
 

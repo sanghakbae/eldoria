@@ -193,8 +193,61 @@ export type CraftingRecipe = {
 };
 export type ToolDefinition = { itemId: string; name: { en: string; ko: string }; slot: EquipmentSlot; huntingBonus: number; damage: number; durability: number };
 
-export const craftingRecipes = parseRecipes(recipeContent);
-export const toolDefinitions = parseTools(recipeContent);
+const materialTiers = [
+  { id: "stone", en: "Stone", ko: "돌", itemId: "stone.raw", difficulty: 8 },
+  { id: "bone", en: "Bone", ko: "뼈", itemId: "material.bone", difficulty: 14 },
+  { id: "copper", en: "Copper", ko: "구리", itemId: "metal.copper-ingot", difficulty: 20 },
+  { id: "bronze", en: "Bronze", ko: "청동", itemId: "metal.bronze-ingot", difficulty: 27 },
+  { id: "iron", en: "Iron", ko: "철", itemId: "metal.iron-ingot", difficulty: 34 },
+  { id: "steel", en: "Steel", ko: "강철", itemId: "metal.steel-ingot", difficulty: 42 },
+  { id: "obsidian", en: "Obsidian", ko: "흑요석", itemId: "stone.obsidian", difficulty: 51 },
+  { id: "silver", en: "Silver", ko: "은", itemId: "metal.silver-ingot", difficulty: 59 },
+  { id: "mithril", en: "Mithril", ko: "미스릴", itemId: "metal.mithril-ingot", difficulty: 69 },
+  { id: "adamantite", en: "Adamantite", ko: "아다만타이트", itemId: "metal.adamantite-ingot", difficulty: 80 },
+] as const;
+
+const toolFamilies = [
+  { id: "axe", en: "axe", ko: "도끼", damage: 3, bonus: 20 },
+  { id: "pickaxe", en: "pickaxe", ko: "곡괭이", damage: 2, bonus: 10 },
+  { id: "dagger", en: "dagger", ko: "단검", damage: 4, bonus: 28 },
+  { id: "longsword", en: "longsword", ko: "장검", damage: 6, bonus: 38 },
+  { id: "fishing-rod", en: "fishing rod", ko: "낚싯대", damage: 1, bonus: 0 },
+  { id: "bow", en: "bow", ko: "활", damage: 5, bonus: 45 },
+  { id: "spear", en: "spear", ko: "창", damage: 5, bonus: 42 },
+] as const;
+
+const baseRecipes = parseRecipes(recipeContent);
+const baseTools = parseTools(recipeContent);
+const existingToolIds = new Set(baseTools.map((tool) => tool.itemId));
+const tieredTools: ToolDefinition[] = materialTiers.flatMap((material, tier) => toolFamilies.map((family) => ({
+  itemId: `tool.${material.id}-${family.id}`,
+  name: { en: `${material.en} ${family.en}`, ko: `${material.ko} ${family.ko}` },
+  slot: "mainHand" as const,
+  huntingBonus: family.bonus + tier * 4,
+  damage: family.damage + Math.floor(tier * 0.8),
+  durability: 35 + tier * 28,
+}))).filter((tool) => !existingToolIds.has(tool.itemId));
+const existingRecipeOutputs = new Set(baseRecipes.map((recipe) => recipe.output.itemId));
+const tieredRecipes: CraftingRecipe[] = tieredTools.filter((tool) => !existingRecipeOutputs.has(tool.itemId)).map((tool) => {
+  const material = materialTiers.find((tier) => tool.itemId.startsWith(`tool.${tier.id}-`))!;
+  const flexible = tool.itemId.endsWith("-fishing-rod") || tool.itemId.endsWith("-bow");
+  return {
+    id: `toolmaking.${tool.itemId.slice(5)}`,
+    name: tool.name,
+    actionId: "toolmaking.assemble",
+    difficulty: material.difficulty,
+    successFloor: 0.1,
+    inputs: [
+      { itemId: material.itemId, quantity: flexible ? 1 : 2 },
+      { itemId: "wood.branch", quantity: flexible ? 2 : 1 },
+      { itemId: "material.cord", quantity: 1 },
+    ],
+    output: { itemId: tool.itemId, quantity: 1 },
+  };
+});
+
+export const craftingRecipes = [...baseRecipes, ...tieredRecipes];
+export const toolDefinitions = [...baseTools, ...tieredTools];
 
 export function findRecipe(recipeId: string): CraftingRecipe | undefined {
   return craftingRecipes.find((recipe) => recipe.id === recipeId);

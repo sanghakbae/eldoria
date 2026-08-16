@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { findTool, getZoneDefinition, isPositionWalkable, worldDefinition } from "@eldoria/game-data";
-import type { WorldObjectState } from "@eldoria/game-protocol";
+import type { BuiltStructure, WorldObjectState } from "@eldoria/game-protocol";
 import { getAssetEntries } from "../assetRegistry";
 import { CharacterRig, type LayerSheet } from "../characterRig";
 import { equipmentLayerSheets } from "../equipmentLayers";
@@ -42,7 +42,7 @@ const ANIMAL_PROFILES: Record<string, AnimalProfile> = {
   wildlifeSpawnDeer: { key: "deer", label: { en: "Deer", ko: "사슴" }, texture: "wildlife.walk.deer", displayHeight: 100, society: "herd", group: [1, 1], speed: 31, stride: [52, 84], rest: [3200, 6500], homeRange: 280, lift: 5 },
   wildlifeSpawnBoar: { key: "boar", label: { en: "Wild boar", ko: "멧돼지" }, texture: "wildlife.walk.boar", displayHeight: 78, society: "herd", group: [1, 1], speed: 42, stride: [45, 74], rest: [2200, 4600], homeRange: 230, lift: 6 },
   wildlifeSpawnWolf: { key: "wolf", label: { en: "Wolf", ko: "늑대" }, texture: "wildlife.walk.wolf", displayHeight: 68, society: "pack", group: [1, 1], speed: 58, stride: [55, 92], rest: [1600, 3500], homeRange: 320, lift: 7, aggressive: true },
-  wildlifeSpawnFox: { key: "fox", label: { en: "Fox", ko: "여우" }, texture: "wildlife.walk.fox", displayHeight: 56, society: "solitary", group: [1, 1], speed: 62, stride: [48, 82], rest: [2400, 5200], homeRange: 300, lift: 4 },
+  wildlifeSpawnFox: { key: "fox", label: { en: "Fox", ko: "여우" }, texture: "wildlife.walk.fox", displayHeight: 62, society: "solitary", group: [1, 1], speed: 62, stride: [48, 82], rest: [2400, 5200], homeRange: 300, lift: 4 },
   wildlifeSpawnBear: { key: "bear", label: { en: "Brown bear", ko: "불곰" }, texture: "wildlife.walk.bear", displayHeight: 130, society: "solitary", group: [1, 1], speed: 34, stride: [38, 65], rest: [4200, 8000], homeRange: 260, lift: 3, aggressive: true },
   wildlifeSpawnBison: { key: "bison", label: { en: "Bison", ko: "들소" }, texture: "wildlife.walk.bison", displayHeight: 124, society: "herd", group: [1, 1], speed: 29, stride: [42, 68], rest: [3500, 6800], homeRange: 250, lift: 5 },
   wildlifeSpawnGoat: { key: "goat", label: { en: "Mountain goat", ko: "산양" }, texture: "wildlife.walk.goat", displayHeight: 72, society: "herd", group: [1, 1], speed: 46, stride: [42, 72], rest: [2200, 4700], homeRange: 240, lift: 7 },
@@ -101,7 +101,21 @@ const HELD_ITEM_ART: Record<string, { key: string; path: string; height: number;
   "tool.steel-pickaxe": { key: "item.steel-pickaxe", path: "/assets/items/steel-pickaxe.svg", height: 43, grip: [0.16, 0.94] },
   "tool.stone-spear": { key: "item.stone-spear", path: "/assets/items/stone-spear.svg", height: 42, grip: [0.5, 0.34] },
   "tool.fishing-rod": { key: "item.fishing-rod", path: "/assets/items/fishing-rod.svg", height: 34, grip: [0.22, 0.9] },
+  "family.dagger": { key: "item.dagger", path: "/assets/items/dagger.svg", height: 28, grip: [0.5, 0.82] },
+  "family.longsword": { key: "item.longsword", path: "/assets/items/longsword.svg", height: 43, grip: [0.5, 0.84] },
+  "family.bow": { key: "item.bow", path: "/assets/items/bow.svg", height: 44, grip: [0.37, 0.5] },
 };
+function heldItemArt(itemId: string) {
+  if (HELD_ITEM_ART[itemId]) return HELD_ITEM_ART[itemId];
+  if (itemId.endsWith("-pickaxe")) return HELD_ITEM_ART["tool.pickaxe"];
+  if (itemId.endsWith("-axe")) return HELD_ITEM_ART["tool.hand-axe"];
+  if (itemId.endsWith("-dagger")) return HELD_ITEM_ART["family.dagger"];
+  if (itemId.endsWith("-longsword")) return HELD_ITEM_ART["family.longsword"];
+  if (itemId.endsWith("-fishing-rod")) return HELD_ITEM_ART["tool.fishing-rod"];
+  if (itemId.endsWith("-bow")) return HELD_ITEM_ART["family.bow"];
+  if (itemId.endsWith("-spear")) return HELD_ITEM_ART["tool.stone-spear"];
+  return undefined;
+}
 /** Canvas text is drawn outside the CSS cascade, so the family has to be named here as well. */
 const GAME_FONT = '"KoPubWorld Dotum", sans-serif';
 /** Painted terrain features still use a geometric hover marker. Resource sprites use their own
@@ -195,7 +209,11 @@ export class MosswardScene extends Phaser.Scene {
   private cameraZoomFactor = 1;
   private running = false;
   private worldObjects: Phaser.GameObjects.GameObject[] = [];
-  private pendingInteraction?: { id: string; x: number; y: number };
+  private pendingInteraction?: { id: string; x: number; y: number; reach: number };
+  private pendingLoot?: { drop: Phaser.GameObjects.Container; meat: Phaser.GameObjects.Image; objectId: string; reward: { itemId: string; quantity: number } };
+  private pendingSleep?: { x: number; y: number };
+  private builtStructures = new Map<string, Phaser.GameObjects.Image>();
+  private heldItemHiddenUntil = 0;
   private resourceHighlights: Array<{ id: string; x: number; y: number; outline?: Phaser.GameObjects.Image }> = [];
   private gatherUntil = 0;
   private engagedTarget?: string;
@@ -246,6 +264,8 @@ export class MosswardScene extends Phaser.Scene {
     for (const [assetId, path] of getAssetEntries()) this.load.image(assetId, path);
     this.load.image("player.walk", "/assets/characters/primordial-walk.png");
     this.load.image("player.female.walk", "/assets/characters/primordial-female-walk.png");
+    this.load.spritesheet("player.pickup", "/assets/characters/primordial-male-pickup.png", { frameWidth: 256, frameHeight: 512, endFrame: 3 });
+    this.load.spritesheet("player.female.pickup", "/assets/characters/primordial-female-pickup.png", { frameWidth: 256, frameHeight: 512, endFrame: 3 });
     this.load.spritesheet("player.walk.vertical", "/assets/characters/primordial-walk-vertical-aligned.png", { frameWidth: 221, frameHeight: 443, endFrame: 15 });
     this.load.spritesheet("player.female.walk.vertical", "/assets/characters/primordial-female-walk-vertical-aligned.png", { frameWidth: 221, frameHeight: 443, endFrame: 15 });
     for (const profile of Object.values(ANIMAL_PROFILES)) {
@@ -253,6 +273,8 @@ export class MosswardScene extends Phaser.Scene {
       this.load.spritesheet(`wildlife.outline.${profile.key}`, `/assets/characters/wildlife/walk-outline/${profile.key}.png`, { frameWidth: 256, frameHeight: 256, endFrame: 3 });
     }
     this.load.spritesheet("wildlife.pondFish", "/assets/characters/wildlife/pond-fish-atlas.png", { frameWidth: 256, frameHeight: 256, endFrame: 3 });
+    this.load.image("item.rawGameMeat", "/assets/items/raw-game-meat.png");
+    this.load.image("structure.log-shelter", "/assets/world/structures/player-log-shelter.png");
     for (const art of Object.values(HELD_ITEM_ART)) this.load.image(art.key, art.path);
   }
 
@@ -291,6 +313,9 @@ export class MosswardScene extends Phaser.Scene {
       frameRate: 16,
       repeat: 0,
     });
+    for (const [key, texture] of [["wanderer.pickup", "player.pickup"], ["wanderer.female.pickup", "player.female.pickup"]] as const) {
+      if (!this.anims.exists(key)) this.anims.create({ key, frames: this.anims.generateFrameNumbers(texture, { frames: [0, 1, 2, 2, 3, 0] }), frameRate: 7, repeat: 0 });
+    }
     this.playerMarker = this.add.triangle(0, -124, 0, 0, 11, 0, 5.5, 8, 0xf4df82, 1).setOrigin(0.5);
     // What the wanderer is fighting with, raised over their head only while a fight is on.
     this.weaponBadge = this.createFistBadge().setVisible(false);
@@ -328,6 +353,9 @@ export class MosswardScene extends Phaser.Scene {
     window.addEventListener("eldoria:world-action", this.receiveWorldAction);
     window.addEventListener("eldoria:world-object", this.receiveWorldObject);
     window.addEventListener("eldoria:world-snapshot", this.receiveWorldSnapshot);
+    window.addEventListener("eldoria:structures", this.receiveStructures);
+    const savedStructures = this.game.canvas.parentElement?.dataset.structures;
+    if (savedStructures) this.syncStructures(JSON.parse(savedStructures) as BuiltStructure[]);
     window.dispatchEvent(new CustomEvent("eldoria:observe-world", { detail: { zoneId: this.zoneId } }));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.running = false;
@@ -335,6 +363,7 @@ export class MosswardScene extends Phaser.Scene {
       window.removeEventListener("eldoria:world-action", this.receiveWorldAction);
       window.removeEventListener("eldoria:world-object", this.receiveWorldObject);
       window.removeEventListener("eldoria:world-snapshot", this.receiveWorldSnapshot);
+      window.removeEventListener("eldoria:structures", this.receiveStructures);
       this.background = undefined;
       this.collisionLayer = undefined;
     });
@@ -361,12 +390,27 @@ export class MosswardScene extends Phaser.Scene {
       this.disengage();
       this.destinationMarker?.setVisible(false);
     }
-    if (this.pendingInteraction && Phaser.Math.Distance.Between(this.target.x, this.target.y, this.pendingInteraction.x, this.pendingInteraction.y) <= 250) {
+    if (this.pendingInteraction && Phaser.Math.Distance.Between(this.target.x, this.target.y, this.pendingInteraction.x, this.pendingInteraction.y) <= this.pendingInteraction.reach) {
       window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: this.pendingInteraction.id } }));
       this.pendingInteraction = undefined;
       this.clickTarget = undefined;
       this.pathQueue = [];
       this.destinationMarker?.setVisible(false);
+    }
+    if (this.pendingLoot && Phaser.Math.Distance.Between(this.target.x, this.target.y, this.pendingLoot.drop.x, this.pendingLoot.drop.y) <= 54) {
+      const loot = this.pendingLoot;
+      this.pendingLoot = undefined;
+      this.clickTarget = undefined;
+      this.pathQueue = [];
+      this.destinationMarker?.setVisible(false);
+      this.playLootPickup(loot);
+    }
+    if (this.pendingSleep && Phaser.Math.Distance.Between(this.target.x, this.target.y, this.pendingSleep.x, this.pendingSleep.y) <= 92) {
+      this.pendingSleep = undefined;
+      this.clickTarget = undefined;
+      this.pathQueue = [];
+      this.destinationMarker?.setVisible(false);
+      this.playSleepMotion();
     }
     this.syncEquipmentLayers();
     this.pursueEngagedAnimal();
@@ -460,6 +504,37 @@ export class MosswardScene extends Phaser.Scene {
     }
     this.target.set(position.x, position.y);
   };
+
+  private receiveStructures = (event: Event) => {
+    const structures = (event as CustomEvent<BuiltStructure[]>).detail;
+    if (Array.isArray(structures)) this.syncStructures(structures);
+  };
+
+  private syncStructures(structures: BuiltStructure[]) {
+    const active = new Set(structures.map((structure) => structure.id));
+    for (const [id, image] of this.builtStructures) if (!active.has(id)) { image.destroy(); this.builtStructures.delete(id); }
+    for (const structure of structures) {
+      if (structure.zoneId !== this.zoneId || this.builtStructures.has(structure.id)) continue;
+      const image = this.add.image(structure.x, structure.y, "structure.log-shelter").setDisplaySize(190, 134).setOrigin(0.5, 0.86).setDepth(8 + structure.y / WORLD_HEIGHT).setInteractive({ useHandCursor: true });
+      image.on("pointerdown", () => {
+        const distance = Phaser.Math.Distance.Between(this.target.x, this.target.y, structure.x, structure.y);
+        if (distance <= 92) this.playSleepMotion();
+        else {
+          this.pendingSleep = { x: structure.x, y: structure.y };
+          const angle = Phaser.Math.Angle.Between(structure.x, structure.y, this.target.x, this.target.y);
+          this.walkTo(structure.x + Math.cos(angle) * 72, structure.y + Math.sin(angle) * 72);
+        }
+      });
+      this.builtStructures.set(structure.id, image);
+    }
+  }
+
+  private playSleepMotion() {
+    if (!this.player || !this.playerSprite) return;
+    this.heldItemHiddenUntil = this.time.now + 1500;
+    this.playerSprite.stop().setAngle(90).setAlpha(0.9);
+    this.tweens.add({ targets: this.playerSprite, y: 6, alpha: 0.25, duration: 380, yoyo: true, hold: 520, onYoyo: () => window.dispatchEvent(new CustomEvent("eldoria:sleep")), onComplete: () => this.playerSprite?.setAngle(0).setAlpha(1).setY(0).setTexture(this.sideWalkTexture, 0) });
+  }
 
   private layoutCamera() {
     const fitZoom = Math.max(this.scale.width / WORLD_WIDTH, this.scale.height / WORLD_HEIGHT, 0.72);
@@ -747,7 +822,7 @@ export class MosswardScene extends Phaser.Scene {
     const badge = this.add.container(0, -104);
     badge.add(this.add.circle(0, 0, 14, 0x0b1512, 0.9).setStrokeStyle(1.2, 0xd3c37f, 0.8));
     const equipped = this.game.canvas.parentElement?.dataset.equipped ?? "";
-    const art = HELD_ITEM_ART[equipped];
+    const art = heldItemArt(equipped);
     if (art && this.textures.exists(art.key)) {
       const icon = this.add.image(0, 0, art.key);
       const source = this.textures.get(art.key).getSourceImage();
@@ -770,8 +845,12 @@ export class MosswardScene extends Phaser.Scene {
   private syncHeldItem() {
     const sprite = this.playerSprite;
     if (!this.heldItem || !sprite) return;
+    if (this.time.now < this.heldItemHiddenUntil) {
+      this.heldItem.setVisible(false);
+      return;
+    }
     const equipped = this.game.canvas.parentElement?.dataset.equipped ?? "";
-    const art = HELD_ITEM_ART[equipped];
+    const art = heldItemArt(equipped);
     if (!art || !this.textures.exists(art.key)) {
       this.heldItem.setVisible(false);
       this.heldItemId = "";
@@ -801,7 +880,7 @@ export class MosswardScene extends Phaser.Scene {
     // Side frames are authored facing right. Mirroring the body must mirror its anatomical right-hand
     // anchor as well; keeping the original X coordinate left the tool floating behind the shoulder.
     // Vertical sheets already contain separate front/back right-hand coordinates.
-    const handOffsetX = (pose.fx - 0.5) * width * (vertical ? 1 : sprite.flipX ? -1 : 1);
+    const handOffsetX = this.rightHandOffsetX(pose.fx, width, vertical, sprite.flipX);
     this.heldItem
       .setPosition(sprite.x + handOffsetX, sprite.y + (pose.fy - 1) * height)
       .setFlipX(itemFlipped)
@@ -810,6 +889,12 @@ export class MosswardScene extends Phaser.Scene {
     // Seen from behind, the hand and torso occlude the grip. From the front the tool stays visible.
     if (vertical && frameIndex < 8) this.player?.moveBelow(this.heldItem, sprite);
     else this.player?.moveAbove(this.heldItem, sprite);
+  }
+
+  /** Only the anatomical right-hand anchor may carry equipment, mirrored with the side-view body. */
+  private rightHandOffsetX(anchorX: number, frameWidth: number, vertical: boolean, facingLeft: boolean) {
+    const authoredRightHand = (anchorX - 0.5) * frameWidth;
+    return vertical || !facingLeft ? authoredRightHand : -authoredRightHand;
   }
 
   /**
@@ -970,17 +1055,21 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   private requestInteraction(id: string, x: number, y: number) {
+    const object = getZoneDefinition(this.zoneId)?.layers.objects.find((candidate) => candidate.id === id);
+    const reach = object?.type === "fishingWater" ? 112
+      : object?.type === "animalDenEntrance" || object?.type === "animalDenExit" ? 92
+        : object?.type === "wildTree" || object?.type === "wildFruitTree" ? 76
+          : 62;
     const distance = Phaser.Math.Distance.Between(this.target.x, this.target.y, x, y);
-    if (distance <= 250) {
+    if (distance <= reach) {
       window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: id } }));
       return;
     }
     const angle = Phaser.Math.Angle.Between(x, y, this.target.x, this.target.y);
-    const approachDistance = id.includes("animal-den") ? 235 : 190;
+    const approachDistance = Math.max(30, reach - 12);
     const approach = new Phaser.Math.Vector2(x + Math.cos(angle) * approachDistance, y + Math.sin(angle) * approachDistance);
-    this.pendingInteraction = { id, x, y };
-    this.clickTarget = approach;
-    this.destinationMarker?.setVisible(false);
+    this.pendingInteraction = { id, x, y, reach };
+    this.walkTo(approach.x, approach.y);
   }
 
   /**
@@ -1182,29 +1271,53 @@ export class MosswardScene extends Phaser.Scene {
     this.collisionLayer = layer;
   }
 
-  /** What came out of the kill or the gather, named and floating off the thing it came from. */
+  /** The actual butchered meat remains on the ground until the player walks over and picks it up. */
   private createLootDrop(objectId: string, reward: { itemId: string; quantity: number }) {
     const source = this.animals.get(objectId)?.container;
     if (!source) return;
     const language = this.game.canvas.parentElement?.dataset.language === "ko" ? "ko" : "en";
-    const bag = this.add.container(source.x, source.y - 3).setDepth(12).setSize(48, 42)
-      .setInteractive(new Phaser.Geom.Rectangle(-24, -21, 48, 42), Phaser.Geom.Rectangle.Contains)
+    const drop = this.add.container(source.x, source.y - 2).setDepth(12).setSize(54, 42)
+      .setInteractive(new Phaser.Geom.Rectangle(-27, -21, 54, 42), Phaser.Geom.Rectangle.Contains)
       .setData("useHandCursor", true);
-    if (bag.input) bag.input.cursor = "pointer";
-    const glow = this.add.ellipse(0, 4, 34, 15, 0xe4ca6a, 0.17).setStrokeStyle(1.4, 0xf1dc77, 0.75);
-    const sack = this.add.graphics();
-    sack.fillStyle(0x8b6840, 1).fillRoundedRect(-10, -14, 20, 22, 6);
-    sack.lineStyle(1.5, 0xe2c982, 0.9).strokeRoundedRect(-10, -14, 20, 22, 6);
-    sack.fillStyle(0x624529, 1).fillRect(-7, -17, 14, 5);
-    const label = this.add.text(0, -24, language === "ko" ? "전리품" : "Loot", { fontFamily: GAME_FONT, fontSize: "10px", color: "#f2e3ad", backgroundColor: "#0b1512dd", padding: { x: 5, y: 2 } }).setOrigin(0.5, 1);
-    bag.add([glow, sack, label]);
+    if (drop.input) drop.input.cursor = "pointer";
+    const glow = this.add.ellipse(0, 5, 38, 14, 0xc85c45, 0.13).setStrokeStyle(1.1, 0xe8b06f, 0.62);
+    const meat = this.add.image(0, 0, "item.rawGameMeat").setDisplaySize(46, 46);
+    const label = this.add.text(0, -24, `${itemDisplayName(reward.itemId, language)} ×${reward.quantity}`, { fontFamily: GAME_FONT, fontSize: "10px", color: "#f2e3ad", backgroundColor: "#0b1512dd", padding: { x: 5, y: 2 } }).setOrigin(0.5, 1);
+    drop.add([glow, meat, label]);
     this.tweens.add({ targets: glow, scaleX: 1.22, scaleY: 1.12, alpha: 0.38, duration: 760, yoyo: true, repeat: -1, ease: "Sine.InOut" });
-    bag.once("pointerdown", (pointer: Phaser.Input.Pointer) => {
+    drop.once("pointerdown", (pointer: Phaser.Input.Pointer) => {
       pointer.event.stopPropagation();
-      window.dispatchEvent(new CustomEvent("eldoria:loot", { detail: { objectId, reward } }));
-      bag.destroy();
+      const loot = { drop, meat, objectId, reward };
+      const distance = Phaser.Math.Distance.Between(this.target.x, this.target.y, drop.x, drop.y);
+      if (distance <= 54) this.playLootPickup(loot);
+      else {
+        this.pendingLoot = loot;
+        const angle = Phaser.Math.Angle.Between(drop.x, drop.y, this.target.x, this.target.y);
+        this.walkTo(drop.x + Math.cos(angle) * 38, drop.y + Math.sin(angle) * 38);
+      }
     });
-    this.worldObjects.push(bag);
+    this.worldObjects.push(drop);
+  }
+
+  private playLootPickup(loot: NonNullable<MosswardScene["pendingLoot"]>) {
+    if (!this.player || !this.playerSprite || !loot.drop.active) return;
+    const female = this.sideWalkTexture === "player.female.walk";
+    const animation = female ? "wanderer.female.pickup" : "wanderer.pickup";
+    const texture = female ? "player.female.pickup" : "player.pickup";
+    const toward = Math.sign(loot.drop.x - this.player.x) || 1;
+    this.gatherUntil = this.time.now + 1100;
+    this.heldItemHiddenUntil = this.gatherUntil;
+    this.playerSprite.stop().setTexture(texture).setScale(female ? 0.17 : 0.16).setOrigin(0.5, 1).setFlipX(toward < 0).setPosition(0, 0).setRotation(0).play(animation);
+    this.time.delayedCall(500, () => {
+      if (!loot.meat.active || !this.player) return;
+      this.tweens.add({ targets: loot.meat, x: this.player.x - loot.drop.x + toward * 15, y: this.player.y - loot.drop.y - 35, scale: 0.35, alpha: 0, duration: 360, ease: "Quad.InOut" });
+    });
+    this.time.delayedCall(980, () => {
+      if (!loot.drop.active || !this.playerSprite) return;
+      window.dispatchEvent(new CustomEvent("eldoria:loot", { detail: { objectId: loot.objectId, reward: loot.reward } }));
+      loot.drop.destroy();
+      this.playerSprite.stop().setTexture(this.sideWalkTexture).setScale(female ? 0.14 : 0.16).setOrigin(0.5, 1).setFrame(0).setPosition(0, 0).setRotation(0);
+    });
   }
 
   /** What came out of a gathered resource, named and floating off its source. */
@@ -1377,6 +1490,11 @@ export class MosswardScene extends Phaser.Scene {
     const sprite = this.playerSprite;
     const resource = this.resourceHighlights.find((candidate) => candidate.id === objectId);
     if (!sprite || !this.player || this.moving) return;
+    const objectType = getZoneDefinition(this.zoneId)?.layers.objects.find((candidate) => candidate.id === objectId)?.type;
+    if (objectType === "wildFruitTree") {
+      this.playFruitGatherMotion(resource, success);
+      return;
+    }
     this.gatherUntil = this.time.now + 900;
     this.tweens.killTweensOf(sprite);
     const female = this.sideWalkTexture === "player.female.walk";
@@ -1432,6 +1550,32 @@ export class MosswardScene extends Phaser.Scene {
         ease: "Quad.InOut",
         onComplete: () => pickup.destroy(),
       });
+    });
+  }
+
+  /** Fruit is taken at shoulder height; ground-pickup crouching made the hand reach into empty grass. */
+  private playFruitGatherMotion(resource: (typeof this.resourceHighlights)[number] | undefined, success: boolean) {
+    if (!resource || !this.player || !this.playerSprite) return;
+    const sprite = this.playerSprite;
+    const female = this.sideWalkTexture === "player.female.walk";
+    const toward = Math.sign(resource.x - this.player.x) || 1;
+    const reach = SIDE_WALK_SHEETS[this.sideWalkTexture as keyof typeof SIDE_WALK_SHEETS].strike.extend;
+    this.gatherUntil = this.time.now + 900;
+    this.heldItemHiddenUntil = this.gatherUntil;
+    sprite.stop().setTexture(this.sideWalkTexture).setScale(female ? 0.14 : 0.16).setFlipX(toward < 0).setFrame(reach).setPosition(0, 0).setRotation(0);
+    this.tweens.chain({
+      targets: sprite,
+      tweens: [
+        { x: toward * 4, y: -3, rotation: toward * -0.045, duration: 280, ease: "Sine.Out" },
+        { x: toward * 5, y: -4, duration: 180 },
+        { x: 0, y: 0, rotation: 0, duration: 380, ease: "Sine.InOut" },
+      ],
+    });
+    if (!success) return;
+    const fruit = this.add.circle(resource.x, resource.y - 68, 5, 0xb94835, 1).setStrokeStyle(1, 0xe0a45d, 0.9).setDepth(13);
+    this.time.delayedCall(300, () => {
+      if (!fruit.active || !this.player) return;
+      this.tweens.add({ targets: fruit, x: this.player.x + toward * 17, y: this.player.y - 42, scale: 0.55, duration: 330, ease: "Quad.InOut", onComplete: () => fruit.destroy() });
     });
   }
 

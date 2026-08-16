@@ -1,4 +1,4 @@
-import { foodCatalog } from "@eldoria/game-data";
+import { findTool, foodCatalog } from "@eldoria/game-data";
 import type { Language } from "../i18n/LanguageContext";
 
 const fallbackItemNames: Record<string, { en: string; ko: string }> = {
@@ -19,6 +19,7 @@ const fallbackItemNames: Record<string, { en: string; ko: string }> = {
   "tool.stone-spear": { en: "Stone spear", ko: "돌창" },
   "tool.fishing-rod": { en: "Fishing rod", ko: "낚싯대" },
   "material.cord": { en: "Plant cord", ko: "풀 끈" },
+  "structure.log-shelter": { en: "Log shelter", ko: "통나무 집" },
   "meat.turtle": { en: "Meat (turtle)", ko: "육고기(거북이)" },
   "meat.wolf": { en: "Meat (wolf)", ko: "육고기(늑대)" },
   "meat.fox": { en: "Meat (fox)", ko: "육고기(여우)" },
@@ -31,7 +32,7 @@ const fallbackItemNames: Record<string, { en: string; ko: string }> = {
  */
 export function itemDisplayName(itemId: string, language: Language): string {
   const food = foodCatalog.find((candidate) => candidate.id === itemId);
-  if (!food) return fallbackItemNames[itemId]?.[language] ?? itemId;
+  if (!food) return findTool(itemId)?.name[language] ?? fallbackItemNames[itemId]?.[language] ?? itemId;
   if (food.category === "meat") {
     return language === "ko" ? `육고기(${food.name.ko})` : `Meat (${food.name.en})`;
   }

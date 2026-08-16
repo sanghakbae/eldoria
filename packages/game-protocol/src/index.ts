@@ -6,10 +6,11 @@ export type InventoryStack = { itemId: string; quantity: number };
 export type SkillProgress = { value: number; completedActions: number };
 export type SkillLock = "up" | "down" | "locked";
 export type VitalState = { current: number; maximum: number };
+export type BuiltStructure = { id: string; type: "log-shelter"; zoneId: string; x: number; y: number };
 /** What is worn or held, keyed by layer slot. `equipped` is the older single-slot form, kept so
  *  characters saved before the rig existed still load. */
 export type Equipment = Partial<Record<string, string | null>>;
-export type SurvivalState = { nutrition: NutritionState; lastMetabolismAt: string; inventory?: InventoryStack[]; skills?: Record<string, SkillProgress>; locks?: Record<string, SkillLock>; health?: VitalState; equipped?: string | null; equipment?: Equipment; toolWear?: Record<string, number> };
+export type SurvivalState = { nutrition: NutritionState; lastMetabolismAt: string; inventory?: InventoryStack[]; skills?: Record<string, SkillProgress>; locks?: Record<string, SkillLock>; health?: VitalState; equipped?: string | null; equipment?: Equipment; toolWear?: Record<string, number>; structures?: BuiltStructure[] };
 export type ActionOutcome = { success: boolean; chance: number; skillId: string; gain: number; drained: Array<{ skillId: string; amount: number }> };
 export type TargetState = { health: number; maximumHealth: number; defeated: boolean };
 export type CombatState = { counterDamage: number; playerDefeated: boolean };

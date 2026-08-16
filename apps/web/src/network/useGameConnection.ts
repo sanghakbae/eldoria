@@ -1,5 +1,5 @@
-import { decodeServerMessage, encodeMessage, type ActionOutcome, type CharacterGender, type CharacterSummary, type SkillLock } from "@eldoria/game-protocol";
-import { createInitialSurvivalState, findTool, foodCatalog, getZoneDefinition, nutrientIds } from "@eldoria/game-data";
+import { decodeServerMessage, encodeMessage, type ActionOutcome, type BuiltStructure, type CharacterGender, type CharacterSummary, type SkillLock } from "@eldoria/game-protocol";
+import { craftingRecipes, createInitialSurvivalState, findTool, foodCatalog, getZoneDefinition, nutrientIds } from "@eldoria/game-data";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
@@ -54,6 +54,13 @@ const localWildlifeCombat: Record<string, { health: number; retaliation: number;
   Bison: { health: 20, retaliation: 13, reward: { itemId: "meat.bison", quantity: 16 } }, Goat: { health: 7, retaliation: 4, reward: { itemId: "meat.goat", quantity: 5 } }, Turkey: { health: 4, retaliation: 2, reward: { itemId: "bird.turkey", quantity: 3 } },
   Turtle: { health: 9, retaliation: 2, reward: { itemId: "meat.turtle", quantity: 2 } }, Hare: { health: 4, retaliation: 1, reward: { itemId: "meat.hare", quantity: 2 } },
 };
+
+const pondFish = [
+  { itemId: "fish.carp", ko: "잉어" },
+  { itemId: "fish.minnow", ko: "피라미" },
+  { itemId: "fish.perch", ko: "농어" },
+  { itemId: "fish.trout", ko: "송어" },
+] as const;
 
 export function useGameConnection(user: User): GameConnection {
   const [state, setState] = useState(initialState);
@@ -159,6 +166,15 @@ export function useGameConnection(user: User): GameConnection {
         setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: `전리품 획득: ${detail.reward.itemId} ×${detail.reward.quantity}` }));
         void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() });
       };
+      const handleSleep = () => {
+        const character = stateRef.current.selectedCharacter;
+        if (!character) return;
+        const health = character.survival.health ?? { current: 100, maximum: 100 };
+        const survival = { ...character.survival, health: { ...health, current: health.maximum } };
+        const updated = { ...character, survival };
+        setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: "통나무 집에서 잠을 자고 몸을 회복했습니다." }));
+        void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() });
+      };
       const handleLocalResource = (event: Event) => {
         const objectId = (event as CustomEvent<{ objectId: string }>).detail?.objectId;
         const character = stateRef.current.selectedCharacter;
@@ -167,17 +183,18 @@ export function useGameConnection(user: User): GameConnection {
         if (!object || object.type.startsWith("wildlifeSpawn")) return;
         if (Math.hypot(character.position.x - object.x, character.position.y - object.y) > 260) return;
         const equipped = character.survival.equipment?.mainHand ?? character.survival.equipped ?? null;
-        const axes = ["tool.hand-axe", "tool.copper-axe", "tool.iron-axe", "tool.steel-axe"];
-        const picks = ["tool.pickaxe", "tool.copper-pickaxe", "tool.iron-pickaxe", "tool.steel-pickaxe"];
+        const isAxe = Boolean(equipped && (equipped === "tool.hand-axe" || equipped.endsWith("-axe")));
+        const isPickaxe = Boolean(equipped && (equipped === "tool.pickaxe" || equipped.endsWith("-pickaxe")));
         let actionId = "";
         let reward: { itemId: string; quantity: number } | null = null;
         let message = "이 대상은 아직 사용할 수 없습니다.";
         if (object.type === "fishingWater") {
-          const hasFishingRod = (character.survival.inventory ?? []).some((stack) => stack.itemId === "tool.fishing-rod" && stack.quantity > 0);
+          const hasFishingRod = (character.survival.inventory ?? []).some((stack) => (stack.itemId === "tool.fishing-rod" || stack.itemId.endsWith("-fishing-rod")) && stack.quantity > 0);
           if (!hasFishingRod) { setState((current) => ({ ...current, message: "낚싯대가 있어야 낚시할 수 있습니다." })); return; }
-          actionId = "fishing.cast"; reward = { itemId: "fish.trout", quantity: 1 }; message = "연못에서 숭어를 낚았습니다.";
+          const caught = pondFish[Math.floor(Math.random() * pondFish.length)]!;
+          actionId = "fishing.cast"; reward = { itemId: caught.itemId, quantity: 1 }; message = `연못에서 ${caught.ko}를 낚았습니다.`;
         } else if (object.type === "wildTree") {
-          if (!axes.includes(equipped ?? "")) { setState((current) => ({ ...current, message: "나무를 베려면 도끼가 필요합니다." })); return; }
+          if (!isAxe) { setState((current) => ({ ...current, message: "나무를 베려면 도끼가 필요합니다." })); return; }
           actionId = "material.process"; reward = { itemId: "wood.raw-log", quantity: 1 }; message = "나무에서 통나무를 얻었습니다.";
         } else if (object.type === "wildFruitTree") {
           actionId = "fruit.gather"; reward = { itemId: "fruit.apple", quantity: 1 }; message = "잘 익은 사과를 땄습니다.";
@@ -186,7 +203,7 @@ export function useGameConnection(user: User): GameConnection {
         } else if (object.type === "fallenBranch") {
           actionId = "material.process"; reward = { itemId: "wood.branch", quantity: 1 }; message = "나뭇가지를 주웠습니다.";
         } else if (object.type.endsWith("OreDeposit") || object.type === "coalDeposit") {
-          if (!picks.includes(equipped ?? "")) { setState((current) => ({ ...current, message: "광석을 캐려면 곡괭이가 필요합니다." })); return; }
+          if (!isPickaxe) { setState((current) => ({ ...current, message: "광석을 캐려면 곡괭이가 필요합니다." })); return; }
           actionId = "stone.flake"; reward = { itemId: "stone.raw", quantity: 3 }; message = "광맥에서 돌을 캐냈습니다.";
         }
         if (!actionId || !reward) return;
@@ -230,6 +247,7 @@ export function useGameConnection(user: User): GameConnection {
       window.addEventListener("eldoria:interact", handleLocalResource);
       window.addEventListener("eldoria:wildlife-aggression", handleWildlifeAggression);
       window.addEventListener("eldoria:loot", handleLoot);
+      window.addEventListener("eldoria:sleep", handleSleep);
       void getDocs(query(collection(firestore, "characters"), where("ownerUid", "==", user.uid))).then((snapshot) => {
         if (cancelled) return;
         const characters = snapshot.docs.map((document) => {
@@ -257,6 +275,7 @@ export function useGameConnection(user: User): GameConnection {
         window.removeEventListener("eldoria:interact", handleLocalResource);
         window.removeEventListener("eldoria:wildlife-aggression", handleWildlifeAggression);
         window.removeEventListener("eldoria:loot", handleLoot);
+        window.removeEventListener("eldoria:sleep", handleSleep);
       };
     }
 
@@ -497,6 +516,39 @@ export function useGameConnection(user: User): GameConnection {
       setState((current) => ({ ...current, selectedCharacter: next, characters: current.characters.map((candidate) => candidate.id === next.id ? next : candidate), message: itemId ? "Item equipped." : "Item unequipped." }));
       void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));
     },
-    craft: (recipeId) => sendCharacterCommand({ type: "craft.attempt", requestId: crypto.randomUUID(), payload: { recipeId } }),
+    craft: (recipeId) => {
+      if (!firebaseMode) return sendCharacterCommand({ type: "craft.attempt", requestId: crypto.randomUUID(), payload: { recipeId } });
+      const character = state.selectedCharacter;
+      const recipe = craftingRecipes.find((candidate) => candidate.id === recipeId);
+      if (!character || !recipe) return;
+      const inventory = (character.survival.inventory ?? []).map((stack) => ({ ...stack }));
+      const missing = recipe.inputs.find((input) => (inventory.find((stack) => stack.itemId === input.itemId)?.quantity ?? 0) < input.quantity);
+      if (missing) {
+        const message = `${missing.itemId} 재료가 부족합니다.`;
+        setState((current) => ({ ...current, message, lastCraft: { recipeId, success: false, message, chance: null } }));
+        return;
+      }
+      for (const input of recipe.inputs) {
+        const stack = inventory.find((candidate) => candidate.itemId === input.itemId)!;
+        stack.quantity -= input.quantity;
+      }
+      const remaining = inventory.filter((stack) => stack.quantity > 0);
+      let structures = character.survival.structures ?? [];
+      let built: BuiltStructure | undefined;
+      if (recipe.output.itemId === "structure.log-shelter") {
+        built = { id: crypto.randomUUID(), type: "log-shelter", zoneId: character.position.zoneId, x: Math.min(1570, character.position.x + 115), y: Math.min(875, character.position.y + 55) };
+        structures = [...structures, built];
+      } else {
+        const output = remaining.find((stack) => stack.itemId === recipe.output.itemId);
+        if (output) output.quantity += recipe.output.quantity;
+        else remaining.push({ ...recipe.output });
+      }
+      const survival = { ...character.survival, inventory: remaining, structures };
+      const updated = { ...character, survival };
+      const message = `${recipe.name.ko} 제작을 완료했습니다.`;
+      setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message, lastCraft: { recipeId, success: true, message, chance: 1 } }));
+      void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));
+      if (built) window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));
+    },
   };
 }

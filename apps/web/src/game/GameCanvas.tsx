@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
+import type { BuiltStructure } from "@eldoria/game-protocol";
 import { createGameConfig } from "./config";
 
-export function GameCanvas({ gender, language, equipped, equipment }: { gender: "female" | "male"; language: "en" | "ko"; equipped: string | null; equipment: Record<string, string | null | undefined> }) {
+export function GameCanvas({ gender, language, equipped, equipment, structures }: { gender: "female" | "male"; language: "en" | "ko"; equipped: string | null; equipment: Record<string, string | null | undefined>; structures: BuiltStructure[] }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
 
@@ -40,7 +41,9 @@ export function GameCanvas({ gender, language, equipped, equipment }: { gender: 
     hostRef.current.dataset.language = language;
     hostRef.current.dataset.equipped = equipped ?? "";
     hostRef.current.dataset.equipment = JSON.stringify(Object.fromEntries(Object.entries(equipment).filter(([, itemId]) => Boolean(itemId))));
-  }, [language, equipped, equipment]);
+    hostRef.current.dataset.structures = JSON.stringify(structures);
+    window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));
+  }, [language, equipped, equipment, structures]);
 
   return <div ref={hostRef} className="game-canvas" />;
 }

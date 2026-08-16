@@ -160,6 +160,30 @@ function GameSession({ user, isAdmin, onSignOut }: { user: User; isAdmin: boolea
   return <CharacterScreen connection={connection} isAdmin={isAdmin} onSignOut={onSignOut} />;
 }
 
+function localizedSystemMessage(message: string, language: "en" | "ko") {
+  if (language === "en") return message;
+  const exact: Record<string, string> = {
+    "Opening a path to the realm…": "세계로 연결하고 있습니다…",
+    "Character records loaded.": "저장된 캐릭터 정보를 불러왔습니다.",
+    "You regain consciousness in the meadow.": "초원에서 정신을 차렸습니다.",
+    "Item equipped.": "도구를 오른손에 장착했습니다.",
+    "Item unequipped.": "도구 장착을 해제했습니다.",
+  };
+  if (exact[message]) return exact[message];
+  const speciesNames: Record<string, string> = { Rabbit: "토끼", Deer: "사슴", Boar: "멧돼지", Wolf: "늑대", Fox: "여우", Bear: "불곰", Bison: "들소", Goat: "산양", Turkey: "칠면조", Turtle: "거북이", Hare: "산토끼" };
+  const entering = message.match(/^Entering the realm as (.+)\.$/);
+  if (entering) return `${entering[1]} 캐릭터로 세계에 입장했습니다.`;
+  const ready = message.match(/^(.+) is ready\.$/);
+  if (ready) return `${ready[1]} 캐릭터가 준비되었습니다.`;
+  const defeated = message.match(/^(.+) defeated\.$/);
+  if (defeated) return `${speciesNames[defeated[1]!] ?? defeated[1]}을(를) 처치했습니다.`;
+  const counter = message.match(/^(.+) strikes back for (\d+)\.$/);
+  if (counter) return `${speciesNames[counter[1]!] ?? counter[1]}의 반격으로 피해 ${counter[2]}을 받았습니다.`;
+  const first = message.match(/^(.+) attacks first for (\d+)\.$/);
+  if (first) return `${speciesNames[first[1]!] ?? first[1]}의 선공으로 피해 ${first[2]}을 받았습니다.`;
+  return message;
+}
+
 function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection: GameConnection; character: CharacterSummary; isAdmin: boolean; onSignOut: () => Promise<void> }) {
   const { t, language } = useLanguage();
   const bodyConditions = evaluateBodyConditions(character.survival.nutrition);
@@ -170,12 +194,13 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [craftingOpen, setCraftingOpen] = useState(false);
-  const [systemMessages, setSystemMessages] = useState<string[]>(() => [connection.message]);
+  const [systemMessages, setSystemMessages] = useState<string[]>(() => [localizedSystemMessage(connection.message, language)]);
   const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["untamedWilds"]') as string[]));
   useEffect(() => {
     if (!connection.message) return;
-    setSystemMessages((current) => current.at(-1) === connection.message ? current : [...current.slice(-7), connection.message]);
-  }, [connection.message]);
+    const localized = localizedSystemMessage(connection.message, language);
+    setSystemMessages((current) => current.at(-1) === localized ? current : [...current.slice(-7), localized]);
+  }, [connection.message, language]);
   useEffect(() => {
     const handlePanels = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
@@ -264,7 +289,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           <div className="divider" />
           <p className="panel-label">{t("bodyCondition")}</p>
           <div className={`body-condition ${bodyConditions.length === 0 ? "body-condition--healthy" : "body-condition--warning"}`}>
-            <BodyConditionFigure conditions={bodyConditions} />
+            <BodyConditionFigure conditions={bodyConditions} gender={character.gender} />
             <div>
               {bodyConditions.length === 0 && <><strong>{t("wholeBodyHealthy")}</strong><small>{t("nutritionBalanced")}</small></>}
               {bodyConditions.slice(0, 3).map((condition) => <span key={condition.id}><strong>{condition.name[language]}</strong><small>{condition.effect[language]}</small></span>)}
@@ -283,7 +308,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
         </aside>
 
         <section className="world-frame" aria-label={t("worldAria")}>
-          <GameCanvas gender={character.gender} language={language} equipped={character.survival.equipment?.mainHand ?? character.survival.equipped ?? null} equipment={character.survival.equipment ?? {}} />
+          <GameCanvas gender={character.gender} language={language} equipped={character.survival.equipment?.mainHand ?? character.survival.equipped ?? null} equipment={character.survival.equipment ?? {}} structures={character.survival.structures ?? []} />
           <MiniMap position={playerPosition} language={language} onOpen={() => setMapOpen(true)} />
           <button type="button" className="inventory-toggle" onClick={() => setInventoryOpen(true)} aria-label={t("inventory")}>
             <QuickSlotIcon slot="inventory" /><span>{t("inventory")}</span><kbd>I</kbd>
@@ -324,7 +349,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
       <footer className="command-deck">
         <div className="chat-preview">
           <span>{t("system")}</span>
-          <p>{connection.message}</p>
+          <p>{localizedSystemMessage(connection.message, language)}</p>
           {connection.lastOutcome && (
             <em className={`action-outcome action-outcome--${connection.lastOutcome.success ? "success" : "failure"}`}>
               {t(connection.lastOutcome.success ? "succeeded" : "failed")} · {t("chanceLabel")} {Math.round(connection.lastOutcome.chance * 100)}%
@@ -353,19 +378,12 @@ const bodyRegionPoints: Record<string, Array<[number, number]>> = {
 };
 
 /** A calm body-status silhouette. Internal anatomy stays hidden until a condition marks a region. */
-function BodyConditionFigure({ conditions }: { conditions: BodyCondition[] }) {
+function BodyConditionFigure({ conditions, gender }: { conditions: BodyCondition[]; gender: "female" | "male" }) {
   const markers = conditions.flatMap((condition) => (bodyRegionPoints[condition.region] ?? [[40, 52]]).map(([x, y]) => ({ x, y, severity: condition.severity, id: condition.id })));
   return (
     <svg className="body-condition-figure" viewBox="0 0 80 144" role="img" aria-label={conditions.length === 0 ? "Healthy body" : conditions.map((condition) => condition.name.en).join(", ")}>
       <ellipse className="body-silhouette-halo" cx="40" cy="137" rx="20" ry="3" />
-      <circle className="body-silhouette-head" cx="40" cy="15" r="9" />
-      <path className="body-silhouette-neck" d="M36 23v7m8-7v7" />
-      <path className="body-silhouette-torso" d="M31 29Q40 25 49 29l5 25-5 31q-9 5-18 0l-5-31z" />
-      <path className="body-silhouette-limb" d="M29 34L20 55 15 78M51 34l9 21 5 23M34 84l-2 27-5 23M46 84l2 27 5 23" />
-      <path className="body-silhouette-foot" d="M27 134l-7 4h12m21-4 7 4H48" />
-      <circle className="body-silhouette-hand" cx="14.5" cy="80.5" r="3" />
-      <circle className="body-silhouette-hand" cx="65.5" cy="80.5" r="3" />
-      <path className="body-silhouette-zone" d="M29 55h22M31 73h18" />
+      <image className="body-character-image" href={`/assets/characters/body-condition-${gender}.png`} x="0" y="2" width="80" height="140" preserveAspectRatio="xMidYMax meet" />
       {markers.map((marker, index) => <circle key={`${marker.id}-${index}`} className={`body-marker body-marker--${marker.severity}`} cx={marker.x} cy={marker.y} r="4.5" />)}
     </svg>
   );
@@ -439,6 +457,17 @@ const toolIconPaths: Record<string, string> = {
   "tool.stone-spear": "/assets/items/stone-spear.svg",
   "tool.fishing-rod": "/assets/items/fishing-rod.svg",
 };
+function toolIconPath(itemId: string): string | undefined {
+  if (toolIconPaths[itemId]) return toolIconPaths[itemId];
+  if (itemId.endsWith("-pickaxe")) return "/assets/items/stone-pickaxe.svg?v=3";
+  if (itemId.endsWith("-axe")) return "/assets/items/stone-axe.svg?v=4";
+  if (itemId.endsWith("-dagger")) return "/assets/items/dagger.svg";
+  if (itemId.endsWith("-longsword")) return "/assets/items/longsword.svg";
+  if (itemId.endsWith("-fishing-rod")) return "/assets/items/fishing-rod.svg";
+  if (itemId.endsWith("-bow")) return "/assets/items/bow.svg";
+  if (itemId.endsWith("-spear")) return "/assets/items/stone-spear.svg";
+  return undefined;
+}
 
 /** No item art exists yet, so each stack is drawn from its id: category shape, species outline. */
 function ItemIcon({ itemId }: { itemId: string }) {
@@ -467,10 +496,11 @@ function ItemIcon({ itemId }: { itemId: string }) {
     );
   }
   if (category === "fish") {
-    return <img className="item-icon item-icon--food" src="/assets/items/fish-trout.png" alt="" />;
+    const fishIcon = ["fish.carp", "fish.minnow", "fish.perch", "fish.trout"].includes(itemId) ? itemId.slice(5) : "trout";
+    return <img className="item-icon item-icon--food" src={`/assets/items/fish-${fishIcon}.png`} alt="" />;
   }
   if (category === "tool") {
-    const iconPath = toolIconPaths[itemId];
+    const iconPath = toolIconPath(itemId);
     if (iconPath) return <img className="item-icon item-icon--tool" src={iconPath} alt="" />;
   }
   if (category === "stone") {
@@ -499,6 +529,11 @@ function ItemIcon({ itemId }: { itemId: string }) {
 function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character: CharacterSummary; lastCraft: GameConnection["lastCraft"]; onCraft: (recipeId: string) => void; onClose: () => void }) {
   const { t, language } = useLanguage();
   const carried = new Map((character.survival.inventory ?? []).map((stack) => [stack.itemId, stack.quantity]));
+  const groups = [
+    { id: "tools", label: language === "ko" ? "도구·무기" : "Tools & weapons", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("toolmaking.")) },
+    { id: "construction", label: language === "ko" ? "건축" : "Construction", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("shelter.")) },
+    { id: "materials", label: language === "ko" ? "재료 가공" : "Materials", recipes: craftingRecipes.filter((recipe) => !recipe.id.startsWith("toolmaking.") && !recipe.id.startsWith("shelter.")) },
+  ].filter((group) => group.recipes.length > 0);
 
   return (
     <section className="crafting-overlay" aria-modal="true" role="dialog" aria-label={t("craftingTitle")}>
@@ -509,8 +544,11 @@ function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character
         </div>
         <button onClick={onClose} aria-label={t("closeCrafting")}>×</button>
       </header>
-      <ul className="recipe-list">
-        {craftingRecipes.map((recipe) => {
+      <div className="recipe-groups">
+      {groups.map((group) => <section className="recipe-group" key={group.id}>
+        <h3>{group.label}<small>{group.recipes.length}</small></h3>
+        <ul className="recipe-list">
+        {group.recipes.map((recipe) => {
           const ready = recipe.inputs.every((input) => (carried.get(input.itemId) ?? 0) >= input.quantity);
           return (
             <li key={recipe.id} className="recipe">
@@ -531,7 +569,9 @@ function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character
             </li>
           );
         })}
-      </ul>
+        </ul>
+      </section>)}
+      </div>
     </section>
   );
 }
@@ -540,10 +580,11 @@ function InventoryOverlay({ character, onEat, onEquip, onClose }: { character: C
   const { t, language } = useLanguage();
   const stacks = [...(character.survival.inventory ?? [])].sort((left, right) => right.quantity - left.quantity);
   const totalUnits = stacks.reduce((sum, stack) => sum + stack.quantity, 0);
+  const isFoodItem = (itemId: string) => foodsById.has(itemId) || /^(meat|bird|fish|fruit)\./.test(itemId);
   const categories = [
-    { id: "food", label: language === "ko" ? "식재료" : "Food", stacks: stacks.filter((stack) => foodsById.has(stack.itemId)) },
+    { id: "food", label: language === "ko" ? "식재료" : "Food", stacks: stacks.filter((stack) => isFoodItem(stack.itemId)) },
     { id: "tools", label: language === "ko" ? "도구" : "Tools", stacks: stacks.filter((stack) => Boolean(findTool(stack.itemId))) },
-    { id: "materials", label: language === "ko" ? "재료" : "Materials", stacks: stacks.filter((stack) => !foodsById.has(stack.itemId) && !findTool(stack.itemId)) },
+    { id: "materials", label: language === "ko" ? "재료" : "Materials", stacks: stacks.filter((stack) => !isFoodItem(stack.itemId) && !findTool(stack.itemId)) },
   ].filter((category) => category.stacks.length > 0);
 
   return (

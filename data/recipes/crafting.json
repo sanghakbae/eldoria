@@ -198,6 +198,20 @@
         "itemId": "tool.stone-spear",
         "quantity": 1
       }
+    },
+    {
+      "id": "shelter.log-house",
+      "name": { "en": "Log shelter", "ko": "통나무 집" },
+      "actionId": "shelter.build",
+      "difficulty": 35,
+      "successFloor": 0.4,
+      "inputs": [
+        { "itemId": "wood.raw-log", "quantity": 8 },
+        { "itemId": "wood.branch", "quantity": 6 },
+        { "itemId": "material.cord", "quantity": 4 },
+        { "itemId": "stone.raw", "quantity": 4 }
+      ],
+      "output": { "itemId": "structure.log-shelter", "quantity": 1 }
     }
   ],
   "tools": [
