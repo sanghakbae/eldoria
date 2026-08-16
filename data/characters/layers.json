@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "frameCount": 8,
+  "comment": "Every layer sheet must match this geometry so the layers line up frame for frame.",
+  "sheetSpec": {
+    "framePadding": 20,
+    "baseline": "bottom",
+    "note": "One row of frameCount poses, left-facing, transparent background. Poses must not touch: leave at least framePadding transparent pixels between them and align every pose so the feet sit on the same bottom line."
+  },
+  "slots": [
+    { "id": "body", "z": 0, "required": true, "name": { "en": "Body", "ko": "몸" } },
+    { "id": "legs", "z": 1, "required": false, "name": { "en": "Legs", "ko": "하의" } },
+    { "id": "feet", "z": 2, "required": false, "name": { "en": "Feet", "ko": "신발" } },
+    { "id": "torso", "z": 3, "required": false, "name": { "en": "Torso", "ko": "상의" } },
+    { "id": "head", "z": 4, "required": false, "name": { "en": "Head", "ko": "머리" } },
+    { "id": "offHand", "z": 5, "required": false, "name": { "en": "Off hand", "ko": "보조 손" } },
+    { "id": "mainHand", "z": 6, "required": false, "name": { "en": "Main hand", "ko": "주 손" } }
+  ]
+}

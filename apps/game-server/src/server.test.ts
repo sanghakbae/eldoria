@@ -52,6 +52,43 @@ describe("game server", () => {
     socket.close();
   });
 
+  it("rolls an interaction against the skill curve and records the attempt either way", async () => {
+    const characters = new MemoryCharacterRepository();
+    server = await createGameServer(
+      { host: "127.0.0.1", port: 0, firebaseProjectId: "test" },
+      { verifyIdToken: async () => ({ uid: "owner-2", admin: false }), characters },
+    );
+    const socket = await openSelectedCharacter(server, "Bran Ash");
+
+    const acted = waitForMessage(socket, "world.action");
+    socket.send(encodeMessage({ type: "world.interact", requestId: "interact-1", payload: { objectId: "wilds.rabbit-spawn" } }));
+    const action = await acted;
+    if (action.type !== "world.action") throw new Error("Expected world.action");
+
+    // A rabbit is the one animal bare hands can reliably reach, so its floor lifts it off the curve.
+    expect(action.payload.outcome).toMatchObject({ skillId: "hunting", chance: 0.5 });
+    expect(action.payload.survival?.skills?.hunting).toMatchObject({ completedActions: 1 });
+    if (!action.payload.outcome?.success) expect(action.payload.reward).toBeUndefined();
+    socket.close();
+  });
+
+  it("persists the skill lock a player sets", async () => {
+    server = await createGameServer(
+      { host: "127.0.0.1", port: 0, firebaseProjectId: "test" },
+      { verifyIdToken: async () => ({ uid: "owner-3", admin: false }), characters: new MemoryCharacterRepository() },
+    );
+    const socket = await openSelectedCharacter(server, "Ilse Rook");
+
+    const locked = waitForMessage(socket, "skill.locked");
+    socket.send(encodeMessage({ type: "skill.lock", requestId: "lock-1", payload: { skillId: "pottery", lock: "down" } }));
+    expect(await locked).toMatchObject({ payload: { skillId: "pottery", lock: "down", survival: { locks: { pottery: "down" } } } });
+
+    const rejected = waitForMessage(socket, "error");
+    socket.send(encodeMessage({ type: "skill.lock", requestId: "lock-2", payload: { skillId: "sorcery", lock: "down" } }));
+    expect(await rejected).toMatchObject({ payload: { code: "skill.not_found" } });
+    socket.close();
+  });
+
   it("allows only Firebase administrators to tune skill progression", async () => {
     server = await createGameServer(
       { host: "127.0.0.1", port: 0, firebaseProjectId: "test" },
@@ -67,6 +104,22 @@ describe("game server", () => {
     expect(await updated.json()).toMatchObject({ skill: { id: "hunting", actionsPerGain: 10, gainAmount: 0.1, actionIds: expect.arrayContaining(["bow.shot"]) } });
   });
 });
+
+async function openSelectedCharacter(running: RunningGameServer, name: string): Promise<WebSocket> {
+  const socket = new WebSocket(running.address.replace("http", "ws"));
+  await new Promise<void>((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
+  const authenticated = waitForMessage(socket, "auth.success");
+  socket.send(encodeMessage({ type: "auth", requestId: "auth", payload: { idToken: "valid" } }));
+  await authenticated;
+  const creation = waitForMessage(socket, "character.created");
+  socket.send(encodeMessage({ type: "character.create", requestId: "create", payload: { name, gender: "male" } }));
+  const created = await creation;
+  if (created.type !== "character.created") throw new Error("Expected character.created");
+  const selection = waitForMessage(socket, "character.selected");
+  socket.send(encodeMessage({ type: "character.select", requestId: "select", payload: { characterId: created.payload.character.id } }));
+  await selection;
+  return socket;
+}
 
 function waitForMessage<T extends ServerMessage["type"]>(socket: WebSocket, type: T): Promise<Extract<ServerMessage, { type: T }>> {
   return new Promise((resolve) => {

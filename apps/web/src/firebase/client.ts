@@ -1,6 +1,6 @@
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, browserPopupRedirectResolver, browserSessionPersistence, getAuth, inMemoryPersistence, initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { readFirebaseConfig } from "./config";
 
@@ -14,7 +14,21 @@ export const firebaseConfig = readFirebaseConfig({
   VITE_FIREBASE_MEASUREMENT_ID: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 });
 export const firebaseApp = initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
+// getAuth stores the session in IndexedDB first, which fails with "Database is closing/hidden"
+// inside Electron-based browsers. localStorage is just as durable here and never hits that path.
+export const auth = createAuth();
+
+function createAuth() {
+  try {
+    return initializeAuth(firebaseApp, {
+      persistence: [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence],
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
+  } catch {
+    // A hot reload re-runs this module against an already initialised app.
+    return getAuth(firebaseApp);
+  }
+}
 export const firestore = getFirestore(firebaseApp);
 
 if (firebaseConfig.measurementId) {

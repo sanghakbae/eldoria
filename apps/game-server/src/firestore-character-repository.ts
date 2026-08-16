@@ -49,7 +49,7 @@ export class FirestoreCharacterRepository implements CharacterRepository {
 
     await this.firestore.runTransaction(async (transaction) => {
       const existing = await transaction.get(this.firestore.collection("characters").where("ownerUid", "==", ownerUid));
-      if (existing.size >= MAX_CHARACTERS_PER_ACCOUNT) throw new CharacterRepositoryError("character.limit", "The account already has the maximum number of characters.");
+      if (existing.size >= MAX_CHARACTERS_PER_ACCOUNT) throw new CharacterRepositoryError("character.limit", "This account already has a wanderer.");
       transaction.set(characterRef, stored);
       transaction.set(ownerRef, { characterCount: existing.size + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     });

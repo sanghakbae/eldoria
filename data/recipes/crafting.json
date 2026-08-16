@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "recipes": [
+    {
+      "id": "ropecraft.cord",
+      "name": {
+        "en": "Plant cord",
+        "ko": "풀 끈"
+      },
+      "actionId": "fiber.twist",
+      "difficulty": 10,
+      "successFloor": 0.85,
+      "inputs": [
+        {
+          "itemId": "wood.branch",
+          "quantity": 2
+        }
+      ],
+      "output": {
+        "itemId": "material.cord",
+        "quantity": 1
+      }
+    },
+    {
+      "id": "toolmaking.hand-axe",
+      "name": {
+        "en": "Stone hand axe",
+        "ko": "돌도끼"
+      },
+      "actionId": "tool.craft",
+      "difficulty": 15,
+      "successFloor": 0.8,
+      "inputs": [
+        {
+          "itemId": "stone.raw",
+          "quantity": 1
+        },
+        {
+          "itemId": "wood.branch",
+          "quantity": 1
+        }
+      ],
+      "output": {
+        "itemId": "tool.hand-axe",
+        "quantity": 1
+      }
+    },
+    {
+      "id": "toolmaking.pickaxe",
+      "name": {
+        "en": "Stone pickaxe",
+        "ko": "돌 곡괭이"
+      },
+      "actionId": "tool.craft",
+      "difficulty": 22,
+      "successFloor": 0.7,
+      "inputs": [
+        {
+          "itemId": "stone.raw",
+          "quantity": 2
+        },
+        {
+          "itemId": "wood.branch",
+          "quantity": 1
+        }
+      ],
+      "output": {
+        "itemId": "tool.pickaxe",
+        "quantity": 1
+      }
+    },
+    {
+      "id": "toolmaking.fishing-rod",
+      "name": {
+        "en": "Fishing rod",
+        "ko": "낚싯대"
+      },
+      "actionId": "tool.craft",
+      "difficulty": 18,
+      "successFloor": 0.7,
+      "inputs": [
+        {
+          "itemId": "wood.branch",
+          "quantity": 2
+        },
+        {
+          "itemId": "material.cord",
+          "quantity": 1
+        }
+      ],
+      "output": {
+        "itemId": "tool.fishing-rod",
+        "quantity": 1
+      }
+    },
+    {
+      "id": "toolmaking.stone-spear",
+      "name": {
+        "en": "Stone spear",
+        "ko": "돌창"
+      },
+      "actionId": "tool.craft",
+      "difficulty": 30,
+      "successFloor": 0.5,
+      "inputs": [
+        {
+          "itemId": "stone.raw",
+          "quantity": 1
+        },
+        {
+          "itemId": "wood.raw-log",
+          "quantity": 1
+        },
+        {
+          "itemId": "material.cord",
+          "quantity": 1
+        }
+      ],
+      "output": {
+        "itemId": "tool.stone-spear",
+        "quantity": 1
+      }
+    }
+  ],
+  "tools": [
+    {
+      "itemId": "tool.hand-axe",
+      "name": {
+        "en": "Hand axe",
+        "ko": "돌도끼"
+      },
+      "huntingBonus": 25,
+      "damage": 2,
+      "durability": 40,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.pickaxe",
+      "name": {
+        "en": "Pickaxe",
+        "ko": "곡괭이"
+      },
+      "huntingBonus": 15,
+      "damage": 2,
+      "durability": 50,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.fishing-rod",
+      "name": {
+        "en": "Fishing rod",
+        "ko": "낚싯대"
+      },
+      "huntingBonus": 0,
+      "damage": 1,
+      "durability": 60,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.stone-spear",
+      "name": {
+        "en": "Stone spear",
+        "ko": "돌창"
+      },
+      "huntingBonus": 45,
+      "damage": 3,
+      "durability": 35,
+      "slot": "mainHand"
+    }
+  ]
+}

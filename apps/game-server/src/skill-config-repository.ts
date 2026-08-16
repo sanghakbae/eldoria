@@ -70,6 +70,6 @@ export function createFirestoreSkillConfigRepository(projectId: string) {
 
 function validateSkillUpdate(skill: SkillProgressionConfig): SkillProgressionConfig {
   if (!Number.isInteger(skill.actionsPerGain) || skill.actionsPerGain < 1 || skill.actionsPerGain > 10_000) throw new SkillConfigError("skill.invalid_actions", "Actions per gain must be an integer from 1 to 10000.");
-  if (!Number.isFinite(skill.gainAmount) || skill.gainAmount < 0.000001 || skill.gainAmount > 1) throw new SkillConfigError("skill.invalid_gain", "Gain amount must be from 0.000001 to 1.");
-  return { id: skill.id, name: skill.name, actionsPerGain: skill.actionsPerGain, gainAmount: skill.gainAmount, actionIds: skill.actionIds };
+  if (!Number.isFinite(skill.gainAmount) || skill.gainAmount < 0.000001 || skill.gainAmount > 100) throw new SkillConfigError("skill.invalid_gain", "Gain amount must be from 0.000001 to 100.");
+  return { id: skill.id, category: skill.category, mvp: skill.mvp, baseDifficulty: skill.baseDifficulty, name: skill.name, actionsPerGain: skill.actionsPerGain, gainAmount: skill.gainAmount, actionIds: skill.actionIds };
 }
