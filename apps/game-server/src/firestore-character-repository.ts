@@ -11,20 +11,26 @@ type StoredCharacter = {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   survival?: CharacterSummary["survival"];
+  startVersion?: number;
 };
+
+const CURRENT_START_VERSION = 2;
 
 export class FirestoreCharacterRepository implements CharacterRepository {
   constructor(private readonly firestore: Firestore) {}
 
   async list(ownerUid: string): Promise<CharacterSummary[]> {
     const snapshot = await this.firestore.collection("characters").where("ownerUid", "==", ownerUid).get();
-    const documentsToMigrate = snapshot.docs.filter((document) => !document.data().survival || isLegacyVillageStart(document.data().position));
+    const documentsToMigrate = snapshot.docs.filter((document) => !document.data().survival || document.data().startVersion !== CURRENT_START_VERSION);
     if (documentsToMigrate.length > 0) {
       const batch = this.firestore.batch();
       for (const document of documentsToMigrate) {
         const update: Record<string, unknown> = {};
         if (!document.data().survival) update.survival = createInitialSurvivalState(document.data().createdAt?.toDate?.().toISOString());
-        if (isLegacyVillageStart(document.data().position)) update.position = STARTING_POSITION;
+        if (document.data().startVersion !== CURRENT_START_VERSION) {
+          update.position = STARTING_POSITION;
+          update.startVersion = CURRENT_START_VERSION;
+        }
         batch.set(document.ref, update, { merge: true });
       }
       await batch.commit();
@@ -37,7 +43,7 @@ export class FirestoreCharacterRepository implements CharacterRepository {
     const characterRef = this.firestore.collection("characters").doc();
     const ownerRef = this.firestore.collection("users").doc(ownerUid);
     const now = Timestamp.now();
-    const stored: StoredCharacter = { ownerUid, name, position: { ...STARTING_POSITION }, createdAt: now, updatedAt: now, survival: createInitialSurvivalState(now.toDate().toISOString()) };
+    const stored: StoredCharacter = { ownerUid, name, position: { ...STARTING_POSITION }, createdAt: now, updatedAt: now, survival: createInitialSurvivalState(now.toDate().toISOString()), startVersion: CURRENT_START_VERSION };
 
     await this.firestore.runTransaction(async (transaction) => {
       const existing = await transaction.get(this.firestore.collection("characters").where("ownerUid", "==", ownerUid));
@@ -53,7 +59,10 @@ export class FirestoreCharacterRepository implements CharacterRepository {
     if (!snapshot.exists || snapshot.data()?.ownerUid !== ownerUid) return null;
     const update: Record<string, unknown> = {};
     if (!snapshot.data()?.survival) update.survival = createInitialSurvivalState(snapshot.data()?.createdAt?.toDate?.().toISOString());
-    if (isLegacyVillageStart(snapshot.data()?.position)) update.position = STARTING_POSITION;
+    if (snapshot.data()?.startVersion !== CURRENT_START_VERSION) {
+      update.position = STARTING_POSITION;
+      update.startVersion = CURRENT_START_VERSION;
+    }
     if (Object.keys(update).length > 0) await snapshot.ref.set(update, { merge: true });
     return toCharacter(snapshot);
   }
@@ -77,9 +86,5 @@ function toCharacter(snapshot: { id: string; data(): unknown }): CharacterSummar
   const data = snapshot.data() as StoredCharacter | undefined;
   if (!data) throw new Error(`Character ${snapshot.id} has no data.`);
   const createdAt = data.createdAt.toDate().toISOString();
-  return { id: snapshot.id, name: data.name, position: isLegacyVillageStart(data.position) ? { ...STARTING_POSITION } : data.position, createdAt, survival: data.survival ?? createInitialSurvivalState(createdAt) };
-}
-
-function isLegacyVillageStart(position: unknown): boolean {
-  return typeof position === "object" && position !== null && "zoneId" in position && "x" in position && "y" in position && position.zoneId === "mossward" && position.x === 900 && position.y === 700;
+  return { id: snapshot.id, name: data.name, position: data.startVersion === CURRENT_START_VERSION ? data.position : { ...STARTING_POSITION }, createdAt, survival: data.survival ?? createInitialSurvivalState(createdAt) };
 }

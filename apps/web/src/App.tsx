@@ -5,23 +5,25 @@ import { useAuth } from "./auth/useAuth";
 import { LanguageToggle, useLanguage, type TranslationKey } from "./i18n/LanguageContext";
 import type { User } from "firebase/auth";
 import { useEffect, useState, type FormEvent } from "react";
-import { evaluateBodyConditions } from "@eldoria/game-data";
+import { evaluateBodyConditions, type BodyCondition } from "@eldoria/game-data";
 import type { CharacterSummary } from "@eldoria/game-protocol";
 import { AdminSkillSettings } from "./admin/AdminSkillSettings";
 
 const quickSlots: TranslationKey[] = ["fists", "gather", "fire", "map"];
-const zoneTranslationKeys: Record<string, TranslationKey> = { mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" };
+const zoneTranslationKeys: Record<string, TranslationKey> = { untamedWilds: "untamedWilds", mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" };
 type PlayerPosition = { zoneId: string; x: number; y: number };
 type MapPoint = { x: number; y: number };
 
 const zoneMapBounds: Record<string, { left: number; top: number; width: number; height: number }> = {
-  mossward: { left: 0, top: 82, width: 12.5, height: 12.5 },
-  greythorn: { left: 12.5, top: 82, width: 12.5, height: 12.5 },
-  amberfen: { left: 25, top: 82, width: 12.5, height: 12.5 },
-  hollowVault: { left: 37.5, top: 82, width: 12.5, height: 12.5 },
+  mossward: { left: 47.328, top: 60, width: 0.836, height: 0.7842 },
+  untamedWilds: { left: 48.164, top: 60, width: 0.836, height: 0.7842 },
+  greythorn: { left: 49, top: 60, width: 0.836, height: 0.7842 },
+  amberfen: { left: 49.836, top: 60, width: 0.836, height: 0.7842 },
+  hollowVault: { left: 50.672, top: 60, width: 0.836, height: 0.7842 },
 };
 
 const zoneMapImages: Record<string, string> = {
+  untamedWilds: "/assets/world/untamed-wilds.png",
   mossward: "/assets/world/mossward-crossing.png",
   greythorn: "/assets/world/greythorn-wood.png",
   amberfen: "/assets/world/amberfen-wilds.png",
@@ -38,7 +40,7 @@ function toMapPoint(position: PlayerPosition): MapPoint {
 
 function loadExploredTrail(): MapPoint[] {
   try {
-    const value = JSON.parse(localStorage.getItem("eldoria.explored-trail") ?? "[]") as unknown;
+    const value = JSON.parse(localStorage.getItem("eldoria.explored-trail.v2") ?? "[]") as unknown;
     return Array.isArray(value) ? value.filter((point): point is MapPoint => typeof point === "object" && point !== null && "x" in point && "y" in point && typeof point.x === "number" && typeof point.y === "number") : [];
   } catch {
     return [];
@@ -71,11 +73,11 @@ function GameSession({ user, isAdmin, onSignOut }: { user: User; isAdmin: boolea
 function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection: GameConnection; character: CharacterSummary; isAdmin: boolean; onSignOut: () => Promise<void> }) {
   const { t, language } = useLanguage();
   const bodyConditions = evaluateBodyConditions(character.survival.nutrition);
-  const [zoneId, setZoneId] = useState("greythorn");
-  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "greythorn", x: 420, y: 450 });
+  const [zoneId, setZoneId] = useState("untamedWilds");
+  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "untamedWilds", x: 836, y: 470 });
   const [exploredTrail, setExploredTrail] = useState<MapPoint[]>(loadExploredTrail);
   const [mapOpen, setMapOpen] = useState(false);
-  const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["greythorn"]') as string[]));
+  const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["untamedWilds"]') as string[]));
   useEffect(() => {
     const handleZone = (event: Event) => {
       const nextZone = (event as CustomEvent<string>).detail;
@@ -96,7 +98,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
         const previous = current.at(-1);
         if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 0.06) return current;
         const next = [...current.slice(-1499), point];
-        localStorage.setItem("eldoria.explored-trail", JSON.stringify(next));
+        localStorage.setItem("eldoria.explored-trail.v2", JSON.stringify(next));
         return next;
       });
     };
@@ -144,7 +146,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           <div className="divider" />
           <p className="panel-label">{t("bodyCondition")}</p>
           <div className={`body-condition ${bodyConditions.length === 0 ? "body-condition--healthy" : "body-condition--warning"}`}>
-            <span className="body-condition-figure" aria-hidden="true">◇</span>
+            <BodyConditionFigure conditions={bodyConditions} />
             <div>
               {bodyConditions.length === 0 && <><strong>{t("wholeBodyHealthy")}</strong><small>{t("nutritionBalanced")}</small></>}
               {bodyConditions.slice(0, 3).map((condition) => <span key={condition.id}><strong>{condition.name[language]}</strong><small>{condition.effect[language]}</small></span>)}
@@ -193,6 +195,29 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
         <div className="build-mark"><span>PRE-ALPHA</span><small>{t("foundation")}</small></div>
       </footer>
     </main>
+  );
+}
+
+const bodyRegionPoints: Record<string, Array<[number, number]>> = {
+  blood: [[50, 45]],
+  eyes: [[50, 15]],
+  gumsSkin: [[50, 22]],
+  bonesMuscles: [[50, 52], [35, 73], [65, 73]],
+  muscles: [[30, 45], [70, 45]],
+  nervousSystem: [[50, 34]],
+  thyroid: [[50, 28]],
+  kidneysBrain: [[50, 12], [43, 52], [57, 52]],
+};
+
+function BodyConditionFigure({ conditions }: { conditions: BodyCondition[] }) {
+  const markers = conditions.flatMap((condition) => (bodyRegionPoints[condition.region] ?? [[50, 45]]).map(([x, y]) => ({ x, y, severity: condition.severity, id: condition.id })));
+  return (
+    <svg className="body-condition-figure" viewBox="0 0 100 120" role="img" aria-label={conditions.length === 0 ? "Healthy body" : conditions.map((condition) => condition.name.en).join(", ")}>
+      <circle className="body-head" cx="50" cy="15" r="10" />
+      <path className="body-silhouette" d="M40 29 Q50 25 60 29 L68 56 L61 62 L58 108 L49 108 L46 69 L42 108 L33 108 L38 62 L31 56 Z" />
+      <path className="body-limbs" d="M39 31 L24 61 M61 31 L76 61 M42 67 L35 111 M51 67 L60 111" />
+      {markers.map((marker, index) => <circle key={`${marker.id}-${index}`} className={`body-marker body-marker--${marker.severity}`} cx={marker.x} cy={marker.y} r="6" />)}
+    </svg>
   );
 }
 
@@ -251,7 +276,7 @@ function WorldMapOverlay({ position, exploredTrail, visitedZones, onClose }: { p
   const { t } = useLanguage();
   const playerPoint = toMapPoint(position);
   const trail = [...exploredTrail, playerPoint];
-  const trailWidth = Math.min(3.4, 2.1 + visitedZones.size * 0.18);
+  const trailWidth = Math.min(0.18, 0.1 + visitedZones.size * 0.012);
   return (
     <section className="world-map-overlay" aria-modal="true" role="dialog" aria-label={t("worldMap")}>
       <header>
@@ -262,30 +287,32 @@ function WorldMapOverlay({ position, exploredTrail, visitedZones, onClose }: { p
         <button onClick={onClose} aria-label={t("close")}>×</button>
       </header>
       <div className="world-atlas">
-        {Object.entries(zoneMapBounds).map(([zoneId, bounds]) => (
-          <div
-            key={zoneId}
-            className="atlas-zone"
-            style={{ left: `${bounds.left}%`, top: `${bounds.top}%`, width: `${bounds.width}%`, height: `${bounds.height}%`, backgroundImage: `url(${zoneMapImages[zoneId]})` }}
-          />
-        ))}
-        <svg className="atlas-fog" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <mask id="exploration-mask">
-              <rect width="100" height="100" fill="white" />
-              {trail.length > 1 && <polyline points={trail.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="black" strokeWidth={trailWidth} strokeLinecap="round" strokeLinejoin="round" />}
-              {trail.map((point, index) => <circle key={`${index}-${point.x}-${point.y}`} cx={point.x} cy={point.y} r={trailWidth * 0.62} fill="black" />)}
-              <circle cx={playerPoint.x} cy={playerPoint.y} r="3.8" fill="black" />
-            </mask>
-            <pattern id="fog-texture" width="5" height="5" patternUnits="userSpaceOnUse">
-              <rect width="5" height="5" fill="#020706" />
-              <path d="M0 5L5 0M-2 2L2-2M3 7L7 3" stroke="#17231e" strokeWidth=".35" opacity=".5" />
-            </pattern>
-          </defs>
-          <rect width="100" height="100" fill="url(#fog-texture)" opacity=".94" mask="url(#exploration-mask)" />
-        </svg>
+        <div className="atlas-world-plane">
+          {Object.entries(zoneMapBounds).map(([zoneId, bounds]) => (
+            <div
+              key={zoneId}
+              className="atlas-zone"
+              style={{ left: `${bounds.left}%`, top: `${bounds.top}%`, width: `${bounds.width}%`, height: `${bounds.height}%`, backgroundImage: `url(${zoneMapImages[zoneId]})` }}
+            />
+          ))}
+          <svg className="atlas-fog" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <mask id="exploration-mask">
+                <rect width="100" height="100" fill="white" />
+                {trail.length > 1 && <polyline points={trail.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="black" strokeWidth={trailWidth} strokeLinecap="round" strokeLinejoin="round" />}
+                {trail.map((point, index) => <circle key={`${index}-${point.x}-${point.y}`} cx={point.x} cy={point.y} r={trailWidth * 0.62} fill="black" />)}
+                <circle cx={playerPoint.x} cy={playerPoint.y} r="0.32" fill="black" />
+              </mask>
+              <pattern id="fog-texture" width="5" height="5" patternUnits="userSpaceOnUse">
+                <rect width="5" height="5" fill="#020706" />
+                <path d="M0 5L5 0M-2 2L2-2M3 7L7 3" stroke="#17231e" strokeWidth=".35" opacity=".5" />
+              </pattern>
+            </defs>
+            <rect width="100" height="100" fill="url(#fog-texture)" opacity=".94" mask="url(#exploration-mask)" />
+          </svg>
+          <i className="atlas-player" style={{ left: `${playerPoint.x}%`, top: `${playerPoint.y}%` }}><b /></i>
+        </div>
         <span className="atlas-undiscovered">{t("undiscovered")}</span>
-        <i className="atlas-player" style={{ left: `${playerPoint.x}%`, top: `${playerPoint.y}%` }}><b /></i>
       </div>
     </section>
   );

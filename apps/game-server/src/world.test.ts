@@ -7,7 +7,7 @@ describe("RuntimeWorld", () => {
     const player = world.join("user-1");
     world.setDirection("user-1", { x: 1, y: 0 }, 1);
     world.tick(1);
-    expect(player.position).toEqual({ zoneId: "greythorn", x: 516, y: 450 });
+    expect(player.position).toEqual({ zoneId: "untamedWilds", x: 932, y: 470 });
   });
 
   it("joins at a persisted character checkpoint", () => {
@@ -22,7 +22,7 @@ describe("RuntimeWorld", () => {
     world.setDirection("user-1", { x: 1, y: 0 }, 2);
     world.setDirection("user-1", { x: -1, y: 0 }, 1);
     world.tick(1);
-    expect(player.position.x).toBeGreaterThan(420);
+    expect(player.position.x).toBeGreaterThan(836);
   });
 
   it("rejects movement through map obstacles", () => {
@@ -37,6 +37,6 @@ describe("RuntimeWorld", () => {
   it("moves an invalid saved checkpoint to the safe arrival spawn", () => {
     const world = new RuntimeWorld();
     const player = world.join("user-1", { zoneId: "mossward", x: 836, y: 555 });
-    expect(player.position).toEqual({ zoneId: "greythorn", x: 420, y: 450 });
+    expect(player.position).toEqual({ zoneId: "untamedWilds", x: 836, y: 470 });
   });
 });

@@ -3,12 +3,67 @@
   "tileSize": 32,
   "zones": [
     {
+      "id": "untamedWilds",
+      "name": { "en": "The Untamed Wilds", "ko": "태초의 황야" },
+      "width": 1672,
+      "height": 941,
+      "columns": 53,
+      "rows": 30,
+      "ecology": {
+        "biome": "primordial-dry-scrub",
+        "hydrology": { "type": "pond", "fishHabitats": ["stillwater-shallows"] },
+        "wildFruits": ["crabapple", "wild-pear", "hawthorn-berry"]
+      },
+      "layers": {
+        "terrain": { "assetId": "world.untamedWilds" },
+        "collision": [
+          { "x": 0, "y": 0, "width": 53, "height": 3 },
+          { "x": 0, "y": 27, "width": 53, "height": 3 },
+          { "x": 0, "y": 3, "width": 3, "height": 7 },
+          { "x": 0, "y": 20, "width": 3, "height": 7 },
+          { "x": 50, "y": 3, "width": 3, "height": 7 },
+          { "x": 50, "y": 20, "width": 3, "height": 7 },
+          { "x": 3, "y": 3, "width": 8, "height": 5 },
+          { "x": 40, "y": 11, "width": 8, "height": 6 },
+          { "x": 2, "y": 17, "width": 10, "height": 9 }
+        ],
+        "objects": [
+          { "id": "wilds.pond", "type": "fishingWater", "x": 1410, "y": 430 },
+          { "id": "wilds.ore-cave", "type": "naturalOreCave", "x": 250, "y": 155 },
+          { "id": "wilds.copper-vein", "type": "copperOreDeposit", "x": 215, "y": 145 },
+          { "id": "wilds.coal-seam", "type": "coalDeposit", "x": 250, "y": 125 },
+          { "id": "wilds.iron-vein", "type": "ironOreDeposit", "x": 285, "y": 155 },
+          { "id": "wilds.crabapple", "type": "wildFruitTree", "x": 205, "y": 610 },
+          { "id": "wilds.wild-pear", "type": "wildFruitTree", "x": 320, "y": 700 },
+          { "id": "wilds.timber-north", "type": "wildTree", "x": 790, "y": 70 },
+          { "id": "wilds.timber-south", "type": "wildTree", "x": 1080, "y": 850 },
+          { "id": "wilds.rabbit-spawn", "type": "wildlifeSpawnRabbit", "x": 610, "y": 330 },
+          { "id": "wilds.deer-spawn", "type": "wildlifeSpawnDeer", "x": 1080, "y": 300 },
+          { "id": "wilds.boar-spawn", "type": "wildlifeSpawnBoar", "x": 950, "y": 720 }
+        ],
+        "spawn": [
+          { "id": "arrival", "x": 836, "y": 470 },
+          { "id": "west-entry", "x": 35, "y": 470 },
+          { "id": "east-entry", "x": 1637, "y": 470 }
+        ]
+      },
+      "exits": [
+        { "edge": "west", "toZoneId": "mossward", "toSpawnId": "east-road" },
+        { "edge": "east", "toZoneId": "greythorn", "toSpawnId": "west-road" }
+      ]
+    },
+    {
       "id": "mossward",
       "name": { "en": "Mossward Crossing", "ko": "모스워드 교차로" },
       "width": 1672,
       "height": 941,
       "columns": 53,
       "rows": 30,
+      "ecology": {
+        "biome": "settled-river-valley",
+        "hydrology": { "type": "river", "fishHabitats": ["slow-river", "millpond"] },
+        "wildFruits": ["elderberry", "wild-plum", "rowan-berry"]
+      },
       "layers": {
         "terrain": { "assetId": "world.mossward" },
         "collision": [
@@ -25,7 +80,7 @@
           { "id": "east-road", "x": 1637, "y": 555 }
         ]
       },
-      "exits": [{ "edge": "east", "toZoneId": "greythorn", "toSpawnId": "west-road" }]
+      "exits": [{ "edge": "east", "toZoneId": "untamedWilds", "toSpawnId": "west-entry" }]
     },
     {
       "id": "greythorn",
@@ -34,6 +89,11 @@
       "height": 941,
       "columns": 53,
       "rows": 30,
+      "ecology": {
+        "biome": "deep-temperate-forest",
+        "hydrology": { "type": "river", "fishHabitats": ["cold-stream", "forest-pool"] },
+        "wildFruits": ["wild-cherry", "blackberry", "bilberry", "hazelnut"]
+      },
       "layers": {
         "terrain": { "assetId": "world.greythorn" },
         "collision": [
@@ -46,13 +106,12 @@
         ],
         "objects": [],
         "spawn": [
-          { "id": "arrival", "x": 420, "y": 450 },
           { "id": "west-road", "x": 35, "y": 555 },
           { "id": "east-road", "x": 1637, "y": 555 }
         ]
       },
       "exits": [
-        { "edge": "west", "toZoneId": "mossward", "toSpawnId": "east-road" },
+        { "edge": "west", "toZoneId": "untamedWilds", "toSpawnId": "east-entry" },
         { "edge": "east", "toZoneId": "amberfen", "toSpawnId": "west-road" }
       ]
     },
@@ -63,6 +122,11 @@
       "height": 941,
       "columns": 53,
       "rows": 30,
+      "ecology": {
+        "biome": "warm-marsh",
+        "hydrology": { "type": "wetland-channels", "fishHabitats": ["marsh", "muddy-channel", "reed-pool"] },
+        "wildFruits": ["cranberry", "cloudberry", "blackcurrant"]
+      },
       "layers": {
         "terrain": { "assetId": "world.amberfen" },
         "collision": [
@@ -90,6 +154,11 @@
       "height": 941,
       "columns": 53,
       "rows": 30,
+      "ecology": {
+        "biome": "subterranean-cavern",
+        "hydrology": { "type": "underground-pools", "fishHabitats": ["cave-pool"] },
+        "wildFruits": []
+      },
       "layers": {
         "terrain": { "assetId": "world.hollowVault" },
         "collision": [

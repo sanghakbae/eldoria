@@ -1,4 +1,5 @@
 const assets = {
+  "world.untamedWilds": "/assets/world/untamed-wilds.png",
   "world.mossward": "/assets/world/mossward-crossing.png",
   "world.greythorn": "/assets/world/greythorn-wood.png",
   "world.amberfen": "/assets/world/amberfen-wilds.png",

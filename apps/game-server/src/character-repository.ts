@@ -1,7 +1,7 @@
 import type { CharacterSummary, Position } from "@eldoria/game-protocol";
 import { createInitialSurvivalState } from "@eldoria/game-data";
 
-export const STARTING_POSITION: Position = { zoneId: "greythorn", x: 420, y: 450 };
+export const STARTING_POSITION: Position = { zoneId: "untamedWilds", x: 836, y: 470 };
 export const MAX_CHARACTERS_PER_ACCOUNT = 5;
 
 export type CharacterRepository = {

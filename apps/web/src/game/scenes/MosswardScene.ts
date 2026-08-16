@@ -21,16 +21,17 @@ export class MosswardScene extends Phaser.Scene {
   private playerShadow?: Phaser.GameObjects.Ellipse;
   private playerMarker?: Phaser.GameObjects.Triangle;
   private keys?: DirectionKeys;
-  private target = new Phaser.Math.Vector2(420, 450);
+  private target = new Phaser.Math.Vector2(836, 470);
   private background?: Phaser.GameObjects.Image;
   private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
-  private zoneId = "greythorn";
+  private zoneId = "untamedWilds";
   private previousDirection = "0,0";
   private clickTarget?: Phaser.Math.Vector2;
   private destinationMarker?: Phaser.GameObjects.Arc;
   private moving = false;
   private lastDustAt = 0;
   private cameraZoomFactor = 1;
+  private running = false;
 
   constructor() {
     super("mossward");
@@ -42,8 +43,9 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   create() {
-    this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, "world.greythorn").setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
-    this.createCollisionTileLayer("greythorn");
+    this.running = true;
+    this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, "world.untamedWilds").setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
+    this.createCollisionTileLayer("untamedWilds");
     this.playerShadow = this.add.ellipse(0, 1, 15, 5, 0x020604, 0.52);
     this.playerSprite = this.add.sprite(0, 0, "player.walk", 0).setScale(0.1).setOrigin(0.5, 0.74);
     this.anims.create({ key: "wanderer.walk", frames: this.anims.generateFrameNumbers("player.walk", { start: 0, end: 7 }), frameRate: 7, repeat: -1 });
@@ -73,7 +75,12 @@ export class MosswardScene extends Phaser.Scene {
       this.layoutCamera();
     });
     window.addEventListener("eldoria:player-state", this.receivePlayerState);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => window.removeEventListener("eldoria:player-state", this.receivePlayerState));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.running = false;
+      window.removeEventListener("eldoria:player-state", this.receivePlayerState);
+      this.background = undefined;
+      this.collisionLayer = undefined;
+    });
   }
 
   update() {
@@ -109,6 +116,7 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   private receivePlayerState = (event: Event) => {
+    if (!this.running) return;
     const position = (event as CustomEvent<{ zoneId: string; x: number; y: number }>).detail;
     if (!position) return;
     if (position.zoneId !== this.zoneId) {
@@ -124,9 +132,7 @@ export class MosswardScene extends Phaser.Scene {
   };
 
   private layoutCamera() {
-    const visibleWorldWidth = 900;
-    const visibleWorldHeight = 540;
-    const fitZoom = Math.max(this.scale.width / visibleWorldWidth, this.scale.height / visibleWorldHeight, 1);
+    const fitZoom = Math.max(this.scale.width / WORLD_WIDTH, this.scale.height / WORLD_HEIGHT, 0.72);
     const zoom = fitZoom * this.cameraZoomFactor;
     this.cameras.main.setZoom(zoom);
   }

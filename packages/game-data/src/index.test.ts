@@ -17,6 +17,19 @@ describe("zone collision data", () => {
     expect(getZoneDefinition("mossward")).toMatchObject({ columns: 53, rows: 30, layers: { terrain: { assetId: "world.mossward" } } });
   });
 
+  it("defines distinct regional water and wild fruit ecology", () => {
+    const wilds = getZoneDefinition("untamedWilds");
+    const forest = getZoneDefinition("greythorn");
+    const marsh = getZoneDefinition("amberfen");
+
+    expect(wilds?.ecology).toMatchObject({ biome: "primordial-dry-scrub", hydrology: { type: "pond" } });
+    expect(wilds?.ecology.wildFruits).toContain("crabapple");
+    expect(forest?.ecology).toMatchObject({ biome: "deep-temperate-forest", hydrology: { type: "river" } });
+    expect(marsh?.ecology).toMatchObject({ biome: "warm-marsh", hydrology: { type: "wetland-channels" } });
+    expect(new Set(worldDefinition.zones.map((zone) => zone.ecology.wildFruits.join(","))).size).toBeGreaterThan(3);
+    expect(wilds?.layers.objects.map((object) => object.type)).toEqual(expect.arrayContaining(["copperOreDeposit", "coalDeposit", "ironOreDeposit", "wildlifeSpawnRabbit", "wildlifeSpawnDeer", "wildlifeSpawnBoar"]));
+  });
+
   it("rejects malformed world content before the server starts", () => {
     expect(() => parseWorldDefinition({ worldId: "broken", tileSize: 32, zones: [{ id: "bad" }] })).toThrow("Invalid zone");
   });

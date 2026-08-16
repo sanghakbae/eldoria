@@ -22,6 +22,7 @@ const initialState: ConnectionState = { status: "connecting", label: "Connecting
 export function useGameConnection(user: User): GameConnection {
   const [state, setState] = useState(initialState);
   const socketRef = useRef<WebSocket | null>(null);
+  const selectedCharacterIdRef = useRef<string | null>(null);
 
   const sendCharacterCommand = useCallback((message: Parameters<typeof encodeMessage>[0]) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(encodeMessage(message));
@@ -68,6 +69,9 @@ export function useGameConnection(user: User): GameConnection {
         if (message.type === "auth.success") {
           authenticatedUid = message.payload.uid;
           setState((current) => ({ ...current, status: "online", label: "Realm online", message: "Choose a character to enter the realm.", latency: null }));
+          if (selectedCharacterIdRef.current && socket?.readyState === WebSocket.OPEN) {
+            socket.send(encodeMessage({ type: "character.select", requestId: crypto.randomUUID(), payload: { characterId: selectedCharacterIdRef.current } }));
+          }
           pingTimer = window.setInterval(() => {
             if (socket?.readyState !== WebSocket.OPEN) return;
             const requestId = crypto.randomUUID();
@@ -83,6 +87,7 @@ export function useGameConnection(user: User): GameConnection {
         }
         if (message.type === "character.selected") {
           const character = message.payload.character;
+          selectedCharacterIdRef.current = character.id;
           window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: character.position }));
           window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: character.position.zoneId }));
           setState((current) => ({ ...current, selectedCharacter: character, message: `Entering the realm as ${character.name}.` }));
@@ -127,6 +132,9 @@ export function useGameConnection(user: User): GameConnection {
   return {
     ...state,
     createCharacter: (name) => sendCharacterCommand({ type: "character.create", requestId: crypto.randomUUID(), payload: { name } }),
-    selectCharacter: (characterId) => sendCharacterCommand({ type: "character.select", requestId: crypto.randomUUID(), payload: { characterId } }),
+    selectCharacter: (characterId) => {
+      selectedCharacterIdRef.current = characterId;
+      sendCharacterCommand({ type: "character.select", requestId: crypto.randomUUID(), payload: { characterId } });
+    },
   };
 }

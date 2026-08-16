@@ -93,6 +93,11 @@ export type ZoneDefinition = {
   columns: number;
   rows: number;
   tileSize: number;
+  ecology: {
+    biome: string;
+    hydrology: { type: string; fishHabitats: string[] };
+    wildFruits: string[];
+  };
   layers: {
     terrain: { assetId: string };
     collision: TileRectangle[];
@@ -132,7 +137,7 @@ export function parseWorldDefinition(value: unknown): WorldDefinition {
 }
 
 function parseZone(value: unknown, tileSize: number, index: number): ZoneDefinition {
-  if (!isRecord(value) || typeof value.id !== "string" || !isLocalizedName(value.name) || !isPositiveNumber(value.width) || !isPositiveNumber(value.height) || !isPositiveInteger(value.columns) || !isPositiveInteger(value.rows) || !isRecord(value.layers) || !isRecord(value.layers.terrain) || typeof value.layers.terrain.assetId !== "string" || !Array.isArray(value.layers.collision) || !Array.isArray(value.layers.objects) || !Array.isArray(value.layers.spawn) || !Array.isArray(value.exits)) throw new Error(`Invalid zone at index ${index}.`);
+  if (!isRecord(value) || typeof value.id !== "string" || !isLocalizedName(value.name) || !isPositiveNumber(value.width) || !isPositiveNumber(value.height) || !isPositiveInteger(value.columns) || !isPositiveInteger(value.rows) || !isEcology(value.ecology) || !isRecord(value.layers) || !isRecord(value.layers.terrain) || typeof value.layers.terrain.assetId !== "string" || !Array.isArray(value.layers.collision) || !Array.isArray(value.layers.objects) || !Array.isArray(value.layers.spawn) || !Array.isArray(value.exits)) throw new Error(`Invalid zone at index ${index}.`);
   const zoneId = value.id;
   const collision = value.layers.collision.map((rectangle, rectangleIndex) => parseTileRectangle(rectangle, zoneId, rectangleIndex));
   const spawn = value.layers.spawn.map((item) => {
@@ -147,7 +152,7 @@ function parseZone(value: unknown, tileSize: number, index: number): ZoneDefinit
     if (!isRecord(exit) || !isEdge(exit.edge) || typeof exit.toZoneId !== "string" || typeof exit.toSpawnId !== "string") throw new Error(`Invalid exit in zone ${zoneId}.`);
     return { edge: exit.edge, toZoneId: exit.toZoneId, toSpawnId: exit.toSpawnId };
   });
-  return { id: zoneId, name: value.name, width: value.width, height: value.height, columns: value.columns, rows: value.rows, tileSize, layers: { terrain: { assetId: value.layers.terrain.assetId }, collision, objects, spawn }, exits };
+  return { id: zoneId, name: value.name, width: value.width, height: value.height, columns: value.columns, rows: value.rows, tileSize, ecology: value.ecology, layers: { terrain: { assetId: value.layers.terrain.assetId }, collision, objects, spawn }, exits };
 }
 
 function parseTileRectangle(value: unknown, zoneId: string, index: number): TileRectangle {
@@ -162,5 +167,6 @@ function isPositiveInteger(value: unknown): value is number { return isFiniteNum
 function isNonNegativeInteger(value: unknown): value is number { return isFiniteNumber(value) && Number.isInteger(value) && value >= 0; }
 function isLocalizedName(value: unknown): value is { en: string; ko: string } { return isRecord(value) && typeof value.en === "string" && typeof value.ko === "string"; }
 function isEdge(value: unknown): value is ZoneExit["edge"] { return value === "north" || value === "east" || value === "south" || value === "west"; }
+function isEcology(value: unknown): value is ZoneDefinition["ecology"] { return isRecord(value) && typeof value.biome === "string" && isRecord(value.hydrology) && typeof value.hydrology.type === "string" && Array.isArray(value.hydrology.fishHabitats) && value.hydrology.fishHabitats.every((habitat) => typeof habitat === "string") && Array.isArray(value.wildFruits) && value.wildFruits.every((fruit) => typeof fruit === "string"); }
 function isAcquisitionMethod(value: unknown): value is FoodDefinition["acquisitionMethods"][number] { return value === "fishing" || value === "hunting" || value === "trapping" || value === "gathering"; }
 function isFoodCategory(value: unknown): value is FoodDefinition["category"] { return value === "fish" || value === "bird" || value === "meat" || value === "vegetable" || value === "fruit"; }

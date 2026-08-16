@@ -12,11 +12,11 @@ const MOVEMENT_SPEED = 96;
 export class RuntimeWorld {
   private readonly players = new Map<string, RuntimePlayer>();
 
-  join(uid: string, position = { zoneId: "greythorn", x: 420, y: 450 }): RuntimePlayer {
+  join(uid: string, position = { zoneId: "untamedWilds", x: 836, y: 470 }): RuntimePlayer {
     const zone = getZoneDefinition(position.zoneId);
     const safePosition = zone && isPositionWalkable(position.zoneId, position.x, position.y)
       ? position
-      : getSafeSpawn("greythorn");
+      : getSafeSpawn("untamedWilds");
     const player = { uid, position: { ...safePosition }, direction: { x: 0, y: 0 }, sequence: 0 };
     this.players.set(uid, player);
     return player;
