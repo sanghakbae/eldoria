@@ -1,10 +1,26 @@
 import { GameCanvas } from "./game/GameCanvas";
 import { useGameConnection } from "./network/useGameConnection";
+import { AuthScreen } from "./auth/AuthScreen";
+import { useAuth } from "./auth/useAuth";
+import { LanguageToggle, useLanguage, type TranslationKey } from "./i18n/LanguageContext";
 
-const quickSlots = ["Blade", "Bandage", "Torch", "Map"];
+const quickSlots: TranslationKey[] = ["blade", "bandage", "torch", "map"];
 
 export function App() {
+  const { language } = useLanguage();
+  const session = useAuth(language);
+
+  if (session.loading) return <main className="auth-shell"><div className="auth-sigil auth-sigil--loading">E</div></main>;
+  if (!session.user) {
+    return <AuthScreen error={session.error} pending={session.pending} onSignIn={session.signIn} onRegister={session.register} onGoogle={session.signInWithGoogle} />;
+  }
+
+  return <WorldScreen playerName={session.user.displayName ?? session.user.email?.split("@")[0] ?? "Wanderer"} onSignOut={session.signOut} />;
+}
+
+function WorldScreen({ playerName, onSignOut }: { playerName: string; onSignOut: () => Promise<void> }) {
   const connection = useGameConnection();
+  const { t } = useLanguage();
 
   return (
     <main className="app-shell">
@@ -12,7 +28,7 @@ export function App() {
         <div className="brand-lockup">
           <span className="brand-rune" aria-hidden="true">E</span>
           <div>
-            <p className="eyebrow">THE VERDANT FRONTIER</p>
+            <p className="eyebrow">{t("frontier")}</p>
             <h1>ELDORIA</h1>
           </div>
         </div>
@@ -20,62 +36,64 @@ export function App() {
           <span className="server-dot" />
           <span>{connection.label}</span>
           {connection.latency !== null && <strong>{connection.latency}ms</strong>}
+          <LanguageToggle />
+          <button className="signout-button" type="button" onClick={() => void onSignOut()}>{t("signOut")}</button>
         </div>
       </header>
 
       <section className="game-layout">
         <aside className="character-panel panel">
-          <div className="portrait"><span>W</span></div>
+          <div className="portrait"><img src="/assets/characters/wanderer-portrait.png" alt="" /></div>
           <div>
-            <p className="eyebrow">WANDERER</p>
-            <h2>Aryn Vale</h2>
-            <p className="location">Mossward · Dawn</p>
+            <p className="eyebrow">{t("wanderer")}</p>
+            <h2>{playerName}</h2>
+            <p className="location">{t("location")}</p>
           </div>
           <div className="vitals" aria-label="Character vitals">
-            <Vital label="Health" value={84} tone="health" />
-            <Vital label="Mana" value={61} tone="mana" />
-            <Vital label="Stamina" value={93} tone="stamina" />
+            <Vital label={t("health")} value={84} tone="health" />
+            <Vital label={t("mana")} value={61} tone="mana" />
+            <Vital label={t("stamina")} value={93} tone="stamina" />
           </div>
           <div className="divider" />
-          <p className="panel-label">ACTIVE SKILLS</p>
-          <Skill name="Swordsmanship" value="32.4" />
-          <Skill name="Healing" value="18.7" />
-          <Skill name="Lumberjacking" value="11.2" />
+          <p className="panel-label">{t("activeSkills")}</p>
+          <Skill name={t("swordsmanship")} value="32.4" />
+          <Skill name={t("healing")} value="18.7" />
+          <Skill name={t("lumberjacking")} value="11.2" />
         </aside>
 
-        <section className="world-frame" aria-label="Eldoria game world">
+        <section className="world-frame" aria-label={t("worldAria")}>
           <GameCanvas />
           <div className="world-caption">
             <span className="compass">✦</span>
             <div>
-              <strong>Mossward Crossing</strong>
-              <small>Safe settlement</small>
+              <strong>{t("mossward")}</strong>
+              <small>{t("safeSettlement")}</small>
             </div>
           </div>
-          <div className="world-hint">The eastern road leads into Greythorn Wood</div>
+          <div className="world-hint">{t("roadHint")}</div>
         </section>
 
         <aside className="journal-panel panel">
-          <p className="eyebrow">FIELD JOURNAL</p>
-          <h2>A quiet beginning</h2>
-          <p className="journal-copy">Meet the roadwarden beneath the old lantern tree.</p>
-          <div className="objective"><span>01</span><p>Explore Mossward Crossing<strong>0 / 1</strong></p></div>
-          <div className="objective"><span>02</span><p>Find the forest road<strong>0 / 1</strong></p></div>
+          <p className="eyebrow">{t("journal")}</p>
+          <h2>{t("quietBeginning")}</h2>
+          <p className="journal-copy">{t("meetRoadwarden")}</p>
+          <div className="objective"><span>01</span><p>{t("exploreMossward")}<strong>0 / 1</strong></p></div>
+          <div className="objective"><span>02</span><p>{t("findRoad")}<strong>0 / 1</strong></p></div>
           <div className="divider" />
-          <p className="panel-label">WORLD NOTES</p>
-          <p className="note">Wolves have been seen beyond the east gate after dusk.</p>
+          <p className="panel-label">{t("worldNotes")}</p>
+          <p className="note">{t("wolvesNote")}</p>
         </aside>
       </section>
 
       <footer className="command-deck">
         <div className="chat-preview">
-          <span>System</span>
+          <span>{t("system")}</span>
           <p>{connection.message}</p>
         </div>
-        <nav className="quickbar" aria-label="Quick actions">
-          {quickSlots.map((slot, index) => <button key={slot}><kbd>{index + 1}</kbd><span>{slot.slice(0, 1)}</span><small>{slot}</small></button>)}
+        <nav className="quickbar" aria-label={t("quickActions")}>
+          {quickSlots.map((slot, index) => <button key={slot}><kbd>{index + 1}</kbd><span>{t(slot).slice(0, 1)}</span><small>{t(slot)}</small></button>)}
         </nav>
-        <div className="build-mark"><span>PRE-ALPHA</span><small>FOUNDATION BUILD</small></div>
+        <div className="build-mark"><span>PRE-ALPHA</span><small>{t("foundation")}</small></div>
       </footer>
     </main>
   );

@@ -6,7 +6,7 @@ The product and engineering baseline is [SRS.md](./SRS.md). Development intentio
 
 ## Current status
 
-Tasks 001–005 are complete: the monorepo, React/Vite client, Phaser world scene, Node.js game server, shared protocol, and live WebSocket handshake are operational. Authentication begins in Task 006.
+Tasks 001–006 are complete: the monorepo, React/Vite client, Phaser world scene, Node.js game server, shared protocol, live WebSocket handshake, and Firebase browser authentication are operational. Firestore is connected with server-owned write boundaries for the upcoming character persistence slice.
 
 ## Repository map
 
@@ -44,6 +44,8 @@ pnpm build
 ```
 
 `pnpm dev` starts the browser client at `http://localhost:5173` and the game server at `http://localhost:8787`; the server health endpoint is `/health`.
+
+The web build deploys to `https://eldoria.sanghak.kr` through GitHub Pages. Repository variables supply public Firebase web configuration during the build; local values belong in the ignored `apps/web/.env.local` file.
 
 Root commands fan out only to workspace packages that implement the matching script, so the commands remain stable as each application is added.
 

@@ -1,0 +1,56 @@
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+
+export type Language = "en" | "ko";
+
+const translations = {
+  en: {
+    frontier: "THE VERDANT FRONTIER", wanderer: "WANDERER", location: "Mossward · Dawn", health: "Health", mana: "Mana", stamina: "Stamina",
+    activeSkills: "ACTIVE SKILLS", swordsmanship: "Swordsmanship", healing: "Healing", lumberjacking: "Lumberjacking", worldAria: "Eldoria game world",
+    mossward: "Mossward Crossing", safeSettlement: "Safe settlement", roadHint: "The eastern road leads into Greythorn Wood", journal: "FIELD JOURNAL",
+    quietBeginning: "A quiet beginning", meetRoadwarden: "Meet the roadwarden beneath the old lantern tree.", exploreMossward: "Explore Mossward Crossing",
+    findRoad: "Find the forest road", worldNotes: "WORLD NOTES", wolvesNote: "Wolves have been seen beyond the east gate after dusk.", system: "System",
+    quickActions: "Quick actions", blade: "Blade", bandage: "Bandage", torch: "Torch", map: "Map", signOut: "Sign out", foundation: "FOUNDATION BUILD",
+    authIntro: "A living world remembers every path you choose.", email: "Email", password: "Password", openingGate: "Opening the gate…", enterRealm: "Enter the realm",
+    createAccount: "Create account", or: "or", google: "Continue with Google", newAccount: "New to Eldoria? Create an account", existingAccount: "Already have an account? Sign in",
+    originalWorld: "ORIGINAL WORLD · PRE-ALPHA", authInvalid: "The email or password is incorrect.", authExists: "That email is already in use.", authWeak: "Password must be at least 6 characters.",
+    authCancelled: "Google sign-in was cancelled.", authDisabled: "Enable this sign-in method in Firebase Console.", authGeneric: "Sign-in failed. Please try again shortly.",
+  },
+  ko: {
+    frontier: "초록 변경의 세계", wanderer: "방랑자", location: "모스워드 · 새벽", health: "생명력", mana: "마나", stamina: "기력",
+    activeSkills: "활성 기술", swordsmanship: "검술", healing: "치유", lumberjacking: "벌목", worldAria: "엘도리아 게임 월드",
+    mossward: "모스워드 교차로", safeSettlement: "안전 정착지", roadHint: "동쪽 길은 그레이쏜 숲으로 이어집니다", journal: "여행 일지",
+    quietBeginning: "고요한 시작", meetRoadwarden: "오래된 등불나무 아래에서 길지기를 만나세요.", exploreMossward: "모스워드 교차로 탐험",
+    findRoad: "숲길 찾기", worldNotes: "세계의 소문", wolvesNote: "해 질 무렵 동문 너머에서 늑대가 목격되었습니다.", system: "시스템",
+    quickActions: "빠른 행동", blade: "검", bandage: "붕대", torch: "횃불", map: "지도", signOut: "로그아웃", foundation: "기반 빌드",
+    authIntro: "살아 숨 쉬는 세계는 당신이 선택한 모든 길을 기억합니다.", email: "이메일", password: "비밀번호", openingGate: "세계의 문을 여는 중…", enterRealm: "세계 입장",
+    createAccount: "계정 만들기", or: "또는", google: "Google로 계속", newAccount: "처음 오셨나요? 계정 만들기", existingAccount: "이미 계정이 있나요? 로그인",
+    originalWorld: "오리지널 세계 · 프리 알파", authInvalid: "이메일 또는 비밀번호가 올바르지 않습니다.", authExists: "이미 사용 중인 이메일입니다.", authWeak: "비밀번호는 6자 이상이어야 합니다.",
+    authCancelled: "Google 로그인이 취소되었습니다.", authDisabled: "Firebase Console에서 이 로그인 방식을 활성화해야 합니다.", authGeneric: "로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
+  },
+} as const;
+
+export type TranslationKey = keyof typeof translations.en;
+
+type LanguageContextValue = { language: Language; setLanguage: (language: Language) => void; t: (key: TranslationKey) => string };
+const LanguageContext = createContext<LanguageContextValue | null>(null);
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguage] = useState<Language>(() => localStorage.getItem("eldoria.language") === "ko" ? "ko" : "en");
+  useEffect(() => {
+    localStorage.setItem("eldoria.language", language);
+    document.documentElement.lang = language;
+  }, [language]);
+  const value = useMemo(() => ({ language, setLanguage, t: (key: TranslationKey) => translations[language][key] }), [language]);
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+}
+
+export function useLanguage() {
+  const context = useContext(LanguageContext);
+  if (!context) throw new Error("useLanguage must be used within LanguageProvider");
+  return context;
+}
+
+export function LanguageToggle() {
+  const { language, setLanguage } = useLanguage();
+  return <div className="language-toggle" aria-label="Language"><button className={language === "en" ? "active" : ""} onClick={() => setLanguage("en")}>EN</button><span>/</span><button className={language === "ko" ? "active" : ""} onClick={() => setLanguage("ko")}>한국어</button></div>;
+}

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@eldoria/game-protocol": "workspace:*",
+    "firebase": "catalog:",
     "phaser": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
