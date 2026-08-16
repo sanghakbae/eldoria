@@ -24,7 +24,7 @@
     {
       "id": "toolmaking.hand-axe",
       "name": {
-        "en": "Stone hand axe",
+        "en": "Stone axe",
         "ko": "돌도끼"
       },
       "actionId": "tool.craft",
@@ -70,6 +70,45 @@
       }
     },
     {
+      "id": "toolmaking.copper-axe",
+      "name": { "en": "Copper axe", "ko": "구리도끼" },
+      "actionId": "metal.shape",
+      "difficulty": 45,
+      "successFloor": 0.55,
+      "inputs": [
+        { "itemId": "metal.copper-ingot", "quantity": 1 },
+        { "itemId": "wood.branch", "quantity": 1 },
+        { "itemId": "material.cord", "quantity": 1 }
+      ],
+      "output": { "itemId": "tool.copper-axe", "quantity": 1 }
+    },
+    {
+      "id": "toolmaking.iron-axe",
+      "name": { "en": "Iron axe", "ko": "철도끼" },
+      "actionId": "metal.shape",
+      "difficulty": 65,
+      "successFloor": 0.35,
+      "inputs": [
+        { "itemId": "metal.iron-ingot", "quantity": 1 },
+        { "itemId": "wood.branch", "quantity": 1 },
+        { "itemId": "material.cord", "quantity": 1 }
+      ],
+      "output": { "itemId": "tool.iron-axe", "quantity": 1 }
+    },
+    {
+      "id": "toolmaking.steel-axe",
+      "name": { "en": "Steel axe", "ko": "강철도끼" },
+      "actionId": "metal.shape",
+      "difficulty": 85,
+      "successFloor": 0.18,
+      "inputs": [
+        { "itemId": "metal.steel-ingot", "quantity": 1 },
+        { "itemId": "wood.branch", "quantity": 1 },
+        { "itemId": "material.cord", "quantity": 1 }
+      ],
+      "output": { "itemId": "tool.steel-axe", "quantity": 1 }
+    },
+    {
       "id": "toolmaking.fishing-rod",
       "name": {
         "en": "Fishing rod",
@@ -92,6 +131,45 @@
         "itemId": "tool.fishing-rod",
         "quantity": 1
       }
+    },
+    {
+      "id": "toolmaking.copper-pickaxe",
+      "name": { "en": "Copper pickaxe", "ko": "구리 곡괭이" },
+      "actionId": "metal.shape",
+      "difficulty": 48,
+      "successFloor": 0.5,
+      "inputs": [
+        { "itemId": "metal.copper-ingot", "quantity": 2 },
+        { "itemId": "wood.branch", "quantity": 1 },
+        { "itemId": "material.cord", "quantity": 1 }
+      ],
+      "output": { "itemId": "tool.copper-pickaxe", "quantity": 1 }
+    },
+    {
+      "id": "toolmaking.iron-pickaxe",
+      "name": { "en": "Iron pickaxe", "ko": "철 곡괭이" },
+      "actionId": "metal.shape",
+      "difficulty": 68,
+      "successFloor": 0.3,
+      "inputs": [
+        { "itemId": "metal.iron-ingot", "quantity": 2 },
+        { "itemId": "wood.branch", "quantity": 1 },
+        { "itemId": "material.cord", "quantity": 1 }
+      ],
+      "output": { "itemId": "tool.iron-pickaxe", "quantity": 1 }
+    },
+    {
+      "id": "toolmaking.steel-pickaxe",
+      "name": { "en": "Steel pickaxe", "ko": "강철 곡괭이" },
+      "actionId": "metal.shape",
+      "difficulty": 88,
+      "successFloor": 0.15,
+      "inputs": [
+        { "itemId": "metal.steel-ingot", "quantity": 2 },
+        { "itemId": "wood.branch", "quantity": 1 },
+        { "itemId": "material.cord", "quantity": 1 }
+      ],
+      "output": { "itemId": "tool.steel-pickaxe", "quantity": 1 }
     },
     {
       "id": "toolmaking.stone-spear",
@@ -126,7 +204,7 @@
     {
       "itemId": "tool.hand-axe",
       "name": {
-        "en": "Hand axe",
+        "en": "Stone axe",
         "ko": "돌도끼"
       },
       "huntingBonus": 25,
@@ -137,12 +215,60 @@
     {
       "itemId": "tool.pickaxe",
       "name": {
-        "en": "Pickaxe",
-        "ko": "곡괭이"
+        "en": "Stone pickaxe",
+        "ko": "돌 곡괭이"
       },
       "huntingBonus": 15,
       "damage": 2,
       "durability": 50,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.copper-pickaxe",
+      "name": { "en": "Copper pickaxe", "ko": "구리 곡괭이" },
+      "huntingBonus": 18,
+      "damage": 3,
+      "durability": 80,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.iron-pickaxe",
+      "name": { "en": "Iron pickaxe", "ko": "철 곡괭이" },
+      "huntingBonus": 22,
+      "damage": 4,
+      "durability": 125,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.steel-pickaxe",
+      "name": { "en": "Steel pickaxe", "ko": "강철 곡괭이" },
+      "huntingBonus": 28,
+      "damage": 5,
+      "durability": 190,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.copper-axe",
+      "name": { "en": "Copper axe", "ko": "구리도끼" },
+      "huntingBonus": 32,
+      "damage": 3,
+      "durability": 70,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.iron-axe",
+      "name": { "en": "Iron axe", "ko": "철도끼" },
+      "huntingBonus": 38,
+      "damage": 4,
+      "durability": 110,
+      "slot": "mainHand"
+    },
+    {
+      "itemId": "tool.steel-axe",
+      "name": { "en": "Steel axe", "ko": "강철도끼" },
+      "huntingBonus": 45,
+      "damage": 5,
+      "durability": 170,
       "slot": "mainHand"
     },
     {

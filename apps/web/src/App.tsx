@@ -13,7 +13,7 @@ import { AdminSkillSettings } from "./admin/AdminSkillSettings";
 import { itemDisplayName } from "./game/itemNames";
 
 const quickSlots: TranslationKey[] = ["fists", "crafting", "fire", "map", "skills", "inventory"];
-const foodNames = new Map(foodCatalog.map((food) => [food.id, food.name]));
+const foodsById = new Map(foodCatalog.map((food) => [food.id, food]));
 const skillLocks: SkillLock[] = ["up", "down", "locked"];
 const lockLabels: Record<SkillLock, TranslationKey> = { up: "lockRaise", down: "lockLower", locked: "lockHold" };
 const lockGlyphs: Record<SkillLock, string> = { up: "↑", down: "↓", locked: "🔒" };
@@ -63,12 +63,35 @@ function orderZonesWestToEast(): string[] {
 }
 
 const zoneMapImages: Record<string, string> = {
-  untamedWilds: "/assets/world/untamed-wilds.png",
-  mossward: "/assets/world/mossward-crossing.png",
-  greythorn: "/assets/world/greythorn-wood.png",
-  amberfen: "/assets/world/amberfen-wilds.png",
-  hollowVault: "/assets/world/hollow-vault.png",
+  untamedWilds: "/assets/world/verdant-meadow-ground.png",
+  animalDen: "/assets/world/animal-den.png",
+  mossward: "/assets/world/verdant-meadow-ground.png",
+  greythorn: "/assets/world/verdant-meadow-ground.png",
+  amberfen: "/assets/world/verdant-meadow-ground.png",
+  hollowVault: "/assets/world/verdant-meadow-ground.png",
 };
+
+function MiniMap({ position, language, onOpen }: { position: PlayerPosition; language: "en" | "ko"; onOpen: () => void }) {
+  const zone = getZoneDefinition(position.zoneId);
+  const image = zoneMapImages[position.zoneId] ?? zoneMapImages.untamedWilds;
+  const left = `${Math.max(0, Math.min(100, position.x / ZONE_WIDTH * 100))}%`;
+  const top = `${Math.max(0, Math.min(100, position.y / ZONE_HEIGHT * 100))}%`;
+  const markers = (zone?.layers.objects ?? []).filter((object) => object.type.startsWith("wildlifeSpawn") || ["wildTree", "wildFruitTree", "fishingWater"].includes(object.type));
+  return (
+    <button type="button" className="mini-map" onClick={onOpen} aria-label={language === "ko" ? "미니맵 열기" : "Open minimap"}>
+      <img src={image} alt="" />
+      <span className="mini-map-north">N</span>
+      {markers.map((object) => (
+        <i
+          key={object.id}
+          className={`mini-map-object ${object.type.startsWith("wildlifeSpawn") ? "mini-map-object--wildlife" : object.type === "fishingWater" ? "mini-map-object--water" : "mini-map-object--resource"}`}
+          style={{ left: `${object.x / ZONE_WIDTH * 100}%`, top: `${object.y / ZONE_HEIGHT * 100}%` }}
+        />
+      ))}
+      <span className="mini-map-player" style={{ left, top }}><b /></span>
+    </button>
+  );
+}
 
 // How far the wanderer can take in the ground around them, in zone pixels. The atlas viewBox is
 // 100x100 stretched over a 5:3 plane, so this circle on the ground becomes an ellipse on the sheet.
@@ -147,7 +170,12 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [craftingOpen, setCraftingOpen] = useState(false);
+  const [systemMessages, setSystemMessages] = useState<string[]>(() => [connection.message]);
   const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["untamedWilds"]') as string[]));
+  useEffect(() => {
+    if (!connection.message) return;
+    setSystemMessages((current) => current.at(-1) === connection.message ? current : [...current.slice(-7), connection.message]);
+  }, [connection.message]);
   useEffect(() => {
     const handlePanels = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
@@ -256,6 +284,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
 
         <section className="world-frame" aria-label={t("worldAria")}>
           <GameCanvas gender={character.gender} language={language} equipped={character.survival.equipment?.mainHand ?? character.survival.equipped ?? null} equipment={character.survival.equipment ?? {}} />
+          <MiniMap position={playerPosition} language={language} onOpen={() => setMapOpen(true)} />
           <button type="button" className="inventory-toggle" onClick={() => setInventoryOpen(true)} aria-label={t("inventory")}>
             <QuickSlotIcon slot="inventory" /><span>{t("inventory")}</span><kbd>I</kbd>
           </button>
@@ -263,7 +292,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
             <span className="compass">✦</span>
             <div>
               <strong>{t(zoneKey)}</strong>
-              <small>{t(zoneId === "mossward" ? "safeSettlement" : "wildZone")}</small>
+              <small>{t("wildZone")}</small>
             </div>
           </div>
           <div className="world-hint">{t("clickMove")} · {t("wheelZoom")} · {t("roadHint")}</div>
@@ -282,6 +311,13 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           <div className="divider" />
           <p className="panel-label">{t("worldNotes")}</p>
           <p className="note">{t("wolvesNote")}</p>
+          <div className="divider" />
+          <section className="system-chat" aria-label={language === "ko" ? "시스템 채팅" : "System chat"}>
+            <p className="panel-label">{language === "ko" ? "시스템 채팅" : "SYSTEM CHAT"}</p>
+            <div className="system-chat-log">
+              {systemMessages.map((message, index) => <p key={`${index}-${message}`}><span>[{language === "ko" ? "시스템" : "SYSTEM"}]</span>{message}</p>)}
+            </div>
+          </section>
         </aside>
       </section>
 
@@ -306,23 +342,31 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
 }
 
 const bodyRegionPoints: Record<string, Array<[number, number]>> = {
-  blood: [[50, 52]],
-  eyes: [[46, 17], [54, 17]],
-  gumsSkin: [[50, 25]],
-  bonesMuscles: [[34, 58], [66, 58], [42, 92]],
-  muscles: [[30, 52], [70, 52]],
-  nervousSystem: [[50, 14]],
-  thyroid: [[50, 31]],
-  kidneysBrain: [[50, 14], [42, 62], [58, 62]],
+  blood: [[40, 50]],
+  eyes: [[37, 15], [43, 15]],
+  gumsSkin: [[40, 21]],
+  bonesMuscles: [[18, 58], [62, 58], [32, 111], [48, 111]],
+  muscles: [[21, 55], [59, 55], [33, 91], [47, 91]],
+  nervousSystem: [[40, 15]],
+  thyroid: [[40, 29]],
+  kidneysBrain: [[40, 15], [35, 68], [45, 68]],
 };
 
-/** A standing human read at a glance, with the affected organs marked on it. */
+/** A calm body-status silhouette. Internal anatomy stays hidden until a condition marks a region. */
 function BodyConditionFigure({ conditions }: { conditions: BodyCondition[] }) {
-  const markers = conditions.flatMap((condition) => (bodyRegionPoints[condition.region] ?? [[50, 52]]).map(([x, y]) => ({ x, y, severity: condition.severity, id: condition.id })));
+  const markers = conditions.flatMap((condition) => (bodyRegionPoints[condition.region] ?? [[40, 52]]).map(([x, y]) => ({ x, y, severity: condition.severity, id: condition.id })));
   return (
-    <svg className="body-condition-figure" viewBox="0 0 100 130" role="img" aria-label={conditions.length === 0 ? "Healthy body" : conditions.map((condition) => condition.name.en).join(", ")}>
-      <path className="body-silhouette" d="M50 6c-5.4 0-9.4 4.2-9.4 9.6 0 3.6 1.6 6.6 4 8.4-6.4 1.8-11 5.4-12.8 10.6l-5.6 17c-.8 2.4.4 4.8 2.8 5.6 2.4.8 4.8-.5 5.6-2.9l3.6-11v13.5c0 2 .3 3.4.8 5l2.4 7.6-3.2 30.4c-.3 2.8 1.7 5.2 4.5 5.5 2.8.3 5.2-1.7 5.5-4.5l3-27.4h2.4l3 27.4c.3 2.8 2.7 4.8 5.5 4.5 2.8-.3 4.8-2.7 4.5-5.5l-3.2-30.4 2.4-7.6c.5-1.6.8-3 .8-5V48.3l3.6 11c.8 2.4 3.2 3.7 5.6 2.9 2.4-.8 3.6-3.2 2.8-5.6l-5.6-17c-1.8-5.2-6.4-8.8-12.8-10.6 2.4-1.8 4-4.8 4-8.4C59.4 10.2 55.4 6 50 6z" />
-      {markers.map((marker, index) => <circle key={`${marker.id}-${index}`} className={`body-marker body-marker--${marker.severity}`} cx={marker.x} cy={marker.y} r="5.5" />)}
+    <svg className="body-condition-figure" viewBox="0 0 80 144" role="img" aria-label={conditions.length === 0 ? "Healthy body" : conditions.map((condition) => condition.name.en).join(", ")}>
+      <ellipse className="body-silhouette-halo" cx="40" cy="137" rx="20" ry="3" />
+      <circle className="body-silhouette-head" cx="40" cy="15" r="9" />
+      <path className="body-silhouette-neck" d="M36 23v7m8-7v7" />
+      <path className="body-silhouette-torso" d="M31 29Q40 25 49 29l5 25-5 31q-9 5-18 0l-5-31z" />
+      <path className="body-silhouette-limb" d="M29 34L20 55 15 78M51 34l9 21 5 23M34 84l-2 27-5 23M46 84l2 27 5 23" />
+      <path className="body-silhouette-foot" d="M27 134l-7 4h12m21-4 7 4H48" />
+      <circle className="body-silhouette-hand" cx="14.5" cy="80.5" r="3" />
+      <circle className="body-silhouette-hand" cx="65.5" cy="80.5" r="3" />
+      <path className="body-silhouette-zone" d="M29 55h22M31 73h18" />
+      {markers.map((marker, index) => <circle key={`${marker.id}-${index}`} className={`body-marker body-marker--${marker.severity}`} cx={marker.x} cy={marker.y} r="4.5" />)}
     </svg>
   );
 }
@@ -385,7 +429,13 @@ const fruitShapes: Record<string, { fill: string; body: string }> = {
 const defaultFruit = { fill: "#c0392b", body: "M16 10.5c5.1 0 9 3.7 9 8.7 0 4.7-3.9 8.4-9 8.4s-9-3.7-9-8.4c0-5 3.9-8.7 9-8.7z" };
 const toolIconPaths: Record<string, string> = {
   "tool.hand-axe": "/assets/items/stone-axe.svg?v=4",
+  "tool.copper-axe": "/assets/items/copper-axe.svg",
+  "tool.iron-axe": "/assets/items/iron-axe.svg",
+  "tool.steel-axe": "/assets/items/steel-axe.svg",
   "tool.pickaxe": "/assets/items/stone-pickaxe.svg?v=3",
+  "tool.copper-pickaxe": "/assets/items/copper-pickaxe.svg",
+  "tool.iron-pickaxe": "/assets/items/iron-pickaxe.svg",
+  "tool.steel-pickaxe": "/assets/items/steel-pickaxe.svg",
   "tool.stone-spear": "/assets/items/stone-spear.svg",
   "tool.fishing-rod": "/assets/items/fishing-rod.svg",
 };
@@ -406,19 +456,18 @@ function ItemIcon({ itemId }: { itemId: string }) {
   if (category === "meat") {
     return (
       <svg className="item-icon" viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M9 20c-4-4-2-11 4-13s12 1 13 7-4 10-9 9c0 3-2 5-4 5s-4-2-4-4 1-3 0-4z" fill="#a94b46" />
-        <path d="M22 12c2 1 3 3 2 5" stroke="#e6d9c4" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <path d="M4.2 19.4c-.8-4.7 2.1-9.5 7.4-11.5 4.8-1.8 11.2-.8 14.3 2.7 2.8 3.2 2.2 8.1-.8 11-2.7 2.6-7 3.3-10.3 2.3-2.5-.8-3.7 2.3-6.3 1.2-2.1-.9-3.8-3.1-4.3-5.7z" fill="#702d31" stroke="#3f1b1e" strokeWidth="1" strokeLinejoin="round" />
+        <path d="M6.6 18.5c-.3-3.5 2.1-7 6.1-8.5 3.9-1.5 9-.7 11.3 2 2 2.3 1.4 5.9-.8 8-2.1 2-5.3 2.4-8 1.6-2.6-.8-3.4 1.8-5.4 1.2-1.7-.5-3-2.1-3.2-4.3z" fill="#b95352" />
+        <path d="M7.3 16.2c1.7-3.4 5.5-5.4 9.6-5.3 3.3.1 6.1 1.2 7.7 3" fill="none" stroke="#edc9a8" strokeWidth="1.5" strokeLinecap="round" opacity=".9" />
+        <path d="M9.1 20.8c2.1-1.8 3.2-3.7 3.2-6.1m6.3 7.2c-.7-2.2.1-4.2 2.4-5.8" fill="none" stroke="#eab89d" strokeWidth="1" strokeLinecap="round" opacity=".78" />
+        <ellipse cx="17.2" cy="16.3" rx="3.1" ry="2.7" fill="#f0d8b8" stroke="#8a4440" strokeWidth=".8" />
+        <ellipse cx="17.3" cy="16.3" rx="1.35" ry="1.15" fill="#a85a4d" opacity=".72" />
+        <path d="M5.4 19.1c.7 2.9 2.5 4.8 4.5 5" fill="none" stroke="#f0d4b0" strokeWidth="1.1" strokeLinecap="round" opacity=".75" />
       </svg>
     );
   }
   if (category === "fish") {
-    return (
-      <svg className="item-icon" viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M4 16c5-7 14-8 20-4 2 1 3 3 4 4-1 1-2 3-4 4-6 4-15 3-20-4z" fill="#5b8ba3" />
-        <path d="M4 16l-2-5v10z" fill="#5b8ba3" />
-        <circle cx="21" cy="14" r="1.6" fill="#0b1512" />
-      </svg>
-    );
+    return <img className="item-icon item-icon--food" src="/assets/items/fish-trout.png" alt="" />;
   }
   if (category === "tool") {
     const iconPath = toolIconPaths[itemId];
@@ -491,6 +540,11 @@ function InventoryOverlay({ character, onEat, onEquip, onClose }: { character: C
   const { t, language } = useLanguage();
   const stacks = [...(character.survival.inventory ?? [])].sort((left, right) => right.quantity - left.quantity);
   const totalUnits = stacks.reduce((sum, stack) => sum + stack.quantity, 0);
+  const categories = [
+    { id: "food", label: language === "ko" ? "식재료" : "Food", stacks: stacks.filter((stack) => foodsById.has(stack.itemId)) },
+    { id: "tools", label: language === "ko" ? "도구" : "Tools", stacks: stacks.filter((stack) => Boolean(findTool(stack.itemId))) },
+    { id: "materials", label: language === "ko" ? "재료" : "Materials", stacks: stacks.filter((stack) => !foodsById.has(stack.itemId) && !findTool(stack.itemId)) },
+  ].filter((category) => category.stacks.length > 0);
 
   return (
     <section className="inventory-overlay" aria-modal="true" role="dialog" aria-label={t("inventory")}>
@@ -504,10 +558,15 @@ function InventoryOverlay({ character, onEat, onEquip, onClose }: { character: C
       {stacks.length === 0
         ? <p className="inventory-empty">{t("inventoryEmpty")}</p>
         : (
-          <ul className="inventory-grid">
-            {stacks.map((stack) => {
+          <div className="inventory-categories">
+            {categories.map((category) => <section className="inventory-category" key={category.id}>
+              <h3>{category.label}<small>{category.stacks.reduce((sum, stack) => sum + stack.quantity, 0)}</small></h3>
+              <ul className="inventory-grid">
+            {category.stacks.map((stack) => {
               const name = itemDisplayName(stack.itemId, language);
-              const edible = foodNames.has(stack.itemId);
+              const food = foodsById.get(stack.itemId);
+              const edible = food?.category === "fruit";
+              const needsCooking = food && food.category !== "fruit";
               const tool = findTool(stack.itemId);
               const wieldable = Boolean(tool);
               const condition = tool ? Math.max(0, tool.durability - (character.survival.toolWear?.[stack.itemId] ?? 0)) / tool.durability : 1;
@@ -529,12 +588,15 @@ function InventoryOverlay({ character, onEat, onEquip, onClose }: { character: C
                     <span className="inventory-name">{name}</span>
                     {tool && <span className="inventory-wear"><i style={{ width: `${Math.round(condition * 100)}%` }} /></span>}
                     {edible && <em className="inventory-eat">{t("eat")}</em>}
+                    {needsCooking && <em className="inventory-eat">{t("needsCooking")}</em>}
                     {wieldable && <em className="inventory-eat inventory-eat--equip">{t(isEquipped ? "unequip" : "equip")}</em>}
                   </button>
                 </li>
               );
             })}
-          </ul>
+              </ul>
+            </section>)}
+          </div>
         )}
     </section>
   );

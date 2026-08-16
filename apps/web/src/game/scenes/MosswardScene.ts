@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { findTool, getZoneDefinition, isPositionWalkable, worldDefinition } from "@eldoria/game-data";
+import type { WorldObjectState } from "@eldoria/game-protocol";
 import { getAssetEntries } from "../assetRegistry";
 import { CharacterRig, type LayerSheet } from "../characterRig";
 import { equipmentLayerSheets } from "../equipmentLayers";
@@ -7,8 +8,6 @@ import { itemDisplayName } from "../itemNames";
 
 const WORLD_WIDTH = 1672;
 const WORLD_HEIGHT = 941;
-// How far an animal will drift from where it was placed before it turns back.
-const ANIMAL_HOME_RANGE = 260;
 /**
  * The side-on walk sheets do not divide into equal columns either. The male sheet is 2172px for eight
  * poses, so a 271px slice clipped six pixels off the sixth stride; the female poses overlap their
@@ -24,17 +23,33 @@ const SIDE_WALK_SHEETS = {
  * rabbit's third and the boar's snout crosses into the stag's, so slicing at 512px hung antlers over
  * the rabbit and cut them off the stag. These are the measured bounds of each animal.
  */
-const WILDLIFE_ATLAS = "wildlife";
-const ANIMAL_SPECIES = [
-  { key: "rabbit", rect: { x: 60, y: 606, width: 254, height: 288 }, scale: 0.085 },
-  { key: "deer", rect: { x: 430, y: 30, width: 492, height: 882 }, scale: 0.11 },
-  { key: "boar", rect: { x: 982, y: 424, width: 538, height: 494 }, scale: 0.1 },
-] as const;
-const ANIMAL_LABELS = [
-  { en: "Rabbit", ko: "토끼" },
-  { en: "Deer", ko: "사슴" },
-  { en: "Wild boar", ko: "멧돼지" },
-];
+type AnimalProfile = {
+  key: string;
+  label: { en: string; ko: string };
+  texture: string;
+  displayHeight: number;
+  society: "solitary" | "pair" | "herd" | "pack" | "flock" | "colony";
+  group: [number, number];
+  speed: number;
+  stride: [number, number];
+  rest: [number, number];
+  homeRange: number;
+  lift: number;
+  aggressive?: boolean;
+};
+const ANIMAL_PROFILES: Record<string, AnimalProfile> = {
+  wildlifeSpawnRabbit: { key: "rabbit", label: { en: "Rabbit", ko: "토끼" }, texture: "wildlife.walk.rabbit", displayHeight: 36, society: "colony", group: [1, 1], speed: 72, stride: [38, 66], rest: [1400, 3200], homeRange: 170, lift: 9 },
+  wildlifeSpawnDeer: { key: "deer", label: { en: "Deer", ko: "사슴" }, texture: "wildlife.walk.deer", displayHeight: 100, society: "herd", group: [1, 1], speed: 31, stride: [52, 84], rest: [3200, 6500], homeRange: 280, lift: 5 },
+  wildlifeSpawnBoar: { key: "boar", label: { en: "Wild boar", ko: "멧돼지" }, texture: "wildlife.walk.boar", displayHeight: 78, society: "herd", group: [1, 1], speed: 42, stride: [45, 74], rest: [2200, 4600], homeRange: 230, lift: 6 },
+  wildlifeSpawnWolf: { key: "wolf", label: { en: "Wolf", ko: "늑대" }, texture: "wildlife.walk.wolf", displayHeight: 68, society: "pack", group: [1, 1], speed: 58, stride: [55, 92], rest: [1600, 3500], homeRange: 320, lift: 7, aggressive: true },
+  wildlifeSpawnFox: { key: "fox", label: { en: "Fox", ko: "여우" }, texture: "wildlife.walk.fox", displayHeight: 56, society: "solitary", group: [1, 1], speed: 62, stride: [48, 82], rest: [2400, 5200], homeRange: 300, lift: 4 },
+  wildlifeSpawnBear: { key: "bear", label: { en: "Brown bear", ko: "불곰" }, texture: "wildlife.walk.bear", displayHeight: 130, society: "solitary", group: [1, 1], speed: 34, stride: [38, 65], rest: [4200, 8000], homeRange: 260, lift: 3, aggressive: true },
+  wildlifeSpawnBison: { key: "bison", label: { en: "Bison", ko: "들소" }, texture: "wildlife.walk.bison", displayHeight: 124, society: "herd", group: [1, 1], speed: 29, stride: [42, 68], rest: [3500, 6800], homeRange: 250, lift: 5 },
+  wildlifeSpawnGoat: { key: "goat", label: { en: "Mountain goat", ko: "산양" }, texture: "wildlife.walk.goat", displayHeight: 72, society: "herd", group: [1, 1], speed: 46, stride: [42, 72], rest: [2200, 4700], homeRange: 240, lift: 7 },
+  wildlifeSpawnTurkey: { key: "turkey", label: { en: "Wild turkey", ko: "야생 칠면조" }, texture: "wildlife.walk.turkey", displayHeight: 60, society: "flock", group: [1, 1], speed: 38, stride: [32, 58], rest: [1500, 3800], homeRange: 210, lift: 7 },
+  wildlifeSpawnTurtle: { key: "turtle", label: { en: "Pond turtle", ko: "늪거북" }, texture: "wildlife.walk.turtle", displayHeight: 36, society: "colony", group: [1, 1], speed: 12, stride: [16, 30], rest: [4500, 9000], homeRange: 90, lift: 2 },
+  wildlifeSpawnHare: { key: "hare", label: { en: "Hare", ko: "산토끼" }, texture: "wildlife.walk.hare", displayHeight: 44, society: "pair", group: [1, 1], speed: 76, stride: [52, 88], rest: [1300, 3000], homeRange: 220, lift: 11 },
+};
 const ANIMAL_ORIGIN_Y = 0.98;
 const HEALTH_BAR_WIDTH = 34;
 // The camera looks down at a slant, so a step north covers less screen than a step east.
@@ -47,6 +62,7 @@ const STRIKE_REACH = 68;
 const STRIKE_BREAK_OFF = 104;
 const STRIKE_INTERVAL_MS = 850;
 const DOUBLE_CLICK_MS = 400;
+const LOCAL_WILDLIFE_RESPAWN_MS = 15_000;
 /**
  * Where the hand sits in each walk pose, as a fraction of that pose's own box. Measured off the sheets
  * rather than guessed, which is why a held item can ride the arm swing instead of floating beside it.
@@ -76,14 +92,20 @@ const VERTICAL_HAND_ANCHORS: ReadonlyArray<{ fx: number; fy: number; angle: numb
  */
 const HELD_ITEM_ART: Record<string, { key: string; path: string; height: number; grip: [number, number] }> = {
   "tool.hand-axe": { key: "item.stone-axe.v4", path: "/assets/items/stone-axe.svg?v=4", height: 25, grip: [0.23, 0.84] },
-  "tool.pickaxe": { key: "item.stone-pickaxe.v3", path: "/assets/items/stone-pickaxe.svg?v=3", height: 29, grip: [0.2, 0.86] },
+  "tool.copper-axe": { key: "item.copper-axe", path: "/assets/items/copper-axe.svg", height: 27, grip: [0.23, 0.84] },
+  "tool.iron-axe": { key: "item.iron-axe", path: "/assets/items/iron-axe.svg", height: 28, grip: [0.23, 0.84] },
+  "tool.steel-axe": { key: "item.steel-axe", path: "/assets/items/steel-axe.svg", height: 29, grip: [0.23, 0.84] },
+  "tool.pickaxe": { key: "item.stone-pickaxe.v3", path: "/assets/items/stone-pickaxe.svg?v=3", height: 40, grip: [0.16, 0.94] },
+  "tool.copper-pickaxe": { key: "item.copper-pickaxe", path: "/assets/items/copper-pickaxe.svg", height: 40, grip: [0.16, 0.94] },
+  "tool.iron-pickaxe": { key: "item.iron-pickaxe", path: "/assets/items/iron-pickaxe.svg", height: 42, grip: [0.16, 0.94] },
+  "tool.steel-pickaxe": { key: "item.steel-pickaxe", path: "/assets/items/steel-pickaxe.svg", height: 43, grip: [0.16, 0.94] },
   "tool.stone-spear": { key: "item.stone-spear", path: "/assets/items/stone-spear.svg", height: 42, grip: [0.5, 0.34] },
   "tool.fishing-rod": { key: "item.fishing-rod", path: "/assets/items/fishing-rod.svg", height: 34, grip: [0.22, 0.9] },
 };
 /** Canvas text is drawn outside the CSS cascade, so the family has to be named here as well. */
 const GAME_FONT = '"KoPubWorld Dotum", sans-serif';
-/** Most nodes are painted into the terrain and have no sprite to trace, so hovering draws the exact
- * region that responds to a click and names what is there. */
+/** Painted terrain features still use a geometric hover marker. Resource sprites use their own
+ * alpha silhouette instead, so transparent pixels never become part of the visible highlight. */
 /**
  * Click and hover regions in zone pixels. An object's coordinate is where it meets the ground, so
  * `offsetY` lifts the region onto the mass the art draws — centring on the anchor put the outline in
@@ -102,10 +124,30 @@ const OBJECT_REGIONS: Record<string, { width: number; height: number; offsetY: n
   animalDenExit: { width: 116, height: 78, offsetY: -34 },
 };
 const DEFAULT_REGION = { width: 96, height: 72, offsetY: -30 };
+const RESOURCE_BAR_WIDTH = 40;
+const RESOURCE_ART: Record<string, { texture: string; width: number; height: number; shadowWidth: number; shadowHeight: number; sway?: number }> = {
+  wildTree: { texture: "resource.wildTree", width: 78, height: 172, shadowWidth: 58, shadowHeight: 16, sway: 0.012 },
+  wildFruitTree: { texture: "resource.wildFruitTree", width: 110, height: 114, shadowWidth: 62, shadowHeight: 17, sway: 0.009 },
+  looseStone: { texture: "resource.looseStone", width: 58, height: 42, shadowWidth: 48, shadowHeight: 13 },
+  fallenBranch: { texture: "resource.fallenBranch", width: 62, height: 68, shadowWidth: 58, shadowHeight: 12 },
+  copperOreDeposit: { texture: "resource.copperOreDeposit", width: 72, height: 81, shadowWidth: 59, shadowHeight: 15 },
+  coalDeposit: { texture: "resource.coalDeposit", width: 70, height: 80, shadowWidth: 58, shadowHeight: 15 },
+  ironOreDeposit: { texture: "resource.ironOreDeposit", width: 74, height: 79, shadowWidth: 60, shadowHeight: 15 },
+};
+
+function stableNumber(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+  return hash >>> 0;
+}
+
+function stableGroupSize(id: string, range: [number, number]): number {
+  return range[0] + stableNumber(id) % (range[1] - range[0] + 1);
+}
 
 const OBJECT_NAMES: Record<string, { en: string; ko: string }> = {
-  fishingWater: { en: "Pond — needs a fishing rod", ko: "연못 — 낚싯대 필요" },
-  wildTree: { en: "Tree — needs a hand axe", ko: "나무 — 손도끼 필요" },
+  fishingWater: { en: "Pond — fish", ko: "연못 — 낚시" },
+  wildTree: { en: "Tree — needs an axe", ko: "나무 — 도끼 필요" },
   wildFruitTree: { en: "Fruit tree", ko: "과수" },
   looseStone: { en: "Loose stone", ko: "돌덩이" },
   fallenBranch: { en: "Fallen branch", ko: "나뭇가지" },
@@ -157,7 +199,6 @@ export class MosswardScene extends Phaser.Scene {
   private resourceHighlights: Array<{ id: string; x: number; y: number; outline?: Phaser.GameObjects.Image }> = [];
   private gatherUntil = 0;
   private engagedTarget?: string;
-  private selectionRing?: Phaser.GameObjects.Ellipse;
   private engagedMark?: Phaser.GameObjects.Container;
   private weaponBadge?: Phaser.GameObjects.Container;
   private rig?: CharacterRig;
@@ -172,14 +213,29 @@ export class MosswardScene extends Phaser.Scene {
   private restingScale = 0.16;
   private localAuthority = false;
   private lastLocalStateAt = 0;
-  private animals = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; fill: Phaser.GameObjects.Rectangle; frame: Phaser.GameObjects.Rectangle; species: number }>();
+  private predatorCooldowns = new Map<string, number>();
+  private animals = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Sprite; outline: Phaser.GameObjects.Sprite; members: Phaser.GameObjects.Sprite[]; fill: Phaser.GameObjects.Rectangle; frame: Phaser.GameObjects.Rectangle; profile: AnimalProfile }>();
+  private resources = new Map<string, { container: Phaser.GameObjects.Container; sprite: Phaser.GameObjects.Image; outline: Phaser.GameObjects.Image; hitArea: Phaser.GameObjects.Ellipse; fill: Phaser.GameObjects.Rectangle; frame: Phaser.GameObjects.Rectangle; baseScaleX: number; baseScaleY: number; respawn?: Phaser.Time.TimerEvent }>();
   private readonly receiveWorldAction = (event: Event) => {
-    const detail = (event as CustomEvent<{ objectId: string; actionId: string; success: boolean; target: { health: number; maximumHealth: number; defeated: boolean } | null; reward: { itemId: string; quantity: number } | null }>).detail;
+    const detail = (event as CustomEvent<{ objectId: string; actionId: string; success: boolean; target: { health: number; maximumHealth: number; defeated: boolean } | null; reward: { itemId: string; quantity: number } | null; combat: { counterDamage: number; playerDefeated: boolean } | null }>).detail;
     if (!detail) return;
     if (detail.target) this.resolveStrike(detail.objectId, detail.success, detail.target);
     else if (detail.actionId === "fishing.cast") this.playFishingCast(detail.objectId, detail.success);
-    else this.playGatherMotion(detail.objectId, detail.success);
-    if (detail.reward) this.showLoot(detail.objectId, detail.reward);
+    else if (detail.actionId !== "wildlife.attack") this.playGatherMotion(detail.objectId, detail.success);
+    if (detail.reward) {
+      if (detail.target?.defeated) this.createLootDrop(detail.objectId, detail.reward);
+      else this.showLoot(detail.objectId, detail.reward);
+    }
+    if (detail.combat?.counterDamage) this.playAnimalCounterattack(detail.objectId, detail.combat.counterDamage, detail.combat.playerDefeated);
+  };
+  private readonly receiveWorldObject = (event: Event) => {
+    const detail = (event as CustomEvent<WorldObjectState>).detail;
+    if (detail) this.applyWorldObjectState(detail);
+  };
+  private readonly receiveWorldSnapshot = (event: Event) => {
+    const detail = (event as CustomEvent<{ zoneId: string; objects: WorldObjectState[] }>).detail;
+    if (!detail || detail.zoneId !== this.zoneId) return;
+    for (const object of detail.objects) this.applyWorldObjectState(object);
   };
 
   constructor() {
@@ -190,15 +246,22 @@ export class MosswardScene extends Phaser.Scene {
     for (const [assetId, path] of getAssetEntries()) this.load.image(assetId, path);
     this.load.image("player.walk", "/assets/characters/primordial-walk.png");
     this.load.image("player.female.walk", "/assets/characters/primordial-female-walk.png");
-    this.load.spritesheet("player.walk.vertical", "/assets/characters/primordial-walk-vertical.png", { frameWidth: 221, frameHeight: 443, endFrame: 15 });
-    this.load.spritesheet("player.female.walk.vertical", "/assets/characters/primordial-female-walk-vertical.png", { frameWidth: 221, frameHeight: 443, endFrame: 15 });
-    this.load.image(WILDLIFE_ATLAS, "/assets/characters/wildlife-atlas.png");
+    this.load.spritesheet("player.walk.vertical", "/assets/characters/primordial-walk-vertical-aligned.png", { frameWidth: 221, frameHeight: 443, endFrame: 15 });
+    this.load.spritesheet("player.female.walk.vertical", "/assets/characters/primordial-female-walk-vertical-aligned.png", { frameWidth: 221, frameHeight: 443, endFrame: 15 });
+    for (const profile of Object.values(ANIMAL_PROFILES)) {
+      this.load.spritesheet(profile.texture, `/assets/characters/wildlife/walk/${profile.key}.png`, { frameWidth: 256, frameHeight: 256, endFrame: 3 });
+      this.load.spritesheet(`wildlife.outline.${profile.key}`, `/assets/characters/wildlife/walk-outline/${profile.key}.png`, { frameWidth: 256, frameHeight: 256, endFrame: 3 });
+    }
+    this.load.spritesheet("wildlife.pondFish", "/assets/characters/wildlife/pond-fish-atlas.png", { frameWidth: 256, frameHeight: 256, endFrame: 3 });
     for (const art of Object.values(HELD_ITEM_ART)) this.load.image(art.key, art.path);
   }
 
   create() {
     this.running = true;
-    this.localAuthority = !import.meta.env.VITE_GAME_SERVER_URL && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+    // useGameConnection currently uses Firestore in every environment, so the scene must advance its
+    // own collision-aware position. Keying this off VITE_GAME_SERVER_URL left the character frozen
+    // whenever that legacy variable happened to be present even though no socket movement handler ran.
+    this.localAuthority = true;
     this.registerSideWalkFrames();
     this.registerWildlifeFrames();
     const female = this.game.canvas.parentElement?.dataset.gender === "female";
@@ -251,8 +314,10 @@ export class MosswardScene extends Phaser.Scene {
       if (!pointer.leftButtonDown() || currentlyOver.length > 0) return;
       const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
       this.pendingInteraction = undefined;
-      this.disengage();
       this.walkTo(point.x, point.y);
+      // Movement is already armed before optional combat visuals are cleared. This keeps a stale or
+      // partially hot-reloaded visual from swallowing the click that should move the character.
+      this.disengage();
     });
     this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _objects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
       const zoomStep = deltaY < 0 ? 1.12 : 1 / 1.12;
@@ -261,10 +326,15 @@ export class MosswardScene extends Phaser.Scene {
     });
     window.addEventListener("eldoria:player-state", this.receivePlayerState);
     window.addEventListener("eldoria:world-action", this.receiveWorldAction);
+    window.addEventListener("eldoria:world-object", this.receiveWorldObject);
+    window.addEventListener("eldoria:world-snapshot", this.receiveWorldSnapshot);
+    window.dispatchEvent(new CustomEvent("eldoria:observe-world", { detail: { zoneId: this.zoneId } }));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.running = false;
       window.removeEventListener("eldoria:player-state", this.receivePlayerState);
       window.removeEventListener("eldoria:world-action", this.receiveWorldAction);
+      window.removeEventListener("eldoria:world-object", this.receiveWorldObject);
+      window.removeEventListener("eldoria:world-snapshot", this.receiveWorldSnapshot);
       this.background = undefined;
       this.collisionLayer = undefined;
     });
@@ -274,6 +344,7 @@ export class MosswardScene extends Phaser.Scene {
     if (!this.player || !this.keys) return;
     this.player.x = Phaser.Math.Linear(this.player.x, this.target.x, 0.28);
     this.player.y = Phaser.Math.Linear(this.player.y, this.target.y, 0.28);
+    this.player.setDepth(10 + this.player.y / WORLD_HEIGHT);
 
     const x = Number(this.keys.D.isDown || this.keys.RIGHT.isDown) - Number(this.keys.A.isDown || this.keys.LEFT.isDown);
     const y = Number(this.keys.S.isDown || this.keys.DOWN.isDown) - Number(this.keys.W.isDown || this.keys.UP.isDown);
@@ -299,11 +370,11 @@ export class MosswardScene extends Phaser.Scene {
       this.rig.followBody(this.playerSprite, Number.parseInt(frameName, 10) || 0);
     }
     this.pursueEngagedAnimal();
+    this.triggerPredatorAggression();
     let nearest: (typeof this.resourceHighlights)[number] | undefined;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (const resource of this.resourceHighlights) {
       const distance = Phaser.Math.Distance.Between(this.target.x, this.target.y, resource.x, resource.y);
-      resource.outline?.setVisible(distance <= 300);
       if (distance < nearestDistance) {
         nearest = resource;
         nearestDistance = distance;
@@ -369,6 +440,7 @@ export class MosswardScene extends Phaser.Scene {
         this.background?.setTexture(zone.layers.terrain.assetId);
         this.createCollisionTileLayer(position.zoneId);
         this.createWorldObjects(position.zoneId);
+        window.dispatchEvent(new CustomEvent("eldoria:observe-world", { detail: { zoneId: position.zoneId } }));
         this.cameras.main.fadeIn(220, 4, 10, 7);
       }
       if (this.player) this.player.setPosition(position.x, position.y);
@@ -383,7 +455,7 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   /** One reusable outline and label, moved to whatever the cursor is over. */
-  private showHover(x: number, y: number, width: number, height: number, name?: { en: string; ko: string }) {
+  private showHover(x: number, y: number, width: number, height: number, name?: { en: string; ko: string }, spriteOutline?: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite) {
     const korean = this.game.canvas.parentElement?.dataset.language === "ko";
     this.hoverOutline ??= this.add.ellipse(0, 0, 10, 10, 0xf1dc77, 0.07).setStrokeStyle(2, 0xf1dc77, 0.9).setDepth(11);
     this.hoverLabel ??= this.add.text(0, 0, "", {
@@ -393,11 +465,17 @@ export class MosswardScene extends Phaser.Scene {
       backgroundColor: "#0b1512e0",
       padding: { x: 6, y: 3 },
     }).setOrigin(0.5, 1).setDepth(12);
-    this.hoverOutline.setPosition(x, y).setSize(width, height).setDisplaySize(width, height).setVisible(true);
+    if (spriteOutline) {
+      this.hoverOutline.setVisible(false);
+      spriteOutline.setVisible(true).setAlpha(0.9);
+    } else {
+      this.hoverOutline.setPosition(x, y).setSize(width, height).setDisplaySize(width, height).setVisible(true);
+    }
     this.hoverLabel.setPosition(x, y - height / 2 - 6).setText(name ? (korean ? name.ko : name.en) : "").setVisible(Boolean(name));
   }
 
-  private hideHover() {
+  private hideHover(spriteOutline?: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite) {
+    spriteOutline?.setVisible(false).setAlpha(0.9);
     this.hoverOutline?.setVisible(false);
     this.hoverLabel?.setVisible(false);
   }
@@ -412,10 +490,11 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   private registerWildlifeFrames() {
-    const texture = this.textures.get(WILDLIFE_ATLAS);
-    for (const species of ANIMAL_SPECIES) {
-      if (texture.has(species.key)) continue;
-      texture.add(species.key, 0, species.rect.x, species.rect.y, species.rect.width, species.rect.height);
+    for (const species of Object.values(ANIMAL_PROFILES)) {
+      const animation = `wildlife.${species.key}.walk`;
+      if (this.anims.exists(animation)) continue;
+      this.anims.create({ key: animation, frames: this.anims.generateFrameNumbers(species.texture, { start: 0, end: 3 }), frameRate: species.key === "turtle" ? 3 : species.key === "bear" || species.key === "bison" ? 5 : 7, repeat: -1 });
+      this.anims.create({ key: `wildlife.${species.key}.outline.walk`, frames: this.anims.generateFrameNumbers(`wildlife.outline.${species.key}`, { start: 0, end: 3 }), frameRate: species.key === "turtle" ? 3 : species.key === "bear" || species.key === "bison" ? 5 : 7, repeat: -1 });
     }
   }
 
@@ -424,26 +503,42 @@ export class MosswardScene extends Phaser.Scene {
     this.worldObjects = [];
     this.resourceHighlights = [];
     this.animals.clear();
+    for (const resource of this.resources.values()) resource.respawn?.destroy();
+    this.resources.clear();
     this.hideHover();
     const zone = getZoneDefinition(zoneId);
     if (!zone) return;
     for (const object of zone.layers.objects) {
       if (object.type.startsWith("wildlifeSpawn")) {
-        const frame = object.type.endsWith("Rabbit") ? 0 : object.type.endsWith("Deer") ? 1 : 2;
-        const species = ANIMAL_SPECIES[frame]!;
-        const { scale, rect } = species;
-        // Drawn whole. Two attempts at faking a gait by cropping the pose into body and legs — sliding
-        // the band, then pivoting it at the hip — both tore the animal apart on screen. A single still
-        // pose can carry weight through bob and lean, but it cannot be made to articulate.
-        const animalSprite = this.add.sprite(0, 0, WILDLIFE_ATLAS, species.key).setScale(scale).setOrigin(0.5, ANIMAL_ORIGIN_Y);
-        const barY = -ANIMAL_ORIGIN_Y * rect.height * scale - 9;
+        const profile = ANIMAL_PROFILES[object.type] ?? ANIMAL_PROFILES.wildlifeSpawnBoar!;
+        const memberCount = stableGroupSize(object.id, profile.group);
+        const members: Phaser.GameObjects.Sprite[] = [];
+        for (let index = memberCount - 1; index >= 0; index -= 1) {
+          const sprite = this.add.sprite(0, 0, profile.texture, 0).setOrigin(0.5, ANIMAL_ORIGIN_Y);
+          const memberScale = index === 0 ? 0.88 + (stableNumber(object.id) % 25) / 100 : 0.78 + (stableNumber(`${object.id}:${index}`) % 15) / 100;
+          const height = profile.displayHeight * memberScale;
+          sprite.setDisplaySize(height * (sprite.frame.width / sprite.frame.height), height);
+          sprite.setData("baseScaleX", sprite.scaleX).setData("baseScaleY", sprite.scaleY);
+          if (index > 0) {
+            const side = index % 2 === 0 ? 1 : -1;
+            const rank = Math.ceil(index / 2);
+            const spread = profile.society === "flock" || profile.society === "colony" ? 0.9 : 0.62;
+            sprite.setPosition(side * rank * profile.displayHeight * spread, rank * profile.displayHeight * 0.22);
+            sprite.setAlpha(0.9);
+          }
+          sprite.setData("formationX", sprite.x).setData("formationY", sprite.y);
+          members.unshift(sprite);
+        }
+        const animalSprite = members[0]!;
+        const animalOutline = this.add.sprite(0, 0, `wildlife.outline.${profile.key}`, 0).setOrigin(0.5, ANIMAL_ORIGIN_Y)
+          .setDisplaySize(animalSprite.displayWidth, animalSprite.displayHeight).setVisible(false);
+        const barY = -profile.displayHeight - 9;
         const barFrame = this.add.rectangle(0, barY, HEALTH_BAR_WIDTH, 5, 0x0b1512, 0.9).setStrokeStyle(1, 0x000000, 0.7).setVisible(false);
         const barFill = this.add.rectangle(-HEALTH_BAR_WIDTH / 2 + 1, barY, HEALTH_BAR_WIDTH - 2, 3, 0xb8523f).setOrigin(0, 0.5).setVisible(false);
-        const animal = this.add.container(object.x, object.y, [animalSprite, barFrame, barFill]).setDepth(7);
-        this.animals.set(object.id, { container: animal, sprite: animalSprite, fill: barFill, frame: barFrame, species: frame });
-        const speciesName = ANIMAL_LABELS[frame]!;
-        animalSprite.on("pointerover", () => this.showHover(animal.x, animal.y - rect.height * scale * 0.45, rect.width * scale * 0.9, rect.height * scale, speciesName));
-        animalSprite.on("pointerout", () => this.hideHover());
+        const animal = this.add.container(object.x, object.y, [animalOutline, ...members.slice(1), animalSprite, barFrame, barFill]).setDepth(10 + object.y / WORLD_HEIGHT);
+        this.animals.set(object.id, { container: animal, sprite: animalSprite, outline: animalOutline, members, fill: barFill, frame: barFrame, profile });
+        animalSprite.on("pointerover", () => this.showHover(animal.x, animal.y - profile.displayHeight * 0.45, profile.displayHeight * 1.55, profile.displayHeight * 1.2, profile.label, animalOutline));
+        animalSprite.on("pointerout", () => { if (this.engagedTarget !== object.id) this.hideHover(animalOutline); });
         animalSprite.setInteractive({ useHandCursor: true }).on("pointerdown", (pointer: Phaser.Input.Pointer) => {
           pointer.event.stopPropagation();
           // Ultima Online's convention: one click picks the quarry out, two sets you on it.
@@ -452,42 +547,164 @@ export class MosswardScene extends Phaser.Scene {
           if (doubleClicked) this.engageAnimal(object.id);
           else this.markAnimal(object.id);
         });
-        this.scheduleAnimalMovement(animal, animalSprite, frame, object.x, object.y, zoneId, { heading: Phaser.Math.FloatBetween(0, Math.PI * 2), stepsRemaining: Phaser.Math.Between(3, 7) }, object.id);
+        this.scheduleAnimalMovement(animal, members, profile, object.x, object.y, zoneId, { heading: Phaser.Math.FloatBetween(0, Math.PI * 2), stepsRemaining: Phaser.Math.Between(3, 7), alert: 0 }, object.id);
         this.worldObjects.push(animal);
         continue;
       }
       const interactiveTypes = ["fishingWater", "wildTree", "wildFruitTree", "animalDenEntrance", "animalDenExit", "copperOreDeposit", "coalDeposit", "ironOreDeposit", "looseStone", "fallenBranch"];
       if (!interactiveTypes.includes(object.type)) continue;
-      // These sit on painted terrain with no sprite of their own, so the click target has to be
-      // generous enough to hit the rock or trunk the art actually shows.
       const region = OBJECT_REGIONS[object.type] ?? DEFAULT_REGION;
       const regionY = object.y + region.offsetY;
-      const hitArea = this.add.ellipse(object.x, regionY, region.width, region.height, 0x000000, 0.001).setDepth(9).setInteractive({ useHandCursor: true });
+      if (object.type === "fishingWater") this.createPondLife(object.x, object.y, zoneId);
+      const hitArea = this.add.ellipse(object.x, regionY, region.width, region.height, 0x000000, 0.001).setDepth(12).setInteractive({ useHandCursor: true });
       hitArea.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
         pointer.event.stopPropagation();
         this.requestInteraction(object.id, object.x, object.y);
       });
-      // The hover outline is the hit area itself, so what lights up is exactly what responds to a click.
-      hitArea.on("pointerover", () => this.showHover(object.x, regionY, region.width, region.height, OBJECT_NAMES[object.type]));
-      hitArea.on("pointerout", () => this.hideHover());
+      hitArea.on("pointerover", () => this.showHover(object.x, regionY, region.width, region.height, OBJECT_NAMES[object.type], outline));
+      hitArea.on("pointerout", () => this.hideHover(outline));
       this.worldObjects.push(hitArea);
 
       let outline: Phaser.GameObjects.Image | undefined;
-      if (object.type === "wildFruitTree") {
-        outline = this.add.image(object.x, object.y, "resource.wildFruitTree").setOrigin(0.5, 1).setTint(0xeadb78).setScale(1.07).setDepth(8).setVisible(false);
-        const fruitTree = this.add.image(object.x, object.y, "resource.wildFruitTree").setOrigin(0.5, 1).setDepth(9);
-        this.worldObjects.push(outline, fruitTree);
+      const art = RESOURCE_ART[object.type];
+      if (art) {
+        const shadow = this.add.ellipse(0, 1, art.shadowWidth, art.shadowHeight, 0x020604, 0.55);
+        outline = this.add.image(0, 0, art.texture).setOrigin(0.5, 1).setDisplaySize(art.width + 6, art.height + 6).setTint(0xeadb78).setAlpha(0.42).setVisible(false);
+        const sprite = this.add.image(0, 0, art.texture).setOrigin(0.5, 1).setDisplaySize(art.width, art.height);
+        const barY = -art.height - 8;
+        const barFrame = this.add.rectangle(0, barY, RESOURCE_BAR_WIDTH, 5, 0x0b1512, 0.92).setStrokeStyle(1, 0x000000, 0.75).setVisible(false);
+        const barFill = this.add.rectangle(-RESOURCE_BAR_WIDTH / 2 + 1, barY, RESOURCE_BAR_WIDTH - 2, 3, 0x9eaa63).setOrigin(0, 0.5).setVisible(false);
+        const container = this.add.container(object.x, object.y, [shadow, outline, sprite, barFrame, barFill]).setDepth(10 + object.y / WORLD_HEIGHT);
+        const entity = { container, sprite, outline, hitArea, fill: barFill, frame: barFrame, baseScaleX: sprite.scaleX, baseScaleY: sprite.scaleY };
+        this.resources.set(object.id, entity);
+        this.worldObjects.push(container);
+        if (art.sway) {
+          this.tweens.add({ targets: sprite, rotation: art.sway, duration: Phaser.Math.Between(1800, 2800), yoyo: true, repeat: -1, ease: "Sine.InOut", delay: Phaser.Math.Between(0, 900) });
+        } else if (object.type.endsWith("OreDeposit") || object.type === "coalDeposit") {
+          this.tweens.add({ targets: sprite, alpha: 0.88, duration: Phaser.Math.Between(1900, 3100), yoyo: true, repeat: -1, ease: "Sine.InOut", delay: Phaser.Math.Between(0, 1000) });
+        }
       }
       this.resourceHighlights.push({ id: object.id, x: object.x, y: object.y, outline });
     }
+  }
+
+  /** Applies the server-owned lifecycle of a resource or animal to its local visual entity. */
+  private applyWorldObjectState(state: WorldObjectState) {
+    if (state.zoneId !== this.zoneId) return;
+    if (state.kind === "resource") {
+      const resource = this.resources.get(state.objectId);
+      if (!resource) return;
+      resource.respawn?.destroy();
+      resource.respawn = undefined;
+      const exhausted = state.exhaustedUntil > Date.now() || state.remaining <= 0;
+      const ratio = Phaser.Math.Clamp(state.remaining / Math.max(1, state.maximum), 0, 1);
+      resource.frame.setVisible(!exhausted && ratio < 1);
+      resource.fill.setVisible(!exhausted && ratio < 1).setScale(ratio, 1);
+      resource.fill.setFillStyle(ratio > 0.5 ? 0x9eaa63 : ratio > 0.25 ? 0xc29a55 : 0xc86445);
+      if (!exhausted) {
+        resource.hitArea.setInteractive({ useHandCursor: true });
+        resource.container.setVisible(true);
+        resource.sprite.setAlpha(1).setScale(resource.baseScaleX, resource.baseScaleY).setAngle(0).clearTint();
+        return;
+      }
+      resource.hitArea.disableInteractive();
+      this.tweens.killTweensOf(resource.sprite);
+      this.tweens.add({
+        targets: resource.sprite,
+        alpha: 0.16,
+        scaleX: resource.baseScaleX * 0.88,
+        scaleY: resource.baseScaleY * 0.72,
+        angle: state.objectId.includes("timber") ? 7 : 0,
+        duration: 420,
+        ease: "Quad.In",
+      });
+      const wait = Math.max(0, state.exhaustedUntil - Date.now());
+      resource.respawn = this.time.delayedCall(wait, () => {
+        if (!resource.container.active || state.zoneId !== this.zoneId) return;
+        resource.hitArea.setInteractive({ useHandCursor: true });
+        resource.frame.setVisible(false);
+        resource.fill.setVisible(false);
+        resource.sprite.setAlpha(0).setScale(resource.baseScaleX, resource.baseScaleY).setAngle(0);
+        this.tweens.add({ targets: resource.sprite, alpha: 1, duration: 700, ease: "Sine.Out" });
+      });
+      return;
+    }
+
+    const animal = this.animals.get(state.objectId);
+    if (!animal) return;
+    const defeated = state.defeatedUntil > Date.now() || state.health <= 0;
+    const ratio = Phaser.Math.Clamp(state.health / Math.max(1, state.maximumHealth), 0, 1);
+    animal.frame.setVisible(!defeated && ratio < 1);
+    animal.fill.setVisible(!defeated && ratio < 1).setScale(ratio, 1);
+    if (defeated) {
+      animal.container.setVisible(false);
+      if (this.engagedTarget === state.objectId) this.disengage();
+      const wait = Math.max(0, state.defeatedUntil - Date.now());
+      this.time.delayedCall(wait, () => {
+        if (!animal.container.active || state.zoneId !== this.zoneId) return;
+        animal.container.setVisible(true).setAlpha(0).setAngle(0);
+        animal.sprite.clearTint();
+        this.tweens.add({ targets: animal.container, alpha: 1, duration: 650, ease: "Sine.Out" });
+      });
+    } else {
+      animal.container.setVisible(true).setAlpha(1).setAngle(0);
+    }
+  }
+
+  /** Individual freshwater fish remain below the surface and always swim nose-first. */
+  private createPondLife(pondX: number, pondY: number, zoneId: string) {
+    const fishCount = 8;
+    for (let index = 0; index < fishCount; index += 1) {
+      const angle = (index / fishCount) * Math.PI * 2;
+      const radius = 16 + (index % 4) * 10;
+      const fish = this.add.sprite(pondX + Math.cos(angle) * radius, pondY + Math.sin(angle) * radius * 0.42, "wildlife.pondFish", index % 4)
+        .setOrigin(0.5)
+        .setDisplaySize(22 + (index % 3) * 4, 22 + (index % 3) * 4)
+        .setDepth(9.2 + (pondY + index) / WORLD_HEIGHT)
+        .setAlpha(0.76);
+      fish.setData("baseScaleX", fish.scaleX).setData("baseScaleY", fish.scaleY);
+      this.worldObjects.push(fish);
+      this.scheduleFishMovement(fish, pondX, pondY, zoneId, angle, index);
+    }
+    for (let index = 0; index < 3; index += 1) {
+      const ripple = this.add.ellipse(pondX + (index - 1) * 31, pondY + (index % 2 ? 15 : -12), 12, 4, 0x9dd8c8, 0).setStrokeStyle(0.8, 0xb9e5d5, 0.28).setDepth(9.15);
+      this.worldObjects.push(ripple);
+      this.tweens.add({ targets: ripple, scaleX: 2.4, scaleY: 1.8, alpha: 0, duration: 2400 + index * 500, delay: index * 700, repeat: -1, ease: "Sine.Out" });
+    }
+  }
+
+  private scheduleFishMovement(fish: Phaser.GameObjects.Sprite, pondX: number, pondY: number, zoneId: string, phase: number, index: number) {
+    const nextPhase = phase + Phaser.Math.FloatBetween(0.45, 1.05);
+    const schoolPulse = this.time.now / 4200;
+    const radiusX = 24 + (index % 5) * 8;
+    const radiusY = 9 + (index % 4) * 5;
+    const targetX = pondX + Math.cos(nextPhase + schoolPulse) * radiusX;
+    const targetY = pondY + Math.sin(nextPhase + schoolPulse) * radiusY;
+    // The source fish face left. Flip only when the destination is to their right; movement never
+    // starts until the nose points toward the destination, so they cannot slide sideways.
+    const baseScaleX = Number(fish.getData("baseScaleX") ?? Math.abs(fish.scaleX));
+    const baseScaleY = Number(fish.getData("baseScaleY") ?? fish.scaleY);
+    fish.setScale(baseScaleX * (targetX >= fish.x ? -1 : 1), baseScaleY);
+    this.tweens.add({
+      targets: fish,
+      x: targetX,
+      y: targetY,
+      angle: Phaser.Math.FloatBetween(-4, 4),
+      duration: Phaser.Math.Between(1200, 2600),
+      ease: "Sine.InOut",
+      onComplete: () => {
+        if (!fish.active || this.zoneId !== zoneId) return;
+        this.time.delayedCall(Phaser.Math.Between(180, 900), () => this.scheduleFishMovement(fish, pondX, pondY, zoneId, nextPhase, index));
+      },
+    });
   }
 
   /** A single click only rings the animal, so a misclick does not start a hunt. */
   private markAnimal(objectId: string) {
     const animal = this.animals.get(objectId);
     if (!animal) return;
-    this.selectionRing ??= this.add.ellipse(0, 0, 42, 20, 0xf1dc77, 0).setStrokeStyle(2, 0xf1dc77, 0.85).setDepth(6);
-    this.selectionRing.setPosition(animal.container.x, animal.container.y).setVisible(true);
+    for (const candidate of this.animals.values()) candidate.outline.setVisible(false);
+    animal.outline.setVisible(true);
   }
 
   /** Double-clicking sets the hunt: the wanderer closes the distance and keeps swinging. */
@@ -499,8 +716,8 @@ export class MosswardScene extends Phaser.Scene {
     this.nextStrikeAt = 0;
     this.nextRepathAt = 0;
     this.pendingInteraction = undefined;
-    this.selectionRing ??= this.add.ellipse(0, 0, 42, 20, 0xf1dc77, 0).setStrokeStyle(2, 0xf1dc77, 0.85).setDepth(6);
-    this.selectionRing.setVisible(true);
+    for (const candidate of this.animals.values()) candidate.outline.setVisible(false);
+    animal.outline.setVisible(true);
     this.engagedMark ??= this.createCrossedBlades();
     this.engagedMark.setVisible(true);
     this.weaponBadge?.destroy();
@@ -564,7 +781,9 @@ export class MosswardScene extends Phaser.Scene {
       this.heldItem.setVisible(false);
       return;
     }
-    const bodySide = sprite.flipX ? -1 : 1;
+    // The visible near hand is the right-side hand in these side sheets even when the body is
+    // mirrored; mirroring this anchor placed pickaxes behind the shoulder instead of in the fist.
+    const bodySide = 1;
     const itemFlipped = vertical ? frameIndex >= 8 : sprite.flipX;
     const rotationSide = itemFlipped ? -1 : 1;
     const width = sprite.frame.width * sprite.scaleX;
@@ -619,7 +838,7 @@ export class MosswardScene extends Phaser.Scene {
 
   private disengage() {
     this.engagedTarget = undefined;
-    this.selectionRing?.setVisible(false);
+    for (const animal of this.animals.values()) animal.outline.setVisible(false);
     this.engagedMark?.setVisible(false);
     this.weaponBadge?.setVisible(false);
   }
@@ -712,8 +931,8 @@ export class MosswardScene extends Phaser.Scene {
       this.disengage();
       return;
     }
-    this.selectionRing?.setPosition(animal.container.x, animal.container.y).setVisible(true);
-    const markHeight = ANIMAL_SPECIES[animal.species]!.rect.height * ANIMAL_SPECIES[animal.species]!.scale;
+    animal.outline.setVisible(true);
+    const markHeight = animal.profile.displayHeight;
     this.engagedMark?.setPosition(animal.container.x, animal.container.y - markHeight - 14).setVisible(true);
     const reach = Phaser.Math.Distance.Between(this.target.x, this.target.y, animal.container.x, animal.container.y);
     const closing = this.clickTarget !== undefined;
@@ -733,7 +952,7 @@ export class MosswardScene extends Phaser.Scene {
     // Swing on the attempt, not on the reply. The server may refuse the blow outright — a stag will
     // not be taken bare-handed — and the wanderer should still be seen throwing the punch.
     this.playStrikeMotion(animal.container.x);
-    window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: this.engagedTarget } }));
+    window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: this.engagedTarget, x: animal.container.x, y: animal.container.y } }));
   }
 
   private requestInteraction(id: string, x: number, y: number) {
@@ -751,88 +970,180 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   /**
-   * Animals hold a heading and adjust it by small turns rather than snapping between left and right,
-   * so a wander reads as browsing ground rather than pacing a line. Every animal in the atlas is drawn
-   * facing left, so a rightward heading is the one that needs flipping.
+   * Animals obey the same ground mask as the player, but their whole stride is sampled so they cannot
+   * tween across a river merely because the landing point is dry. Pond turtles additionally remain in
+   * a shoreline band; land animals keep to ordinary walkable meadow.
    */
-  private scheduleAnimalMovement(animal: Phaser.GameObjects.Container, sprite: Phaser.GameObjects.Sprite, species: number, homeX: number, homeY: number, zoneId: string, state: { heading: number; stepsRemaining: number }, objectId: string) {
+  private isAnimalRouteOpen(profile: AnimalProfile, zoneId: string, fromX: number, fromY: number, toX: number, toY: number) {
+    const zone = getZoneDefinition(zoneId);
+    if (!zone) return false;
+    const routeLength = Phaser.Math.Distance.Between(fromX, fromY, toX, toY);
+    const samples = Math.max(2, Math.ceil(routeLength / 14));
+    for (let index = 1; index <= samples; index += 1) {
+      const ratio = index / samples;
+      const x = Phaser.Math.Linear(fromX, toX, ratio);
+      const y = Phaser.Math.Linear(fromY, toY, ratio);
+      if (!isPositionWalkable(zoneId, x, y)) return false;
+      if (profile.key === "turtle") {
+        const shoreDistance = Math.min(...zone.layers.objects.filter((object) => object.type === "fishingWater").map((pond) => Phaser.Math.Distance.Between(x, y, pond.x, pond.y)));
+        if (!Number.isFinite(shoreDistance) || shoreDistance < 105 || shoreDistance > 205) return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Side-view animals commit to one horizontal line for the whole walk. They stop and turn before
+   * reversing; they never drift diagonally or bend their route while the same gait is playing.
+   */
+  private scheduleAnimalMovement(animal: Phaser.GameObjects.Container, members: Phaser.GameObjects.Sprite[], profile: AnimalProfile, homeX: number, homeY: number, zoneId: string, state: { heading: number; stepsRemaining: number; alert: number }, objectId: string) {
     const resting = state.stepsRemaining <= 0;
     if (resting) {
       const towardHome = Phaser.Math.Angle.Between(animal.x, animal.y, homeX, homeY);
-      const strayed = Phaser.Math.Distance.Between(animal.x, animal.y, homeX, homeY) > ANIMAL_HOME_RANGE;
-      state.heading = strayed
-        ? towardHome + Phaser.Math.FloatBetween(-0.5, 0.5)
-        : state.heading + Phaser.Math.FloatBetween(-1.5, 1.5);
-      state.stepsRemaining = Phaser.Math.Between(3, 7);
+      const strayed = Phaser.Math.Distance.Between(animal.x, animal.y, homeX, homeY) > profile.homeRange;
+      if (strayed) state.heading = Math.cos(towardHome) >= 0 ? 0 : Math.PI;
+      else if (Phaser.Math.FloatBetween(0, 1) < 0.48) state.heading = Math.cos(state.heading) >= 0 ? Math.PI : 0;
+      state.stepsRemaining = Phaser.Math.Between(profile.society === "solitary" ? 2 : 4, profile.society === "solitary" ? 6 : 9);
     }
-    // A rest is a graze; the steps between are the quick shuffles of an animal working over ground.
     const pause = resting
-      ? species === 0 ? Phaser.Math.Between(1400, 3200) : species === 1 ? Phaser.Math.Between(3200, 6500) : Phaser.Math.Between(2200, 4600)
-      : species === 0 ? Phaser.Math.Between(120, 420) : species === 1 ? Phaser.Math.Between(450, 1100) : Phaser.Math.Between(280, 820);
+      ? Phaser.Math.Between(profile.rest[0], profile.rest[1])
+      : Phaser.Math.Between(35, profile.society === "solitary" ? 180 : 110);
     this.time.delayedCall(pause, () => {
       if (!animal.active || this.zoneId !== zoneId) return;
-      // An animal in a fight stands its ground and turns to face the wanderer instead of browsing off.
       if (this.engagedTarget === objectId) {
-        if (this.player) sprite.setFlipX(this.player.x > animal.x);
-        this.time.delayedCall(240, () => this.scheduleAnimalMovement(animal, sprite, species, homeX, homeY, zoneId, state, objectId));
+        state.alert = 1;
+        if (this.player) for (const member of members) member.setFlipX(this.player.x > animal.x);
+        this.playAnimalAlert(members, profile);
+        this.time.delayedCall(240, () => this.scheduleAnimalMovement(animal, members, profile, homeX, homeY, zoneId, state, objectId));
         return;
       }
-      if (resting) this.grazeInPlace(sprite, species);
-      const stride = species === 0 ? Phaser.Math.Between(38, 66) : species === 1 ? Phaser.Math.Between(52, 84) : Phaser.Math.Between(45, 74);
-      // The camera looks down at a slant, so a step north covers less screen than a step east.
+      state.alert = Math.max(0, state.alert - 0.15);
+      if (resting) this.grazeInPlace(members, profile);
+      if (!profile.aggressive) {
+        let nearestPredator: Phaser.GameObjects.Container | undefined;
+        let predatorDistance = 210;
+        for (const candidate of this.animals.values()) {
+          if (!candidate.profile.aggressive || !candidate.container.visible) continue;
+          const distance = Phaser.Math.Distance.Between(animal.x, animal.y, candidate.container.x, candidate.container.y);
+          if (distance < predatorDistance) { predatorDistance = distance; nearestPredator = candidate.container; }
+        }
+        if (nearestPredator) {
+          // Side-view prey first turns its head and body away, then commits to a forward escape run.
+          state.heading = nearestPredator.x < animal.x ? 0 : Math.PI;
+          state.stepsRemaining = Math.max(state.stepsRemaining, 4);
+          state.alert = 1;
+          this.playAnimalAlert(members, profile);
+        }
+      }
+      // The atlas is a strict side-view walk, so its forward axis is exactly left or right. Allowing
+      // even a small vertical component made the animal appear to slide sideways across the ground.
+      const wantsRight = Math.cos(state.heading) >= 0;
+      state.heading = wantsRight ? 0 : Math.PI;
+      const wasFacingRight = Boolean(members[0]?.getData("facingRight"));
+      if (wasFacingRight !== wantsRight) {
+        for (const member of members) {
+          member.stop().setFrame(0).setFlipX(wantsRight).setData("facingRight", wantsRight);
+        }
+        this.animals.get(objectId)?.outline.stop().setFrame(0).setFlipX(wantsRight);
+        // Turn first, then step. Changing facing and position on the same frame reads as a side slide.
+        this.time.delayedCall(150, () => this.scheduleAnimalMovement(animal, members, profile, homeX, homeY, zoneId, state, objectId));
+        return;
+      }
+      const stride = Phaser.Math.Between(profile.stride[0], profile.stride[1]);
       const targetX = Phaser.Math.Clamp(animal.x + Math.cos(state.heading) * stride, 40, WORLD_WIDTH - 40);
-      const targetY = Phaser.Math.Clamp(animal.y + Math.sin(state.heading) * stride * VERTICAL_FORESHORTENING, 55, WORLD_HEIGHT - 35);
-      if (!isPositionWalkable(zoneId, targetX, targetY)) {
-        // Turn away from the obstruction instead of stopping dead against it.
-        state.heading += Phaser.Math.FloatBetween(1.8, 2.6) * (Phaser.Math.Between(0, 1) === 0 ? -1 : 1);
+      const targetY = animal.y;
+      if (Math.abs(targetX - animal.x) < 4) {
+        state.heading = Math.cos(state.heading) >= 0 ? Math.PI : 0;
+        state.stepsRemaining = Math.max(2, state.stepsRemaining - 1);
+        this.time.delayedCall(80, () => this.scheduleAnimalMovement(animal, members, profile, homeX, homeY, zoneId, state, objectId));
+        return;
+      }
+      if (!this.isAnimalRouteOpen(profile, zoneId, animal.x, animal.y, targetX, targetY)) {
+        // Turn away in two or three modest steering steps. A single 180° snap is especially obvious
+        // with a pack because every follower flips on the same frame.
+        state.heading = Math.cos(state.heading) >= 0 ? Math.PI : 0;
         state.stepsRemaining -= 1;
-        this.scheduleAnimalMovement(animal, sprite, species, homeX, homeY, zoneId, state, objectId);
+        this.time.delayedCall(Phaser.Math.Between(90, 220), () => this.scheduleAnimalMovement(animal, members, profile, homeX, homeY, zoneId, state, objectId));
         return;
       }
       const distance = Phaser.Math.Distance.Between(animal.x, animal.y, targetX, targetY);
-      const speed = species === 0 ? 72 : species === 1 ? 31 : 42;
-      const duration = Math.max(550, distance / speed * 1000);
-      const facingRight = Math.cos(state.heading) > 0;
-      const parts = this.animals.get(objectId);
-      if (Math.abs(Math.cos(state.heading)) > 0.2) sprite.setFlipX(facingRight);
+      const duration = Math.max(420, distance / profile.speed * 1000);
+      const screenHeading = Math.atan2(targetY - animal.y, targetX - animal.x);
+      const gaitCycles = Math.max(2, Math.round(distance / Math.max(18, profile.stride[0] * 0.55)));
+      const footPlant = profile.key === "turtle" ? 0.04 : profile.key === "rabbit" || profile.key === "hare" ? 0.28 : 0.14;
+      const walkAnimation = `wildlife.${profile.key}.walk`;
+      for (const member of members) member.play(walkAnimation, true);
+      this.animals.get(objectId)?.outline.play(`wildlife.${profile.key}.outline.walk`, true);
       this.tweens.add({
         targets: animal,
         x: targetX,
         y: targetY,
         duration,
-        ease: "Sine.InOut",
+        // Vary forward speed at each footfall. Constant-speed translation makes static animal art
+        // skate over the ground even when its body is bobbing correctly.
+        ease: (progress: number) => progress - Math.sin(progress * Math.PI * 2 * gaitCycles) / (Math.PI * 2 * gaitCycles) * footPlant,
         onUpdate: (tween) => {
-          const strides = species === 0 ? 2 : Math.max(2, Math.round(distance / (species === 1 ? 32 : 24)));
-          const phase = tween.progress * Math.PI * strides;
-          const lift = species === 0 ? 13 : species === 1 ? 3 : 4;
-          const bob = -Math.abs(Math.sin(phase)) * lift;
-          const tilt = Math.sin(phase * 2) * (species === 0 ? 0.018 : 0.008);
-          sprite.y = bob;
-          sprite.setRotation(tilt);
+          members.forEach((member, index) => {
+            const lateral = Number(member.getData("formationX") ?? 0);
+            const trail = Number(member.getData("formationY") ?? 0) * 1.35;
+            const targetLocalX = index === 0 ? 0 : -Math.cos(screenHeading) * trail - Math.sin(screenHeading) * lateral;
+            const targetLocalY = index === 0 ? 0 : -Math.sin(screenHeading) * trail + Math.cos(screenHeading) * lateral * 0.42;
+            member.x = Phaser.Math.Linear(member.x, targetLocalX, 0.1);
+            member.y = Phaser.Math.Linear(member.y, targetLocalY, 0.16);
+          });
         },
         onComplete: () => {
-          sprite.setPosition(0, 0).setRotation(0);
-          animal.setDepth(7 + animal.y / WORLD_HEIGHT);
+          for (const member of members) {
+            member.stop().setFrame(0).setRotation(0).setScale(Number(member.getData("baseScaleX") ?? member.scaleX), Number(member.getData("baseScaleY") ?? member.scaleY));
+          }
+          this.animals.get(objectId)?.outline.stop().setFrame(0);
+          animal.setDepth(10 + animal.y / WORLD_HEIGHT);
           state.stepsRemaining -= 1;
-          this.scheduleAnimalMovement(animal, sprite, species, homeX, homeY, zoneId, state, objectId);
+          this.scheduleAnimalMovement(animal, members, profile, homeX, homeY, zoneId, state, objectId);
         },
       });
     });
   }
 
-  /** A head-down dip during a rest, so a stopped animal is not a frozen one. */
-  private grazeInPlace(sprite: Phaser.GameObjects.Sprite, species: number) {
-    const dip = species === 1 ? 4 : 3;
-    this.tweens.add({
-      targets: sprite,
-      y: dip,
-      rotation: (sprite.flipX ? -1 : 1) * 0.05,
-      duration: species === 0 ? 320 : 620,
-      yoyo: true,
-      repeat: species === 0 ? 1 : 2,
-      ease: "Sine.InOut",
-      onComplete: () => sprite.setPosition(0, 0).setRotation(0),
+  /** Wolves and bears claim nearby ground. Passive wildlife never enters this path. */
+  private triggerPredatorAggression() {
+    if (!this.player) return;
+    for (const [objectId, animal] of this.animals) {
+      if (!animal.profile.aggressive || !animal.container.visible || this.engagedTarget === objectId) continue;
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, animal.container.x, animal.container.y);
+      if (distance > (animal.profile.key === "wolf" ? 145 : 120)) continue;
+      const readyAt = this.predatorCooldowns.get(objectId) ?? 0;
+      if (this.time.now < readyAt) continue;
+      this.predatorCooldowns.set(objectId, this.time.now + (animal.profile.key === "wolf" ? 1500 : 2200));
+      window.dispatchEvent(new CustomEvent("eldoria:wildlife-aggression", { detail: { objectId } }));
+    }
+  }
+
+  /** Group members rest at different beats; solitary animals scan farther before moving again. */
+  private grazeInPlace(members: Phaser.GameObjects.Sprite[], profile: AnimalProfile) {
+    members.forEach((sprite, index) => {
+      const baseX = Number(sprite.getData("formationX") ?? 0);
+      const baseY = Number(sprite.getData("formationY") ?? 0);
+      this.tweens.add({
+        targets: sprite,
+        y: baseY + (profile.key === "turtle" ? 1 : 4),
+        rotation: (sprite.flipX ? -1 : 1) * (profile.key === "turkey" ? 0.08 : 0.045),
+        duration: Phaser.Math.Between(420, 760),
+        delay: index * 130,
+        yoyo: true,
+        repeat: profile.society === "solitary" ? 1 : Phaser.Math.Between(1, 3),
+        ease: "Sine.InOut",
+        onComplete: () => sprite.setPosition(baseX, baseY).setRotation(0),
+      });
     });
+  }
+
+  private playAnimalAlert(members: Phaser.GameObjects.Sprite[], profile: AnimalProfile) {
+    for (const [index, sprite] of members.entries()) {
+      if (this.tweens.isTweening(sprite)) continue;
+      const baseY = Number(sprite.getData("formationY") ?? 0);
+      this.tweens.add({ targets: sprite, y: baseY - Math.min(6, profile.lift + 2), duration: 110, delay: index * 35, yoyo: true, ease: "Quad.Out" });
+    }
   }
 
   private createCollisionTileLayer(zoneId: string) {
@@ -858,6 +1169,31 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   /** What came out of the kill or the gather, named and floating off the thing it came from. */
+  private createLootDrop(objectId: string, reward: { itemId: string; quantity: number }) {
+    const source = this.animals.get(objectId)?.container;
+    if (!source) return;
+    const language = this.game.canvas.parentElement?.dataset.language === "ko" ? "ko" : "en";
+    const bag = this.add.container(source.x, source.y - 3).setDepth(12).setSize(48, 42)
+      .setInteractive(new Phaser.Geom.Rectangle(-24, -21, 48, 42), Phaser.Geom.Rectangle.Contains)
+      .setData("useHandCursor", true);
+    if (bag.input) bag.input.cursor = "pointer";
+    const glow = this.add.ellipse(0, 4, 34, 15, 0xe4ca6a, 0.17).setStrokeStyle(1.4, 0xf1dc77, 0.75);
+    const sack = this.add.graphics();
+    sack.fillStyle(0x8b6840, 1).fillRoundedRect(-10, -14, 20, 22, 6);
+    sack.lineStyle(1.5, 0xe2c982, 0.9).strokeRoundedRect(-10, -14, 20, 22, 6);
+    sack.fillStyle(0x624529, 1).fillRect(-7, -17, 14, 5);
+    const label = this.add.text(0, -24, language === "ko" ? "전리품" : "Loot", { fontFamily: GAME_FONT, fontSize: "10px", color: "#f2e3ad", backgroundColor: "#0b1512dd", padding: { x: 5, y: 2 } }).setOrigin(0.5, 1);
+    bag.add([glow, sack, label]);
+    this.tweens.add({ targets: glow, scaleX: 1.22, scaleY: 1.12, alpha: 0.38, duration: 760, yoyo: true, repeat: -1, ease: "Sine.InOut" });
+    bag.once("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      pointer.event.stopPropagation();
+      window.dispatchEvent(new CustomEvent("eldoria:loot", { detail: { objectId, reward } }));
+      bag.destroy();
+    });
+    this.worldObjects.push(bag);
+  }
+
+  /** What came out of a gathered resource, named and floating off its source. */
   private showLoot(objectId: string, reward: { itemId: string; quantity: number }) {
     const source = this.animals.get(objectId)?.container ?? this.resourceHighlights.find((candidate) => candidate.id === objectId);
     if (!source) return;
@@ -907,14 +1243,75 @@ export class MosswardScene extends Phaser.Scene {
       });
     }
     if (!target.defeated) return;
+    this.disengage();
     this.tweens.add({
       targets: animal.container,
       alpha: 0,
       angle: knock * 22,
-      y: animal.container.y + 6,
       duration: 520,
       ease: "Quad.In",
-      onComplete: () => animal.container.setVisible(false),
+      onComplete: () => {
+        animal.container.setVisible(false).setAlpha(1).setAngle(0);
+        animal.frame.setVisible(false);
+        animal.fill.setVisible(false).setScale(1, 1);
+        // Firestore combat is resolved locally and therefore has no world-object respawn event.
+        // Restore the visual on the same lifecycle as the locally reset health value.
+        if (!this.localAuthority) return;
+        this.time.delayedCall(LOCAL_WILDLIFE_RESPAWN_MS, () => {
+          if (!animal.container.active) return;
+          animal.container.setVisible(true).setAlpha(0).setAngle(0);
+          animal.sprite.clearTint();
+          this.tweens.add({ targets: animal.container, alpha: 1, duration: 650, ease: "Sine.Out" });
+        });
+      },
+    });
+  }
+
+  /** The quarry visibly answers: a short committed lunge, claw arc, hit stop, damage number and recoil. */
+  private playAnimalCounterattack(objectId: string, damage: number, playerDefeated: boolean) {
+    const animal = this.animals.get(objectId);
+    if (!animal || !this.player || !this.playerSprite || !animal.container.visible) return;
+    const startX = animal.container.x;
+    const startY = animal.container.y;
+    const angle = Phaser.Math.Angle.Between(startX, startY, this.player.x, this.player.y);
+    const lunge = animal.profile.key === "bear" || animal.profile.key === "bison" ? 34 : animal.profile.key === "turkey" ? 30 : 24;
+    this.playAnimalAlert(animal.members, animal.profile);
+    if (animal.profile.key === "turkey") {
+      animal.members.forEach((member, index) => this.tweens.add({ targets: member, angle: index % 2 === 0 ? 13 : -13, y: member.y - 7, duration: 70, delay: index * 16, yoyo: true, repeat: 2, ease: "Sine.InOut" }));
+    }
+    this.tweens.add({
+      targets: animal.container,
+      x: startX + Math.cos(angle) * lunge,
+      y: startY + Math.sin(angle) * lunge * VERTICAL_FORESHORTENING,
+      duration: 120,
+      hold: 70,
+      yoyo: true,
+      ease: "Quad.In",
+      onYoyo: () => {
+        if (!this.player || !this.playerSprite) return;
+        this.playerSprite.setTint(0xff7a68);
+        this.time.delayedCall(140, () => this.playerSprite?.clearTint());
+        this.cameras.main.shake(animal.profile.key === "bear" || animal.profile.key === "bison" ? 190 : 120, playerDefeated ? 0.012 : 0.006);
+        const impactColor = animal.profile.key === "turkey" ? 0xe2b85f : animal.profile.key === "bear" ? 0xb9684e : 0xd89272;
+        const impact = this.add.ellipse(this.player.x, this.player.y - 30, 18, 10, impactColor, 0.16).setStrokeStyle(2, impactColor, 0.9).setDepth(14);
+        this.tweens.add({ targets: impact, alpha: 0, scaleX: 1.8, scaleY: 1.8, duration: 230, ease: "Quad.Out", onComplete: () => impact.destroy() });
+        for (let sparkIndex = 0; sparkIndex < 5; sparkIndex += 1) {
+          const spark = this.add.circle(this.player.x, this.player.y - 30, 1.5, impactColor, 0.9).setDepth(14);
+          const sparkAngle = angle + Math.PI + Phaser.Math.FloatBetween(-0.9, 0.9);
+          this.tweens.add({ targets: spark, x: spark.x + Math.cos(sparkAngle) * Phaser.Math.Between(10, 24), y: spark.y + Math.sin(sparkAngle) * Phaser.Math.Between(6, 18), alpha: 0, duration: Phaser.Math.Between(180, 320), ease: "Quad.Out", onComplete: () => spark.destroy() });
+        }
+        const damageLabel = this.add.text(this.player.x, this.player.y - 74, `-${damage}`, { fontFamily: GAME_FONT, fontSize: "18px", color: "#ff8a72", stroke: "#30110d", strokeThickness: 3 }).setOrigin(0.5).setDepth(15);
+        this.tweens.add({ targets: damageLabel, y: damageLabel.y - 30, alpha: 0, duration: 760, ease: "Quad.Out", onComplete: () => damageLabel.destroy() });
+        this.tweens.add({ targets: this.player, x: this.player.x - Math.cos(angle) * 7, y: this.player.y - Math.sin(angle) * 4, duration: 80, yoyo: true, ease: "Quad.Out" });
+        if (animal.profile.key === "turkey") {
+          for (let index = 0; index < 6; index += 1) {
+            const feather = this.add.ellipse(animal.container.x, animal.container.y - 18, 6, 2, 0xb98652, 0.9).setDepth(14).setRotation(Phaser.Math.FloatBetween(-1, 1));
+            this.tweens.add({ targets: feather, x: feather.x + Phaser.Math.Between(-28, 28), y: feather.y - Phaser.Math.Between(8, 30), angle: Phaser.Math.Between(-100, 100), alpha: 0, duration: Phaser.Math.Between(320, 540), ease: "Quad.Out", onComplete: () => feather.destroy() });
+          }
+        }
+        if (playerDefeated) this.cameras.main.flash(260, 96, 18, 12, false);
+      },
+      onComplete: () => animal.container.setPosition(startX, startY),
     });
   }
 
@@ -985,6 +1382,28 @@ export class MosswardScene extends Phaser.Scene {
     });
     this.tweens.add({ targets: this.playerShadow, scaleX: 1.16, scaleY: 0.82, duration: 340, yoyo: true, hold: 150, ease: "Sine.InOut" });
     if (!success || !resource) return;
+    const entity = this.resources.get(objectId);
+    if (entity) {
+      const homeX = entity.container.x;
+      entity.sprite.setTint(0xf3dfa0);
+      this.tweens.add({
+        targets: entity.container,
+        x: homeX + (toward > 0 ? 4 : -4),
+        angle: toward * 1.4,
+        duration: 85,
+        yoyo: true,
+        repeat: 2,
+        ease: "Sine.InOut",
+        onComplete: () => {
+          entity.container.setX(homeX).setAngle(0);
+          entity.sprite.clearTint();
+        },
+      });
+      for (let index = 0; index < 4; index += 1) {
+        const chip = this.add.circle(resource.x, resource.y - Phaser.Math.Between(10, 42), Phaser.Math.Between(2, 4), objectId.includes("timber") ? 0x9b7145 : 0xb7aa78, 0.9).setDepth(13);
+        this.tweens.add({ targets: chip, x: chip.x + Phaser.Math.Between(-22, 22), y: chip.y + Phaser.Math.Between(8, 28), alpha: 0, duration: Phaser.Math.Between(320, 520), ease: "Quad.Out", onComplete: () => chip.destroy() });
+      }
+    }
     // The take lands at the bottom of the reach, not at the start of it.
     this.time.delayedCall(430, () => {
       if (!this.player) return;
@@ -1050,7 +1469,8 @@ export class MosswardScene extends Phaser.Scene {
       this.playerSprite.stop().setTexture(vertical ? this.verticalWalkTexture : this.sideWalkTexture).setScale(vertical ? 0.212 : female ? 0.14 : 0.16).setFlipX(false);
       this.restingScale = this.playerSprite.scaleY;
     }
-    if (!this.playerSprite.anims.isPlaying) this.playerSprite.play(nextAnimation);
+    if (!this.playerSprite.anims.isPlaying || this.playerSprite.anims.currentAnim?.key !== nextAnimation) this.playerSprite.play(nextAnimation, true);
+    this.playerSprite.anims.timeScale = 1.18;
     const footfall = Math.abs(Math.sin(this.time.now * 0.016));
     this.playerShadow.setScale(1 - footfall * 0.08, 1 - footfall * 0.05).setAlpha(0.52 - footfall * 0.08);
     if (this.time.now - this.lastDustAt > 180) {

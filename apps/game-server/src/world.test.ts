@@ -36,15 +36,15 @@ describe("RuntimeWorld", () => {
   it("rejects movement through map obstacles", () => {
     const world = new RuntimeWorld();
     const player = world.join("user-1");
-    player.position = { zoneId: "mossward", x: 700, y: 390 };
+    player.position = { zoneId: "mossward", x: 350, y: 400 };
     world.setDirection("user-1", { x: 0, y: -1 }, 1);
     world.tick(1);
-    expect(player.position.y).toBe(390);
+    expect(player.position.y).toBe(400);
   });
 
   it("moves an invalid saved checkpoint to the safe arrival spawn", () => {
     const world = new RuntimeWorld();
-    const player = world.join("user-1", { zoneId: "mossward", x: 836, y: 555 });
+    const player = world.join("user-1", { zoneId: "mossward", x: 350, y: 400 });
     expect(player.position).toEqual({ zoneId: "untamedWilds", x: 836, y: 470 });
   });
 

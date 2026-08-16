@@ -72,6 +72,19 @@ describe("game server", () => {
     socket.close();
   });
 
+  it("broadcasts server-owned resource charges after gathering", async () => {
+    const characters = new MemoryCharacterRepository();
+    server = await createGameServer(
+      { host: "127.0.0.1", port: 0, firebaseProjectId: "test" },
+      { verifyIdToken: async () => ({ uid: "gatherer", admin: false }), characters },
+    );
+    const socket = await openSelectedCharacter(server, "Mara Reed");
+    const state = waitForMessage(socket, "world.object");
+    socket.send(encodeMessage({ type: "world.interact", requestId: "fruit-1", payload: { objectId: "wilds.crabapple" } }));
+    expect(await state).toMatchObject({ payload: { object: { kind: "resource", zoneId: "untamedWilds", objectId: "wilds.crabapple", remaining: 5, maximum: 6 } } });
+    socket.close();
+  });
+
   it("persists the skill lock a player sets", async () => {
     server = await createGameServer(
       { host: "127.0.0.1", port: 0, firebaseProjectId: "test" },

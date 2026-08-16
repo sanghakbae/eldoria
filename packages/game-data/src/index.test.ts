@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { calculateDifficultyFactor, calculateSkillGain, calculateSuccessChance, defaultSkillProgression, evaluateBodyConditions, findSkillForAction, foodCatalog, getZoneDefinition, initialNutrition, isPositionWalkable, parseWorldDefinition, resolveSkillAction, skillCategories, skillSystemDefinition, worldDefinition } from "./index";
 
 describe("zone collision data", () => {
-  it("blocks Mossward buildings while leaving the road open", () => {
-    expect(isPositionWalkable("mossward", 700, 200)).toBe(false);
+  it("blocks the Mossward river while leaving open meadow walkable", () => {
+    expect(isPositionWalkable("mossward", 350, 400)).toBe(false);
     expect(isPositionWalkable("mossward", 900, 700)).toBe(true);
   });
 
@@ -25,17 +25,20 @@ describe("zone collision data", () => {
     expect(getZoneDefinition("mossward")).toMatchObject({ columns: 53, rows: 30, layers: { terrain: { assetId: "world.mossward" } } });
   });
 
-  it("defines distinct regional water and wild fruit ecology", () => {
+  it("defines a natural meadow ecology without prebuilt structures or mining props", () => {
     const wilds = getZoneDefinition("untamedWilds");
     const forest = getZoneDefinition("greythorn");
     const marsh = getZoneDefinition("amberfen");
 
-    expect(wilds?.ecology).toMatchObject({ biome: "primordial-dry-scrub", hydrology: { type: "pond" } });
+    expect(wilds?.ecology).toMatchObject({ biome: "verdant-meadow", hydrology: { type: "river-and-pond" } });
     expect(wilds?.ecology.wildFruits).toContain("crabapple");
-    expect(forest?.ecology).toMatchObject({ biome: "deep-temperate-forest", hydrology: { type: "river" } });
-    expect(marsh?.ecology).toMatchObject({ biome: "warm-marsh", hydrology: { type: "wetland-channels" } });
+    expect(forest?.ecology).toMatchObject({ biome: "verdant-meadow", hydrology: { type: "river-and-pond" } });
+    expect(marsh?.ecology).toMatchObject({ biome: "verdant-meadow", hydrology: { type: "river-and-pond" } });
     expect(new Set(worldDefinition.zones.map((zone) => zone.ecology.wildFruits.join(","))).size).toBeGreaterThan(3);
-    expect(wilds?.layers.objects.map((object) => object.type)).toEqual(expect.arrayContaining(["copperOreDeposit", "coalDeposit", "ironOreDeposit", "wildlifeSpawnRabbit", "wildlifeSpawnDeer", "wildlifeSpawnBoar"]));
+    expect(wilds?.layers.objects.map((object) => object.type)).toEqual(expect.arrayContaining(["wildFruitTree", "wildTree", "fishingWater", "wildlifeSpawnRabbit", "wildlifeSpawnDeer", "wildlifeSpawnBoar"]));
+    const surfaceTypes = worldDefinition.zones.filter((zone) => zone.id !== "animalDen").flatMap((zone) => zone.layers.objects.map((object) => object.type));
+    expect(surfaceTypes.every((type) => type === "wildFruitTree" || type === "wildTree" || type === "fishingWater" || type.startsWith("wildlifeSpawn"))).toBe(true);
+    expect(new Set(wilds?.layers.objects.filter((object) => object.type.startsWith("wildlifeSpawn")).map((object) => object.type)).size).toBeGreaterThanOrEqual(11);
     expect(getZoneDefinition("animalDen")).toMatchObject({ layers: { terrain: { assetId: "world.animalDen" }, objects: expect.arrayContaining([expect.objectContaining({ type: "animalDenExit" })]) } });
   });
 

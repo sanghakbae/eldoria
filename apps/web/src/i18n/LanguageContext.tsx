@@ -6,7 +6,7 @@ const translations = {
   en: {
     frontier: "THE VERDANT FRONTIER", wanderer: "WANDERER", location: "Mossward · Dawn", health: "Health", mana: "Mana", stamina: "Stamina",
     activeSkills: "ACTIVE SKILLS", inventory: "INVENTORY", fishing: "Fishing", foraging: "Foraging", materialProcessing: "Wood gathering", swordsmanship: "Swordsmanship", unarmed: "Unarmed", observation: "Observation", butchering: "Butchery", lumberjacking: "Lumberjacking", worldAria: "Eldoria game world",
-    mossward: "Mossward Crossing", safeSettlement: "Safe settlement", roadHint: "The eastern road leads into Greythorn Wood", journal: "FIELD JOURNAL",
+    mossward: "Mossward Meadow", safeSettlement: "Player-built settlement", roadHint: "The eastern meadow continues toward Greythorn", journal: "FIELD JOURNAL",
     untamedWilds: "The Untamed Wilds", animalDen: "Wild Animal Den", greythorn: "Greythorn Wood", amberfen: "Amberfen Wilds", hollowVault: "The Hollow Vault", wildZone: "Frontier zone",
     quietBeginning: "A quiet beginning", meetRoadwarden: "Meet the roadwarden beneath the old lantern tree.", exploreMossward: "Explore Mossward Crossing",
     findRoad: "Find the forest road", worldNotes: "WORLD NOTES", wolvesNote: "Wolves have been seen beyond the east gate after dusk.", system: "System",
@@ -21,12 +21,12 @@ const translations = {
     lockRaise: "Raise", lockLower: "Lower", lockHold: "Hold", lockLegend: "At the total cap, growth is funded by skills set to Lower.", attempts: "attempts", mvpBadge: "MVP", capReached: "Total cap reached",
     succeeded: "Succeeded", failed: "Failed", chanceLabel: "Chance",
     crafting: "Craft", craftingTitle: "CRAFTING", craftingIntro: "Materials are spent on the attempt. A poor hand wastes them.", closeCrafting: "Close crafting", needs: "Needs", make: "Make", craftMade: "Made — it is in your pack", craftBotched: "Botched — part of the stock is lost", equip: "Equip", unequip: "Unequip", equipped: "Equipped", eat: "Eat", closeInventory: "Close inventory", inventoryEmpty: "You carry nothing yet.", stacks: "stacks", units: "units",
-    characterArchive: "CHARACTER ARCHIVE", chooseCharacter: "Choose your wanderer", newWanderer: "Begin as a wanderer", oneWandererOnly: "One wanderer per account. This life is the only one you get.", characterPersistence: "Characters and their last safe position persist between journeys.", loadingCharacters: "Reading the archive…", noCharacters: "No character has begun their journey yet.", lastLocation: "Last location", enterWorld: "Enter world", newCharacterName: "New character name", characterNamePlaceholder: "2–20 characters", characterGender: "Sex", female: "Female", male: "Male", createCharacter: "Create character",
+    characterArchive: "CHARACTER ARCHIVE", chooseCharacter: "Choose your wanderer", newWanderer: "Begin as a wanderer", oneWandererOnly: "One wanderer per account. This life is the only one you get.", characterPersistence: "Characters and their last safe position persist between journeys.", loadingCharacters: "Reading the archive…", noCharacters: "No character has begun their journey yet.", lastLocation: "Last location", enterWorld: "Enter world", newCharacterName: "New character name", characterNamePlaceholder: "2–20 characters", characterGender: "Sex", female: "Female", male: "Male", createCharacter: "Create character", needsCooking: "Cook first",
   },
   ko: {
     frontier: "초록 변경의 세계", wanderer: "방랑자", location: "모스워드 · 새벽", health: "생명력", mana: "마나", stamina: "기력",
     activeSkills: "활성 기술", inventory: "소지품", fishing: "낚시", foraging: "채집", materialProcessing: "목재 채취", swordsmanship: "검술", unarmed: "맨손 격투", observation: "관찰", butchering: "해체", lumberjacking: "벌목", worldAria: "엘도리아 게임 월드",
-    mossward: "모스워드 교차로", safeSettlement: "안전 정착지", roadHint: "동쪽 길은 그레이쏜 숲으로 이어집니다", journal: "여행 일지",
+    mossward: "모스워드 초원", safeSettlement: "플레이어 건설 정착지", roadHint: "동쪽 초원은 그레이쏜으로 이어집니다", journal: "여행 일지",
     untamedWilds: "태초의 황야", animalDen: "야생 동물 굴", greythorn: "그레이쏜 숲", amberfen: "앰버펜 황야", hollowVault: "공허의 금고", wildZone: "변경 지역",
     quietBeginning: "고요한 시작", meetRoadwarden: "오래된 등불나무 아래에서 길지기를 만나세요.", exploreMossward: "모스워드 교차로 탐험",
     findRoad: "숲길 찾기", worldNotes: "세계의 소문", wolvesNote: "해 질 무렵 동문 너머에서 늑대가 목격되었습니다.", system: "시스템",
@@ -41,7 +41,7 @@ const translations = {
     lockRaise: "상승", lockLower: "하락", lockHold: "고정", lockLegend: "합계 상한에 도달하면 하락으로 지정한 기술에서 성장분을 가져옵니다.", attempts: "회 시도", mvpBadge: "MVP", capReached: "합계 상한 도달",
     succeeded: "성공", failed: "실패", chanceLabel: "성공률",
     crafting: "제작", craftingTitle: "제작", craftingIntro: "재료는 시도할 때 소모됩니다. 숙련이 낮으면 그대로 날아갑니다.", closeCrafting: "제작 닫기", needs: "필요", make: "만들기", craftMade: "성공 — 소지품에 들어갔습니다", craftBotched: "실패 — 재료 일부를 잃었습니다", equip: "장착", unequip: "해제", equipped: "장착 중", eat: "먹기", closeInventory: "소지품 닫기", inventoryEmpty: "아직 가진 것이 없습니다.", stacks: "종류", units: "개",
-    characterArchive: "캐릭터 기록", chooseCharacter: "방랑자를 선택하세요", newWanderer: "방랑자로 시작하기", oneWandererOnly: "계정당 방랑자는 한 명입니다. 이 삶이 전부입니다.", characterPersistence: "캐릭터와 마지막 안전 위치는 여정이 끝난 뒤에도 저장됩니다.", loadingCharacters: "기록을 불러오는 중…", noCharacters: "아직 여정을 시작한 캐릭터가 없습니다.", lastLocation: "마지막 위치", enterWorld: "세계 입장", newCharacterName: "새 캐릭터 이름", characterNamePlaceholder: "2~20자", characterGender: "성별", female: "여성", male: "남성", createCharacter: "캐릭터 생성",
+    characterArchive: "캐릭터 기록", chooseCharacter: "방랑자를 선택하세요", newWanderer: "방랑자로 시작하기", oneWandererOnly: "계정당 방랑자는 한 명입니다. 이 삶이 전부입니다.", characterPersistence: "캐릭터와 마지막 안전 위치는 여정이 끝난 뒤에도 저장됩니다.", loadingCharacters: "기록을 불러오는 중…", noCharacters: "아직 여정을 시작한 캐릭터가 없습니다.", lastLocation: "마지막 위치", enterWorld: "세계 입장", newCharacterName: "새 캐릭터 이름", characterNamePlaceholder: "2~20자", characterGender: "성별", female: "여성", male: "남성", createCharacter: "캐릭터 생성", needsCooking: "조리 필요",
   },
 } as const;
 
