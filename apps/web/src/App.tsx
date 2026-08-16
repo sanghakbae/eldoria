@@ -1,20 +1,28 @@
 import { GameCanvas } from "./game/GameCanvas";
-import { useGameConnection } from "./network/useGameConnection";
+import { useGameConnection, type GameConnection } from "./network/useGameConnection";
 import { AuthScreen } from "./auth/AuthScreen";
 import { useAuth } from "./auth/useAuth";
 import { LanguageToggle, useLanguage, type TranslationKey } from "./i18n/LanguageContext";
 import type { User } from "firebase/auth";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 const quickSlots: TranslationKey[] = ["blade", "bandage", "torch", "map"];
+const zoneTranslationKeys: Record<string, TranslationKey> = { mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" };
 type PlayerPosition = { zoneId: string; x: number; y: number };
 type MapPoint = { x: number; y: number };
 
 const zoneMapBounds: Record<string, { left: number; top: number; width: number; height: number }> = {
-  mossward: { left: 0, top: 81.25, width: 6.25, height: 12.5 },
-  greythorn: { left: 6.25, top: 81.25, width: 6.25, height: 12.5 },
-  amberfen: { left: 12.5, top: 81.25, width: 6.25, height: 12.5 },
-  hollowVault: { left: 18.75, top: 81.25, width: 6.25, height: 12.5 },
+  mossward: { left: 0, top: 82, width: 12.5, height: 12.5 },
+  greythorn: { left: 12.5, top: 82, width: 12.5, height: 12.5 },
+  amberfen: { left: 25, top: 82, width: 12.5, height: 12.5 },
+  hollowVault: { left: 37.5, top: 82, width: 12.5, height: 12.5 },
+};
+
+const zoneMapImages: Record<string, string> = {
+  mossward: "/assets/world/mossward-crossing.png",
+  greythorn: "/assets/world/greythorn-wood.png",
+  amberfen: "/assets/world/amberfen-wilds.png",
+  hollowVault: "/assets/world/hollow-vault.png",
 };
 
 function toMapPoint(position: PlayerPosition): MapPoint {
@@ -43,11 +51,16 @@ export function App() {
     return <AuthScreen error={session.error} pending={session.pending} onSignIn={session.signIn} onRegister={session.register} onGoogle={session.signInWithGoogle} />;
   }
 
-  return <WorldScreen user={session.user} playerName={session.user.displayName ?? session.user.email?.split("@")[0] ?? "Wanderer"} onSignOut={session.signOut} />;
+  return <AuthenticatedApp user={session.user} onSignOut={session.signOut} />;
 }
 
-function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: string; onSignOut: () => Promise<void> }) {
+function AuthenticatedApp({ user, onSignOut }: { user: User; onSignOut: () => Promise<void> }) {
   const connection = useGameConnection(user);
+  if (!connection.selectedCharacter) return <CharacterScreen connection={connection} onSignOut={onSignOut} />;
+  return <WorldScreen connection={connection} playerName={connection.selectedCharacter.name} onSignOut={onSignOut} />;
+}
+
+function WorldScreen({ connection, playerName, onSignOut }: { connection: GameConnection; playerName: string; onSignOut: () => Promise<void> }) {
   const { t } = useLanguage();
   const [zoneId, setZoneId] = useState("mossward");
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "mossward", x: 836, y: 555 });
@@ -84,7 +97,7 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
       window.removeEventListener("eldoria:player-state", handlePosition);
     };
   }, []);
-  const zoneKey = ({ mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" } as const)[zoneId as "mossward" | "greythorn" | "amberfen" | "hollowVault"] ?? "mossward";
+  const zoneKey = zoneTranslationKeys[zoneId] ?? "mossward";
 
   return (
     <main className="app-shell">
@@ -121,7 +134,7 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
           <div className="divider" />
           <p className="panel-label">{t("activeSkills")}</p>
           <Skill name={t("swordsmanship")} value="32.4" />
-          <Skill name={t("healing")} value="18.7" />
+          <Skill name={t("butchering")} value="0.0" />
           <Skill name={t("lumberjacking")} value="11.2" />
         </aside>
 
@@ -164,6 +177,42 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
   );
 }
 
+function CharacterScreen({ connection, onSignOut }: { connection: GameConnection; onSignOut: () => Promise<void> }) {
+  const { t } = useLanguage();
+  const [name, setName] = useState("");
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) return;
+    connection.createCharacter(name);
+    setName("");
+  };
+
+  return (
+    <main className="character-shell">
+      <section className="character-select-card">
+        <div className="character-select-header">
+          <div><p className="eyebrow">{t("frontier")}</p><h1>ELDORIA</h1></div>
+          <div><LanguageToggle /><button className="signout-button" onClick={() => void onSignOut()}>{t("signOut")}</button></div>
+        </div>
+        <div className="character-select-title"><p className="eyebrow">{t("characterArchive")}</p><h2>{t("chooseCharacter")}</h2><p>{t("characterPersistence")}</p></div>
+        <div className="character-list">
+          {!connection.charactersReady && <p className="character-empty">{t("loadingCharacters")}</p>}
+          {connection.charactersReady && connection.characters.length === 0 && <p className="character-empty">{t("noCharacters")}</p>}
+          {connection.characters.map((character) => (
+            <button key={character.id} className="character-entry" onClick={() => connection.selectCharacter(character.id)}>
+              <img src="/assets/characters/wanderer-portrait.png" alt="" />
+              <span><strong>{character.name}</strong><small>{t("lastLocation")}: {t(zoneTranslationKeys[character.position.zoneId] ?? "mossward")}</small></span>
+              <b>{t("enterWorld")} →</b>
+            </button>
+          ))}
+        </div>
+        {connection.characters.length < 5 && <form className="character-create" onSubmit={submit}><label>{t("newCharacterName")}<input value={name} minLength={2} maxLength={20} onChange={(event) => setName(event.target.value)} placeholder={t("characterNamePlaceholder")} /></label><button type="submit" disabled={connection.status !== "online"}>{t("createCharacter")}</button></form>}
+        <p className="character-status">{connection.message}</p>
+      </section>
+    </main>
+  );
+}
+
 function Vital({ label, value, tone }: { label: string; value: number; tone: string }) {
   return <div className="vital"><div><span>{label}</span><strong>{value}</strong></div><div className="meter"><i className={`meter--${tone}`} style={{ width: `${value}%` }} /></div></div>;
 }
@@ -194,6 +243,13 @@ function WorldMapOverlay({ position, exploredTrail, visitedZones, onClose }: { p
         <button onClick={onClose} aria-label={t("close")}>×</button>
       </header>
       <div className="world-atlas">
+        {Object.entries(zoneMapBounds).map(([zoneId, bounds]) => (
+          <div
+            key={zoneId}
+            className="atlas-zone"
+            style={{ left: `${bounds.left}%`, top: `${bounds.top}%`, width: `${bounds.width}%`, height: `${bounds.height}%`, backgroundImage: `url(${zoneMapImages[zoneId]})` }}
+          />
+        ))}
         <svg className="atlas-fog" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <mask id="exploration-mask">

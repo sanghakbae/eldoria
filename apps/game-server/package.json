@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch src/main.ts",
+    "dev": "CHARACTER_STORE=memory tsx watch src/main.ts",
     "start": "node dist/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --pretty false"
@@ -14,6 +14,7 @@
   "dependencies": {
     "@eldoria/game-protocol": "workspace:*",
     "@eldoria/game-data": "workspace:*",
+    "firebase-admin": "catalog:",
     "jose": "catalog:",
     "ws": "catalog:"
   },

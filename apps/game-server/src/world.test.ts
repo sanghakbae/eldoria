@@ -10,6 +10,12 @@ describe("RuntimeWorld", () => {
     expect(player.position).toEqual({ zoneId: "mossward", x: 1016, y: 555 });
   });
 
+  it("joins at a persisted character checkpoint", () => {
+    const world = new RuntimeWorld();
+    const player = world.join("user-1", { zoneId: "amberfen", x: 420, y: 610 });
+    expect(player.position).toEqual({ zoneId: "amberfen", x: 420, y: 610 });
+  });
+
   it("rejects stale input sequences", () => {
     const world = new RuntimeWorld();
     const player = world.join("user-1");

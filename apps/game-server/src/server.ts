@@ -1,8 +1,9 @@
 import { createServer, type Server as HttpServer } from "node:http";
-import { decodeClientMessage, encodeMessage } from "@eldoria/game-protocol";
+import { decodeClientMessage, encodeMessage, type CharacterSummary } from "@eldoria/game-protocol";
 import { WebSocketServer } from "ws";
 import type { GameServerConfig } from "./config";
 import type { VerifyIdToken } from "./auth-verifier";
+import { CharacterRepositoryError, type CharacterRepository } from "./character-repository";
 import { RuntimeWorld } from "./world";
 
 export type RunningGameServer = {
@@ -10,7 +11,7 @@ export type RunningGameServer = {
   close: () => Promise<void>;
 };
 
-export function createGameServer(config: GameServerConfig, dependencies: { verifyIdToken: VerifyIdToken }): Promise<RunningGameServer> {
+export function createGameServer(config: GameServerConfig, dependencies: { verifyIdToken: VerifyIdToken; characters: CharacterRepository }): Promise<RunningGameServer> {
   const world = new RuntimeWorld();
   const httpServer: HttpServer = createServer((request, response) => {
     if (request.url === "/health") {
@@ -25,6 +26,7 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
   const webSocketServer = new WebSocketServer({ server: httpServer, maxPayload: 16 * 1024 });
   webSocketServer.on("connection", (socket, request) => {
     let uid: string | null = null;
+    let selectedCharacterId: string | null = null;
     const remoteAddress = request.socket.remoteAddress ?? "unknown";
     console.info(JSON.stringify({ event: "connection", remoteAddress }));
 
@@ -40,24 +42,78 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
       } else if (message.type === "connection.ping") {
         socket.send(encodeMessage({ type: "connection.pong", requestId: message.requestId, payload: { serverTime: Date.now() } }));
       } else if (message.type === "auth") {
+        let identity: { uid: string };
         try {
-          const identity = await dependencies.verifyIdToken(message.payload.idToken);
-          uid = identity.uid;
-          const player = world.join(uid);
-          socket.send(encodeMessage({ type: "auth.success", requestId: message.requestId, payload: { uid, position: player.position } }));
+          identity = await dependencies.verifyIdToken(message.payload.idToken);
         } catch {
           socket.send(encodeMessage({ type: "error", requestId: message.requestId, payload: { code: "auth.invalid", message: "Firebase ID token validation failed." } }));
           socket.close(1008, "Authentication required");
+          return;
         }
+        uid = identity.uid;
+        socket.send(encodeMessage({ type: "auth.success", requestId: message.requestId, payload: { uid } }));
+        try {
+          const characters = await dependencies.characters.list(uid);
+          socket.send(encodeMessage({ type: "character.list", requestId: message.requestId, payload: { characters } }));
+        } catch (error) {
+          console.error(JSON.stringify({ event: "persistence.error", uid, action: "character.list", message: error instanceof Error ? error.message : String(error) }));
+          sendError(socket, message.requestId, "persistence.failed", "Character records are temporarily unavailable.");
+        }
+      } else if (message.type === "character.create") {
+        if (!uid) {
+          sendError(socket, message.requestId, "auth.required", "Authenticate before creating a character.");
+          return;
+        }
+        try {
+          const character = await dependencies.characters.create(uid, message.payload.name);
+          socket.send(encodeMessage({ type: "character.created", requestId: message.requestId, payload: { character } }));
+        } catch (error) {
+          const repositoryError = error instanceof CharacterRepositoryError ? error : undefined;
+          sendError(socket, message.requestId, repositoryError?.code ?? "persistence.failed", repositoryError?.message ?? "Character creation failed.");
+        }
+      } else if (message.type === "character.select") {
+        if (!uid) {
+          sendError(socket, message.requestId, "auth.required", "Authenticate before selecting a character.");
+          return;
+        }
+        let character: CharacterSummary | null;
+        try {
+          character = await dependencies.characters.getOwned(uid, message.payload.characterId);
+        } catch (error) {
+          console.error(JSON.stringify({ event: "persistence.error", uid, action: "character.select", message: error instanceof Error ? error.message : String(error) }));
+          sendError(socket, message.requestId, "persistence.failed", "Character records are temporarily unavailable.");
+          return;
+        }
+        if (!character) {
+          sendError(socket, message.requestId, "character.not_found", "Character was not found.");
+          return;
+        }
+        world.leave(uid);
+        world.join(uid, character.position);
+        selectedCharacterId = character.id;
+        socket.send(encodeMessage({ type: "character.selected", requestId: message.requestId, payload: { character } }));
       } else if (message.type === "player.move") {
         if (!uid) {
           socket.send(encodeMessage({ type: "error", requestId: message.requestId, payload: { code: "auth.required", message: "Authenticate before sending gameplay commands." } }));
           return;
         }
+        if (!selectedCharacterId) {
+          sendError(socket, message.requestId, "character.required", "Select a character before moving.");
+          return;
+        }
         world.setDirection(uid, message.payload.direction, message.payload.sequence);
       }
     });
-    socket.on("close", () => { if (uid) world.leave(uid); });
+    socket.on("close", () => {
+      if (!uid) return;
+      const player = world.get(uid);
+      if (player && selectedCharacterId) {
+        void dependencies.characters.savePosition(uid, selectedCharacterId, player.position).catch((error: unknown) => {
+          console.error(JSON.stringify({ event: "persistence.error", uid, characterId: selectedCharacterId, message: error instanceof Error ? error.message : String(error) }));
+        });
+      }
+      world.leave(uid);
+    });
   });
 
   const tick = setInterval(() => {
@@ -84,4 +140,8 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
       });
     });
   });
+}
+
+function sendError(socket: { send(data: string): void }, requestId: string, code: string, message: string) {
+  socket.send(encodeMessage({ type: "error", requestId, payload: { code, message } }));
 }

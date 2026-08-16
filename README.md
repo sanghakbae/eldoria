@@ -6,7 +6,7 @@ The product and engineering baseline is [SRS.md](./SRS.md). Development intentio
 
 ## Current status
 
-Tasks 001–006 are complete: the monorepo, React/Vite client, Phaser world scene, Node.js game server, shared protocol, live WebSocket handshake, and Firebase browser authentication are operational. Firestore is connected with server-owned write boundaries for the upcoming character persistence slice.
+Tasks 001–008 are implemented: the monorepo, React/Vite client, Phaser scene, Node.js game server, WebSocket protocol, Firebase authentication/token verification, and the character creation/list/selection persistence slice are operational. The local `dev` command uses a process-local character repository; hosted game servers use Firebase Admin Application Default Credentials and Cloud Firestore. Terrain collision and authoritative movement from Tasks 009–010 are also under active vertical-slice development.
 
 ## Repository map
 

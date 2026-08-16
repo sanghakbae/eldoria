@@ -14,14 +14,18 @@ const MOVEMENT_SPEED = 180;
 export class RuntimeWorld {
   private readonly players = new Map<string, RuntimePlayer>();
 
-  join(uid: string): RuntimePlayer {
-    const player = { uid, position: { zoneId: "mossward", x: 836, y: 555 }, direction: { x: 0, y: 0 }, sequence: 0 };
+  join(uid: string, position = { zoneId: "mossward", x: 836, y: 555 }): RuntimePlayer {
+    const player = { uid, position: { ...position }, direction: { x: 0, y: 0 }, sequence: 0 };
     this.players.set(uid, player);
     return player;
   }
 
   leave(uid: string) {
     this.players.delete(uid);
+  }
+
+  get(uid: string): RuntimePlayer | undefined {
+    return this.players.get(uid);
   }
 
   setDirection(uid: string, direction: { x: number; y: number }, sequence: number) {

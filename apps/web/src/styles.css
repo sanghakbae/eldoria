@@ -46,8 +46,9 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "Cinzel"; }
 .world-map-overlay header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .world-map-overlay header h2 { margin-bottom: 0; }
 .world-map-overlay header button { width: 34px; height: 34px; color: #c9c5a4; border: 1px solid #8590714a; background: #111e19; font-size: 22px; cursor: pointer; }
-.world-atlas { position: relative; height: calc(100% - 58px); overflow: hidden; background: #07110e url("/assets/world/verdant-frontier-atlas.png") center / cover no-repeat; border: 1px solid #8c997240; clip-path: polygon(1.5% 4%, 7% 1%, 21% 2.5%, 34% .5%, 48% 2%, 62% .8%, 76% 2.5%, 91% 1%, 98.5% 5%, 99% 20%, 97.8% 35%, 99.5% 51%, 98% 68%, 99% 84%, 96.5% 97%, 82% 99%, 67% 97.8%, 52% 99.5%, 37% 98%, 22% 99.2%, 6% 97%, 1.2% 92%, 2% 76%, .5% 61%, 2% 44%, .7% 28%); }
-.atlas-fog { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 0 10px #000); }
+.world-atlas { position: relative; width: min(100%, calc((100dvh - 190px) * 1.7768)); aspect-ratio: 1672 / 941; margin: 0 auto; overflow: hidden; background: #07110e url("/assets/world/verdant-frontier-atlas.png") center / 100% 100% no-repeat; border: 1px solid #8c997240; clip-path: polygon(1.5% 4%, 7% 1%, 21% 2.5%, 34% .5%, 48% 2%, 62% .8%, 76% 2.5%, 91% 1%, 98.5% 5%, 99% 20%, 97.8% 35%, 99.5% 51%, 98% 68%, 99% 84%, 96.5% 97%, 82% 99%, 67% 97.8%, 52% 99.5%, 37% 98%, 22% 99.2%, 6% 97%, 1.2% 92%, 2% 76%, .5% 61%, 2% 44%, .7% 28%); }
+.atlas-zone { position: absolute; z-index: 1; background-position: center; background-size: 100% 100%; background-repeat: no-repeat; }
+.atlas-fog { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 0 10px #000); }
 .atlas-undiscovered { position: absolute; right: 4%; top: 5%; z-index: 2; color: #829087; font: 400 8px "DM Mono"; letter-spacing: .14em; text-transform: uppercase; }
 .atlas-player { position: absolute; z-index: 3; width: 16px; height: 16px; transform: translate(-50%, -50%) rotate(45deg); border: 2px solid #f1dc77; background: #1c3329; box-shadow: 0 0 0 4px #09120ec4, 0 0 18px #f1dc77; }
 .atlas-player b { position: absolute; inset: 4px; border-radius: 50%; background: #f4df82; }
@@ -97,6 +98,29 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "Cinzel"; }
 .auth-mode { margin-top: 18px; padding: 0; color: #81958a; border: 0; background: none; font-size: 9px; cursor: pointer; }
 .auth-mode:hover { color: #c4bb78; }
 .auth-footnote { position: absolute; bottom: 20px; color: #506159; font: 400 8px "DM Mono"; letter-spacing: .18em; }
+.character-shell { display: grid; place-items: center; min-height: 100dvh; padding: 28px; background: radial-gradient(circle at 50% 18%, #234233 0, #0a1814 42%, #030807 100%); }
+.character-select-card { width: min(820px, 100%); min-height: 620px; padding: 32px; border: 1px solid #a4b87942; background: linear-gradient(155deg, #10221bf2, #07100ef2); box-shadow: 0 30px 90px #000b, inset 0 0 70px #1731242e; }
+.character-select-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 22px; border-bottom: 1px solid #8a9b7330; }
+.character-select-header > div:last-child { display: flex; align-items: center; gap: 14px; }
+.character-select-title { margin: 30px 0 22px; }
+.character-select-title h2 { margin-top: 7px; font-size: 24px; }
+.character-select-title > p:last-child { margin: 8px 0 0; color: #758a7d; font-size: 11px; }
+.character-list { display: grid; gap: 9px; min-height: 224px; }
+.character-entry { display: grid; grid-template-columns: 58px 1fr auto; align-items: center; gap: 16px; width: 100%; min-height: 72px; padding: 7px 16px 7px 8px; color: #d8d8c7; text-align: left; border: 1px solid #81927235; background: linear-gradient(100deg, #14251e, #0a1511); cursor: pointer; }
+.character-entry:hover { border-color: #c8bb72; background: #183026; transform: translateX(2px); }
+.character-entry img { width: 52px; height: 58px; object-fit: cover; object-position: center 20%; }
+.character-entry span strong, .character-entry span small { display: block; }
+.character-entry span strong { color: #e3ddbf; font: 600 14px "Cinzel"; }
+.character-entry span small { margin-top: 6px; color: #71857a; font: 400 8px "DM Mono"; }
+.character-entry > b { color: #b9ae6d; font: 400 9px "DM Mono"; }
+.character-empty { display: grid; place-items: center; margin: 0; min-height: 130px; color: #6e8277; border: 1px dashed #8192722b; font: italic 11px Georgia, serif; }
+.character-create { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 10px; margin-top: 25px; padding-top: 22px; border-top: 1px solid #8a9b7330; }
+.character-create label { color: #91a096; font: 400 9px "DM Mono"; letter-spacing: .08em; text-transform: uppercase; }
+.character-create input { display: block; width: 100%; height: 43px; margin-top: 7px; padding: 0 12px; color: #e1dfce; outline: none; border: 1px solid #758a7045; background: #07100e; font: 400 12px "DM Mono"; }
+.character-create button { height: 43px; padding: 0 20px; color: #101710; border: 1px solid #adab6f63; background: linear-gradient(100deg, #a89b5c, #d2c77f); font: 600 10px "Cinzel"; cursor: pointer; }
+.character-create button:disabled { opacity: .45; cursor: wait; }
+.character-status { margin: 16px 0 0; color: #708278; font: 400 8px "DM Mono"; }
 @keyframes drift { to { transform: translate(18px, -25px); opacity: .25; } } @keyframes pulse { to { filter: brightness(1.5); transform: scale(1.04); } }
 @media (max-width: 1000px) { .game-layout { grid-template-columns: 170px minmax(420px, 1fr); } .journal-panel { display: none; } }
 @media (max-width: 720px) { body { overflow: hidden; } .app-shell { height: 100dvh; min-height: 0; padding: 10px; gap: 9px; } .topbar { min-height: 52px; } h1 { font-size: 20px; } .brand-rune { width: 38px; height: 44px; } .game-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .character-panel { display: grid; grid-template-columns: auto 1fr; gap: 10px; width: 100%; padding: 10px 13px; } .portrait { width: 46px; height: 52px; margin: 0; } .vitals { display: none; } .character-panel .divider, .character-panel .panel-label, .skill-row { display: none; } .world-frame { width: 100%; height: 100%; min-height: 0; } .command-deck { min-height: 66px; grid-template-columns: 1fr; padding-top: 2px; } .chat-preview, .build-mark { display: none; } .quickbar { justify-self: center; } .quickbar button { width: 52px; height: 54px; } .server-pill strong, .signout-button { display: none; } }
+@media (max-width: 600px) { .character-shell { padding: 10px; } .character-select-card { min-height: 0; padding: 20px 16px; } .character-select-title { margin-top: 22px; } .character-entry { grid-template-columns: 48px 1fr; } .character-entry img { width: 44px; height: 50px; } .character-entry > b { display: none; } .character-create { grid-template-columns: 1fr; } }

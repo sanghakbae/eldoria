@@ -23,6 +23,8 @@ type DirectionKeys = {
 export class MosswardScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Container;
   private playerSprite?: Phaser.GameObjects.Image;
+  private playerOutline?: Phaser.GameObjects.Image;
+  private playerMarker?: Phaser.GameObjects.Triangle;
   private keys?: DirectionKeys;
   private target = new Phaser.Math.Vector2(836, 555);
   private background?: Phaser.GameObjects.Image;
@@ -47,9 +49,14 @@ export class MosswardScene extends Phaser.Scene {
 
   create() {
     this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, "world.mossward").setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
-    const shadow = this.add.ellipse(0, 23, 34, 12, 0x020604, 0.42);
-    this.playerSprite = this.add.image(0, 0, "player.wanderer").setDisplaySize(47, 70).setOrigin(0.5, 0.82);
-    this.player = this.add.container(this.target.x, this.target.y, [shadow, this.playerSprite]).setDepth(10);
+    const groundRing = this.add.ellipse(0, 25, 48, 19, 0x15271f, 0.56).setStrokeStyle(2, 0xf0da77, 0.9);
+    const shadow = this.add.ellipse(0, 24, 36, 12, 0x020604, 0.5);
+    const playerOutline = this.add.image(0, 0, "player.wanderer").setDisplaySize(64, 94).setOrigin(0.5, 0.82).setTint(0xf1d875).setAlpha(0.38);
+    this.playerOutline = playerOutline;
+    this.playerSprite = this.add.image(0, 0, "player.wanderer").setDisplaySize(58, 87).setOrigin(0.5, 0.82);
+    this.playerMarker = this.add.triangle(0, -78, 0, 0, 12, 0, 6, 9, 0xf4df82, 1).setOrigin(0.5);
+    this.player = this.add.container(this.target.x, this.target.y, [groundRing, shadow, playerOutline, this.playerSprite, this.playerMarker]).setDepth(10);
+    this.tweens.add({ targets: this.playerMarker, y: -84, alpha: 0.58, duration: 650, yoyo: true, repeat: -1, ease: "Sine.InOut" });
 
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT).startFollow(this.player, true, 0.12, 0.12);
     this.layoutCamera();
@@ -123,18 +130,22 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   private animateWalk(direction: { x: number; y: number }) {
-    if (!this.player || !this.playerSprite) return;
+    if (!this.player || !this.playerSprite || !this.playerOutline) return;
     this.moving = Math.hypot(direction.x, direction.y) > 0.05;
     if (Math.abs(direction.x) > 0.08) this.playerSprite.setFlipX(direction.x < 0);
     if (!this.moving) {
       this.playerSprite.y = Phaser.Math.Linear(this.playerSprite.y, 0, 0.3);
       this.playerSprite.rotation = Phaser.Math.Linear(this.playerSprite.rotation, 0, 0.3);
+      this.playerOutline.y = Phaser.Math.Linear(this.playerOutline.y, 0, 0.3);
+      this.playerOutline.rotation = Phaser.Math.Linear(this.playerOutline.rotation, 0, 0.3);
       return;
     }
 
     const phase = this.time.now * 0.018;
     this.playerSprite.y = Math.sin(phase) * 2.2;
     this.playerSprite.rotation = Math.sin(phase * 0.5) * 0.025;
+    this.playerOutline.y = this.playerSprite.y;
+    this.playerOutline.rotation = this.playerSprite.rotation;
     if (this.time.now - this.lastDustAt > 180) {
       this.lastDustAt = this.time.now;
       const dust = this.add.circle(this.player.x - direction.x * 12, this.player.y + 22, 3, 0xcbb57a, 0.34).setDepth(8);
