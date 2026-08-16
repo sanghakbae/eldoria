@@ -4,9 +4,35 @@ import { AuthScreen } from "./auth/AuthScreen";
 import { useAuth } from "./auth/useAuth";
 import { LanguageToggle, useLanguage, type TranslationKey } from "./i18n/LanguageContext";
 import type { User } from "firebase/auth";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 
 const quickSlots: TranslationKey[] = ["blade", "bandage", "torch", "map"];
+type PlayerPosition = { zoneId: string; x: number; y: number };
+type MapPoint = { x: number; y: number };
+
+const zoneMapBounds: Record<string, { left: number; top: number; width: number; height: number }> = {
+  mossward: { left: 0, top: 81.25, width: 6.25, height: 12.5 },
+  greythorn: { left: 6.25, top: 81.25, width: 6.25, height: 12.5 },
+  amberfen: { left: 12.5, top: 81.25, width: 6.25, height: 12.5 },
+  hollowVault: { left: 18.75, top: 81.25, width: 6.25, height: 12.5 },
+};
+
+function toMapPoint(position: PlayerPosition): MapPoint {
+  const bounds = zoneMapBounds[position.zoneId] ?? zoneMapBounds.mossward!;
+  return {
+    x: bounds.left + (Math.max(0, Math.min(1672, position.x)) / 1672) * bounds.width,
+    y: bounds.top + (Math.max(0, Math.min(941, position.y)) / 941) * bounds.height,
+  };
+}
+
+function loadExploredTrail(): MapPoint[] {
+  try {
+    const value = JSON.parse(localStorage.getItem("eldoria.explored-trail") ?? "[]") as unknown;
+    return Array.isArray(value) ? value.filter((point): point is MapPoint => typeof point === "object" && point !== null && "x" in point && "y" in point && typeof point.x === "number" && typeof point.y === "number") : [];
+  } catch {
+    return [];
+  }
+}
 
 export function App() {
   const { language } = useLanguage();
@@ -24,7 +50,8 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
   const connection = useGameConnection(user);
   const { t } = useLanguage();
   const [zoneId, setZoneId] = useState("mossward");
-  const [playerPosition, setPlayerPosition] = useState({ zoneId: "mossward", x: 836, y: 555 });
+  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "mossward", x: 836, y: 555 });
+  const [exploredTrail, setExploredTrail] = useState<MapPoint[]>(loadExploredTrail);
   const [mapOpen, setMapOpen] = useState(false);
   const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["mossward"]') as string[]));
   useEffect(() => {
@@ -39,8 +66,17 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
     };
     window.addEventListener("eldoria:zone-change", handleZone);
     const handlePosition = (event: Event) => {
-      const position = (event as CustomEvent<{ zoneId: string; x: number; y: number }>).detail;
-      if (position) setPlayerPosition(position);
+      const position = (event as CustomEvent<PlayerPosition>).detail;
+      if (!position) return;
+      setPlayerPosition(position);
+      const point = toMapPoint(position);
+      setExploredTrail((current) => {
+        const previous = current.at(-1);
+        if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 0.06) return current;
+        const next = [...current.slice(-1499), point];
+        localStorage.setItem("eldoria.explored-trail", JSON.stringify(next));
+        return next;
+      });
     };
     window.addEventListener("eldoria:player-state", handlePosition);
     return () => {
@@ -99,7 +135,7 @@ function WorldScreen({ user, playerName, onSignOut }: { user: User; playerName: 
             </div>
           </div>
           <div className="world-hint">{t("clickMove")} · {t("roadHint")}</div>
-          {mapOpen && <WorldMapOverlay position={playerPosition} visitedZones={visitedZones} onClose={() => setMapOpen(false)} />}
+          {mapOpen && <WorldMapOverlay position={playerPosition} exploredTrail={exploredTrail} visitedZones={visitedZones} onClose={() => setMapOpen(false)} />}
         </section>
 
         <aside className="journal-panel panel">
@@ -143,20 +179,11 @@ function QuickSlotIcon({ slot }: { slot: TranslationKey }) {
   return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 7l8-3 8 3 8-3v21l-8 3-8-3-8 3V7z" /><path d="M12 4v21m8-18v21" /></svg>;
 }
 
-function WorldMapOverlay({ position, visitedZones, onClose }: { position: { zoneId: string; x: number; y: number }; visitedZones: Set<string>; onClose: () => void }) {
+function WorldMapOverlay({ position, exploredTrail, visitedZones, onClose }: { position: PlayerPosition; exploredTrail: MapPoint[]; visitedZones: Set<string>; onClose: () => void }) {
   const { t } = useLanguage();
-  // Playable scenes occupy connected parts of Mossward Reach in the world map's south-west.
-  const zoneBounds: Record<string, { left: number; top: number; width: number; height: number }> = {
-    mossward: { left: 0, top: 75, width: 12.5, height: 12.5 },
-    greythorn: { left: 12.5, top: 75, width: 12.5, height: 12.5 },
-    amberfen: { left: 0, top: 87.5, width: 12.5, height: 12.5 },
-    hollowVault: { left: 12.5, top: 87.5, width: 12.5, height: 12.5 },
-  };
-  const bounds = zoneBounds[position.zoneId] ?? zoneBounds.mossward!;
-  const playerLeft = bounds.left + (Math.max(0, Math.min(1672, position.x)) / 1672) * bounds.width;
-  const playerTop = bounds.top + (Math.max(0, Math.min(941, position.y)) / 941) * bounds.height;
-  const revealRadius = Math.min(17, 10 + visitedZones.size * 1.5);
-  const fogStyle = { "--atlas-x": `${playerLeft}%`, "--atlas-y": `${playerTop}%`, "--reveal-radius": `${revealRadius}%` } as CSSProperties;
+  const playerPoint = toMapPoint(position);
+  const trail = [...exploredTrail, playerPoint];
+  const trailWidth = Math.min(3.4, 2.1 + visitedZones.size * 0.18);
   return (
     <section className="world-map-overlay" aria-modal="true" role="dialog" aria-label={t("worldMap")}>
       <header>
@@ -167,8 +194,23 @@ function WorldMapOverlay({ position, visitedZones, onClose }: { position: { zone
         <button onClick={onClose} aria-label={t("close")}>×</button>
       </header>
       <div className="world-atlas">
-        <div className="atlas-fog" style={fogStyle}><span>{t("undiscovered")}</span></div>
-        <i className="atlas-player" style={{ left: `${playerLeft}%`, top: `${playerTop}%` }}><b /></i>
+        <svg className="atlas-fog" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <mask id="exploration-mask">
+              <rect width="100" height="100" fill="white" />
+              {trail.length > 1 && <polyline points={trail.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="black" strokeWidth={trailWidth} strokeLinecap="round" strokeLinejoin="round" />}
+              {trail.map((point, index) => <circle key={`${index}-${point.x}-${point.y}`} cx={point.x} cy={point.y} r={trailWidth * 0.62} fill="black" />)}
+              <circle cx={playerPoint.x} cy={playerPoint.y} r="3.8" fill="black" />
+            </mask>
+            <pattern id="fog-texture" width="5" height="5" patternUnits="userSpaceOnUse">
+              <rect width="5" height="5" fill="#020706" />
+              <path d="M0 5L5 0M-2 2L2-2M3 7L7 3" stroke="#17231e" strokeWidth=".35" opacity=".5" />
+            </pattern>
+          </defs>
+          <rect width="100" height="100" fill="url(#fog-texture)" opacity=".94" mask="url(#exploration-mask)" />
+        </svg>
+        <span className="atlas-undiscovered">{t("undiscovered")}</span>
+        <i className="atlas-player" style={{ left: `${playerPoint.x}%`, top: `${playerPoint.y}%` }}><b /></i>
       </div>
     </section>
   );
