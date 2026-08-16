@@ -44,7 +44,7 @@ export class MosswardScene extends Phaser.Scene {
     this.background = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, "world.mossward").setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT);
     this.createCollisionTileLayer("mossward");
     this.playerShadow = this.add.ellipse(0, 1, 30, 9, 0x020604, 0.52);
-    this.playerSprite = this.add.sprite(0, 0, "player.walk", 0).setDisplaySize(76, 102).setOrigin(0.5, 0.79);
+    this.playerSprite = this.add.sprite(0, 0, "player.walk", 0).setScale(0.15).setOrigin(0.5, 0.79);
     this.anims.create({ key: "wanderer.walk", frames: this.anims.generateFrameNumbers("player.walk", { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
     this.playerMarker = this.add.triangle(0, -84, 0, 0, 12, 0, 6, 9, 0xf4df82, 1).setOrigin(0.5);
     this.player = this.add.container(this.target.x, this.target.y, [this.playerShadow, this.playerSprite, this.playerMarker]).setDepth(10);
