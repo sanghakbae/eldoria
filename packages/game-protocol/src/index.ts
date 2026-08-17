@@ -6,12 +6,17 @@ export type InventoryStack = { itemId: string; quantity: number };
 export type SkillProgress = { value: number; completedActions: number };
 export type SkillLock = "up" | "down" | "locked";
 export type VitalState = { current: number; maximum: number };
+export type BuiltStructure = { id: string; type: "log-shelter" | "wood-bridge"; zoneId: string; x: number; y: number };
 /** What is worn or held, keyed by layer slot. `equipped` is the older single-slot form, kept so
  *  characters saved before the rig existed still load. */
 export type Equipment = Partial<Record<string, string | null>>;
-export type SurvivalState = { nutrition: NutritionState; lastMetabolismAt: string; inventory?: InventoryStack[]; skills?: Record<string, SkillProgress>; locks?: Record<string, SkillLock>; health?: VitalState; equipped?: string | null; equipment?: Equipment; toolWear?: Record<string, number> };
+export type SurvivalState = { nutrition: NutritionState; lastMetabolismAt: string; inventory?: InventoryStack[]; skills?: Record<string, SkillProgress>; locks?: Record<string, SkillLock>; health?: VitalState; equipped?: string | null; equipment?: Equipment; toolWear?: Record<string, number>; structures?: BuiltStructure[] };
 export type ActionOutcome = { success: boolean; chance: number; skillId: string; gain: number; drained: Array<{ skillId: string; amount: number }> };
 export type TargetState = { health: number; maximumHealth: number; defeated: boolean };
+export type CombatState = { counterDamage: number; playerDefeated: boolean };
+export type WorldObjectState =
+  | { kind: "resource"; zoneId: string; objectId: string; remaining: number; maximum: number; exhaustedUntil: number }
+  | { kind: "wildlife"; zoneId: string; objectId: string; health: number; maximumHealth: number; defeatedUntil: number };
 export type CharacterGender = "female" | "male";
 
 export type CharacterSummary = {
@@ -31,6 +36,7 @@ export type ClientMessage =
   | { type: "character.select"; requestId: string; payload: { characterId: string } }
   | { type: "player.move"; requestId: string; payload: { sequence: number; direction: { x: number; y: number } } }
   | { type: "world.interact"; requestId: string; payload: { objectId: string } }
+  | { type: "world.observe"; requestId: string; payload: { zoneId: string } }
   | { type: "skill.lock"; requestId: string; payload: { skillId: string; lock: SkillLock } }
   | { type: "item.eat"; requestId: string; payload: { itemId: string } }
   | { type: "item.equip"; requestId: string; payload: { itemId: string | null; slot?: string } }
@@ -44,7 +50,9 @@ export type ServerMessage =
   | { type: "character.created"; requestId: string; payload: { character: CharacterSummary } }
   | { type: "character.selected"; requestId: string; payload: { character: CharacterSummary } }
   | { type: "player.state"; requestId: string; payload: { uid: string; sequence: number; position: Position } }
-  | { type: "world.action"; requestId: string; payload: { objectId: string; actionId: string; message: string; reward?: InventoryStack; survival?: SurvivalState; outcome?: ActionOutcome; target?: TargetState } }
+  | { type: "world.snapshot"; requestId: string; payload: { zoneId: string; objects: WorldObjectState[] } }
+  | { type: "world.object"; requestId: string; payload: { object: WorldObjectState } }
+  | { type: "world.action"; requestId: string; payload: { objectId: string; actionId: string; message: string; reward?: InventoryStack; survival?: SurvivalState; outcome?: ActionOutcome; target?: TargetState; combat?: CombatState } }
   | { type: "skill.locked"; requestId: string; payload: { skillId: string; lock: SkillLock; survival: SurvivalState } }
   | { type: "item.eaten"; requestId: string; payload: { itemId: string; message: string; survival: SurvivalState } }
   | { type: "item.equipped"; requestId: string; payload: { itemId: string | null; slot: string; survival: SurvivalState } }
@@ -65,6 +73,7 @@ export function decodeClientMessage(raw: string): ClientMessage | null {
   if (value.type === "character.select" && isRecord(value.payload) && typeof value.payload.characterId === "string") return value as ClientMessage;
   if (value.type === "player.move" && isRecord(value.payload) && typeof value.payload.sequence === "number" && isDirection(value.payload.direction)) return value as ClientMessage;
   if (value.type === "world.interact" && isRecord(value.payload) && typeof value.payload.objectId === "string") return value as ClientMessage;
+  if (value.type === "world.observe" && isRecord(value.payload) && typeof value.payload.zoneId === "string") return value as ClientMessage;
   if (value.type === "skill.lock" && isRecord(value.payload) && typeof value.payload.skillId === "string" && isSkillLock(value.payload.lock)) return value as ClientMessage;
   if (value.type === "item.eat" && isRecord(value.payload) && typeof value.payload.itemId === "string") return value as ClientMessage;
   if (value.type === "item.equip" && isRecord(value.payload) && (typeof value.payload.itemId === "string" || value.payload.itemId === null) && (value.payload.slot === undefined || typeof value.payload.slot === "string")) return value as ClientMessage;
@@ -82,6 +91,8 @@ export function decodeServerMessage(raw: string): ServerMessage | null {
   if (value.type === "character.created" && isCharacter(value.payload.character)) return value as ServerMessage;
   if (value.type === "character.selected" && isCharacter(value.payload.character)) return value as ServerMessage;
   if (value.type === "player.state" && typeof value.payload.uid === "string" && typeof value.payload.sequence === "number" && isPosition(value.payload.position)) return value as ServerMessage;
+  if (value.type === "world.snapshot" && typeof value.payload.zoneId === "string" && Array.isArray(value.payload.objects) && value.payload.objects.every(isWorldObjectState)) return value as ServerMessage;
+  if (value.type === "world.object" && isWorldObjectState(value.payload.object)) return value as ServerMessage;
   if (value.type === "world.action" && typeof value.payload.objectId === "string" && typeof value.payload.actionId === "string" && typeof value.payload.message === "string") return value as ServerMessage;
   if (value.type === "skill.locked" && typeof value.payload.skillId === "string" && isSkillLock(value.payload.lock) && isSurvivalState(value.payload.survival)) return value as ServerMessage;
   if (value.type === "item.eaten" && typeof value.payload.itemId === "string" && typeof value.payload.message === "string" && isSurvivalState(value.payload.survival)) return value as ServerMessage;
@@ -115,6 +126,13 @@ function isCharacter(value: unknown): value is CharacterSummary {
 
 function isCharacterGender(value: unknown): value is CharacterGender {
   return value === "female" || value === "male";
+}
+
+function isWorldObjectState(value: unknown): value is WorldObjectState {
+  if (!isRecord(value) || typeof value.zoneId !== "string" || typeof value.objectId !== "string") return false;
+  if (value.kind === "resource") return typeof value.remaining === "number" && typeof value.maximum === "number" && typeof value.exhaustedUntil === "number";
+  if (value.kind === "wildlife") return typeof value.health === "number" && typeof value.maximumHealth === "number" && typeof value.defeatedUntil === "number";
+  return false;
 }
 
 function isSurvivalState(value: unknown): value is SurvivalState {

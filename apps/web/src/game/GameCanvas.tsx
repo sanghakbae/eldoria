@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
+import type { BuiltStructure, CharacterSummary } from "@eldoria/game-protocol";
 import { createGameConfig } from "./config";
 
-export function GameCanvas({ gender, language, equipped, equipment }: { gender: "female" | "male"; language: "en" | "ko"; equipped: string | null; equipment: Record<string, string | null | undefined> }) {
+export function GameCanvas({ gender, language, position, equipped, equipment, arrowCount, structures }: { gender: "female" | "male"; language: "en" | "ko"; position: CharacterSummary["position"]; equipped: string | null; equipment: Record<string, string | null | undefined>; arrowCount: number; structures: BuiltStructure[] }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
 
@@ -10,6 +11,7 @@ export function GameCanvas({ gender, language, equipped, equipment }: { gender: 
     if (!hostRef.current || gameRef.current) return;
     const host = hostRef.current;
     host.dataset.gender = gender;
+    host.dataset.position = JSON.stringify(position);
     gameRef.current = new Phaser.Game(createGameConfig(host));
     // The drawing buffer has to be sized in device pixels. Sized in CSS pixels it was a 1x image
     // stretched over a 2x screen, which is what made the whole world look smeared. The camera derives
@@ -23,6 +25,10 @@ export function GameCanvas({ gender, language, equipped, equipment }: { gender: 
       const canvas = gameRef.current.canvas;
       canvas.style.width = `${Math.round(entry.contentRect.width)}px`;
       canvas.style.height = `${Math.round(entry.contentRect.height)}px`;
+      // Phaser's scale manager writes centering margins while the viewport is changing. On a phone
+      // rotation those values can be calculated from the previous parent width and survive after our
+      // explicit resize, pushing the whole world down and to the right. This host owns the exact size.
+      canvas.style.margin = "0";
     });
     resizeObserver.observe(host);
 
@@ -39,8 +45,18 @@ export function GameCanvas({ gender, language, equipped, equipment }: { gender: 
     if (!hostRef.current) return;
     hostRef.current.dataset.language = language;
     hostRef.current.dataset.equipped = equipped ?? "";
+    hostRef.current.dataset.hasFishingRod = String(Boolean(equipped && (equipped === "tool.fishing-rod" || equipped.endsWith("-fishing-rod"))));
+    hostRef.current.dataset.arrowCount = String(arrowCount);
     hostRef.current.dataset.equipment = JSON.stringify(Object.fromEntries(Object.entries(equipment).filter(([, itemId]) => Boolean(itemId))));
-  }, [language, equipped, equipment]);
+    hostRef.current.dataset.structures = JSON.stringify(structures);
+    window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));
+  }, [language, equipped, equipment, arrowCount, structures]);
+
+  useEffect(() => {
+    if (!hostRef.current) return;
+    hostRef.current.dataset.position = JSON.stringify(position);
+    window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: position }));
+  }, [position.zoneId, position.x, position.y]);
 
   return <div ref={hostRef} className="game-canvas" />;
 }

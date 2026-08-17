@@ -6,21 +6,21 @@
  * so headings, labels and body text finally share one voice.
  */
 
-:root { font-family: "KoPubWorld Dotum", sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; color: #e9e7d8; background: #06100e; font-synthesis: none; }
+:root { font-family: "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum", sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; color: #e9e7d8; background: #06100e; font-synthesis: none; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: hidden; background: radial-gradient(circle at 50% -20%, #183128 0, #091713 42%, #050b0a 100%); }
 button { font: inherit; }
 .app-shell { width: 100vw; max-width: none; height: 100dvh; min-height: 620px; margin: 0; padding: 22px 28px 18px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 17px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 72px; border-bottom: 1px solid #9eb47726; }
 .brand-lockup { display: flex; align-items: center; gap: 15px; }
-.brand-rune { display: grid; place-items: center; width: 48px; height: 54px; color: #d9c984; font: 600 25px "KoPubWorld Dotum"; border: 1px solid #a4b87966; clip-path: polygon(50% 0, 100% 20%, 86% 86%, 50% 100%, 14% 86%, 0 20%); background: linear-gradient(150deg, #263c2e, #0c1814); }
-.eyebrow, .panel-label { margin: 0; color: #a9bd80; font: 500 10px/1.4 "KoPubWorld Dotum"; letter-spacing: .19em; }
-h1 { margin: 1px 0 0; color: #f0eacb; font: 600 27px/1 "KoPubWorld Dotum"; letter-spacing: .2em; }
-.server-pill { display: flex; align-items: center; gap: 9px; padding: 9px 13px; color: #a7b4a8; font: 400 10px "KoPubWorld Dotum"; letter-spacing: .08em; border: 1px solid #77907735; background: #0a1714b8; }
+.brand-rune { display: grid; place-items: center; width: 48px; height: 54px; color: #d9c984; font: 600 25px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; border: 1px solid #a4b87966; clip-path: polygon(50% 0, 100% 20%, 86% 86%, 50% 100%, 14% 86%, 0 20%); background: linear-gradient(150deg, #263c2e, #0c1814); }
+.eyebrow, .panel-label { margin: 0; color: #a9bd80; font: 500 10px/1.4 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .19em; }
+h1 { margin: 1px 0 0; color: #f0eacb; font: 600 27px/1 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .2em; }
+.server-pill { display: flex; align-items: center; gap: 9px; padding: 9px 13px; color: #a7b4a8; font: 400 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .08em; border: 1px solid #77907735; background: #0a1714b8; }
 .server-pill strong { padding-left: 9px; color: #d2d7c8; border-left: 1px solid #75826d45; font-weight: 400; }
-.language-toggle { padding: 4px 9px; color: #a7b4a8; border: 1px solid #77907740; background: #0a1714b8; font: 400 9px "KoPubWorld Dotum"; letter-spacing: .1em; cursor: pointer; }
+.language-toggle { padding: 4px 9px; color: #a7b4a8; border: 1px solid #77907740; background: #0a1714b8; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .1em; cursor: pointer; }
 .language-toggle:hover { color: #d9c984; border-color: #d9c98466; }
-.signout-button { padding: 0 0 0 9px; color: #829289; border: 0; border-left: 1px solid #75826d45; background: none; font: 400 9px "KoPubWorld Dotum"; cursor: pointer; }
+.signout-button { padding: 0 0 0 9px; color: #829289; border: 0; border-left: 1px solid #75826d45; background: none; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; cursor: pointer; }
 .signout-button:hover { color: #d9c984; }
 .server-dot { width: 6px; height: 6px; border-radius: 50%; background: #d3a45d; box-shadow: 0 0 9px #d3a45d; }
 .server-pill--online .server-dot { background: #86bd78; box-shadow: 0 0 9px #86bd78; }
@@ -28,61 +28,128 @@ h1 { margin: 1px 0 0; color: #f0eacb; font: 600 27px/1 "KoPubWorld Dotum"; lette
 .game-layout { width: 100%; height: 100%; min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr) 220px; align-items: stretch; gap: 14px; }
 .panel { border: 1px solid #82916c2b; background: linear-gradient(165deg, #101d18eb, #08110fe8); box-shadow: inset 0 0 35px #0005; }
 .character-panel, .journal-panel { padding: 22px 18px; }
-.portrait { position: relative; overflow: hidden; display: grid; place-items: center; width: 62px; height: 70px; margin-bottom: 17px; background: linear-gradient(145deg, #25392b, #101b16); color: #d2c584; font: 600 22px "KoPubWorld Dotum"; border: 1px solid #8fa1734f; clip-path: polygon(50% 0, 95% 22%, 86% 88%, 50% 100%, 14% 88%, 5% 22%); }
-/* The source is a three-quarter body shot, so the crop has to be pulled up to land on the face. */
-.portrait img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 8%; filter: saturate(.9) contrast(1.05); }
-h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
-.location { margin: 0; color: #6e8275; font: 400 10px "KoPubWorld Dotum"; }
+h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.location { margin: 0; color: #6e8275; font: 400 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.era-progress { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 8px; margin-top: 9px; }
+.era-progress span { color: #718379; font-size: 8px; letter-spacing: .12em; }
+.era-progress strong { color: #d8cb88; font-size: 9px; text-align: right; }
+.era-progress i { grid-column: 1 / -1; height: 3px; overflow: hidden; background: #26312c; }
+.era-progress i b { display: block; height: 100%; background: linear-gradient(90deg, #718e64, #d8cb78); box-shadow: 0 0 8px #d8cb7866; }
 .vitals { display: grid; gap: 12px; margin-top: 25px; }
-.vital > div:first-child { display: flex; justify-content: space-between; margin-bottom: 6px; color: #87978e; font: 400 9px "KoPubWorld Dotum"; text-transform: uppercase; }
+.vital > div:first-child { display: flex; justify-content: space-between; margin-bottom: 6px; color: #87978e; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; text-transform: uppercase; }
 .vital strong { color: #c9d0c6; font-weight: 400; }
 .meter { height: 3px; background: #1e2824; }
 .meter i { display: block; height: 100%; box-shadow: 0 0 6px currentColor; }
 .meter--health { background: #9b4f43; color: #9b4f43; } .meter--mana { background: #4e7795; color: #4e7795; } .meter--stamina { background: #87995a; color: #87995a; }
 .divider { height: 1px; margin: 22px 0; background: linear-gradient(90deg, transparent, #98a47745, transparent); }
 .skill-row { display: flex; justify-content: space-between; padding: 10px 0; color: #88988f; font-size: 10px; border-bottom: 1px solid #75866f17; }
-.skill-row strong { color: #c1b978; font: 400 10px "KoPubWorld Dotum"; }
-.inventory-row { display: flex; justify-content: space-between; gap: 6px; padding: 7px 0; color: #7f9287; border-bottom: 1px solid #75866f17; font: 400 8px "KoPubWorld Dotum"; }
+.skill-row strong { color: #c1b978; font: 400 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.inventory-row { display: flex; justify-content: space-between; gap: 6px; padding: 7px 0; color: #7f9287; border-bottom: 1px solid #75866f17; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .inventory-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.inventory-row strong { color: #d0c477; font-weight: 400; }
-.panel-inventory-button { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 0 0 3px; padding: 7px 8px; color: #a9bd80; border: 1px solid #82916c38; background: #0d1a15; font: 500 9px "KoPubWorld Dotum"; letter-spacing: .12em; cursor: pointer; }
+.system-chat { min-height: 0; }
+.system-chat-log { display: grid; gap: 7px; max-height: 190px; margin-top: 10px; overflow-y: auto; }
+.system-chat-log p { margin: 0; color: #93a49a; font: 400 8px/1.55 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; word-break: keep-all; }
+.system-chat-log span { margin-right: 5px; color: #c8bd7a; font-size: 7px; letter-spacing: .05em; }
+.panel-inventory-button { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 0 0 3px; padding: 7px 8px; color: #a9bd80; border: 1px solid #82916c38; background: #0d1a15; font: 500 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .12em; cursor: pointer; }
 .panel-inventory-button:hover { color: #e8dfac; border-color: #c1b66e88; }
 .panel-inventory-button kbd { color: #66776d; font-size: 8px; }
-.body-condition { display: grid; grid-template-columns: 54px 1fr; gap: 10px; margin-top: 10px; }
-.body-condition-figure { width: 50px; height: 76px; overflow: visible; }
-.body-silhouette { fill: #24402f; stroke: #8fbd7e; stroke-width: 2; stroke-linejoin: round; }
-.body-condition--warning .body-silhouette { fill: #3a2f22; stroke: #d08a68; }
-.body-marker { fill: #d69a5d; stroke: #ffe0a0; stroke-width: 2; filter: drop-shadow(0 0 5px #d97848); animation: bodyAlert 1.1s ease-in-out infinite alternate; }
-.body-marker--critical { fill: #d54f42; stroke: #ffd0b5; filter: drop-shadow(0 0 7px #f14f3f); }
-.body-condition > div > strong, .body-condition > div > small, .body-condition > div > span { display: block; }
-.body-condition strong { color: #aab9ad; font: 500 9px/1.4 "KoPubWorld Dotum"; }
-.body-condition small { margin-top: 3px; color: #687c70; font: 400 7px/1.45 "KoPubWorld Dotum"; }
+.body-condition { position: relative; width: 100%; margin-top: 10px; padding: 0; color: inherit; border: 1px solid transparent; background: transparent; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.body-condition:hover, .body-condition:focus-visible { border-color: #9cab7948; background: #10201980; outline: none; }
+.body-condition-anatomy { width: 100%; }
+.body-condition-figure { display: block; width: 100%; height: 156px; overflow: visible; filter: drop-shadow(0 0 5px #78a96a26); }
+.body-character-source { opacity: .82; filter: sepia(.15) saturate(.78) brightness(.76); }
+.body-outline-source { opacity: .95; }
+.body-callout polyline { fill: none; stroke: #8fcf7b; stroke-width: .8; }
+.body-callout-target { fill: #07110d; stroke: #8fcf7b; stroke-width: .8; }
+.body-callout-core { fill: #8fcf7b; }
+.body-callout text { fill: #9eb69b; font: 500 6.5px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: -.03em; }
+.body-callout--strained polyline, .body-callout--strained .body-callout-target { stroke: #d69a5d; }.body-callout--strained .body-callout-core { fill: #d69a5d; }.body-callout--strained text { fill: #d69a5d; }
+.body-callout--critical polyline, .body-callout--critical .body-callout-target { stroke: #e05a4c; }.body-callout--critical .body-callout-core { fill: #e05a4c; }.body-callout--critical text { fill: #e05a4c; }
+.body-condition > div:last-child { margin-top: 7px; }
+.body-condition > div:last-child > strong, .body-condition > div:last-child > small, .body-condition > div:last-child > span { display: block; }
+.body-condition strong { color: #aab9ad; font: 500 9px/1.4 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.body-condition small { margin-top: 3px; color: #687c70; font: 400 7px/1.45 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .body-condition > div > span + span { margin-top: 7px; }
 .body-condition--warning .body-condition-figure, .body-condition--warning strong { color: #d08a68; }
+.body-condition-open-hint { display: block; margin-top: 6px; color: #829184; font: 400 7px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .08em; text-align: center; }
+.body-condition-modal { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 28px; background: #020806d9; backdrop-filter: blur(8px); }
+.body-condition-dialog { box-sizing: border-box; width: 80vw; height: 80vh; overflow: auto; padding: 24px; color: #b9c4bb; border: 1px solid #9baa7860; background: #07130ff7; box-shadow: 0 28px 90px #000d; }
+.body-condition-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 16px; border-bottom: 1px solid #8492752f; }
+.body-condition-dialog > header h2 { margin: 4px 0 0; font-size: 20px; }
+.body-condition-dialog > header button { width: 38px; height: 38px; color: #d7d1ab; border: 1px solid #8b977548; background: #101f19; font-size: 24px; cursor: pointer; }
+.body-condition-dialog-content { display: grid; grid-template-columns: minmax(320px, 1.05fr) minmax(280px, .95fr); gap: 28px; align-items: start; min-height: calc(100% - 72px); padding-top: 20px; }
+.body-condition-dialog-content .body-condition-anatomy { align-self: center; min-width: 0; }
+.body-condition-dialog-content .body-condition-figure { height: min(60vh, 560px); }
+.body-condition-dialog .body-callout text { font-size: 8px; font-weight: 600; }
+.body-condition-dialog-summary { min-width: 0; padding: 18px; border-left: 1px solid #83917138; background: #0b1914c7; }
+.body-condition-overall { padding-bottom: 16px; border-bottom: 1px solid #7d8c7130; }
+.body-condition-overall > span { display: block; margin-bottom: 6px; color: #a9bd80; font-size: 9px; letter-spacing: .14em; }
+.body-condition-dialog-summary strong { display: block; color: #d8dfd7; font: 600 14px/1.45 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.body-condition-dialog-summary p { margin: 5px 0 0; color: #8fa096; font: 400 10px/1.6 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.body-condition-part-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.body-condition-part { min-width: 0; padding: 10px; border: 1px solid #7f92723a; background: #07120eef; }
+.body-condition-part > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.body-condition-part > header strong { font-size: 11px; }
+.body-condition-part > header em { flex: 0 0 auto; color: #8fcf7b; font: 600 9px/1 "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; font-style: normal; }
+.body-condition-part b { display: block; margin-top: 8px; color: #d8b77e; font-size: 10px; }
+.body-condition-part--strained { border-color: #d69a5d66; }.body-condition-part--strained > header em { color: #d69a5d; }
+.body-condition-part--critical { border-color: #e05a4c7d; }.body-condition-part--critical > header em { color: #e05a4c; }
 .world-frame { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #9baa783e; background: #0c1d18; box-shadow: 0 25px 60px #0008; }
-.game-canvas { width: 100%; height: 100%; }
+.game-canvas { width: 100%; height: 100%; overflow: hidden; }
 .game-canvas canvas { display: block; width: 100%; height: 100%; margin: auto; image-rendering: pixelated; }
 .world-frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 80px 15px #04100cbb; background: linear-gradient(180deg, #08130e4d, transparent 25%, transparent 72%, #04100a55); }
-.world-caption { position: absolute; z-index: 2; left: 22px; top: 20px; display: flex; gap: 11px; align-items: center; padding: 10px 14px; background: #07110edb; border-left: 2px solid #b9ad68; }
+.mini-map { position: absolute; z-index: 5; left: 20px; top: 18px; width: 132px; height: 132px; overflow: hidden; padding: 0; border: 2px solid #c6b970b8; border-radius: 50%; background: #08130f; box-shadow: 0 5px 18px #000c, 0 0 0 4px #07110ed9, inset 0 0 24px #000c; cursor: pointer; }
+.mini-map::before { content: ""; position: absolute; z-index: 3; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(circle, transparent 48%, #04100a66 78%, #020806dc 100%); box-shadow: inset 0 0 0 1px #efe2a033; }
+.shore-fishing-action { position: absolute; z-index: 6; left: 38px; top: 164px; padding: 8px 12px; color: #161b13; border: 1px solid #f0dfa4; background: #cfc27b; font: 600 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .08em; box-shadow: 0 5px 18px #0009; cursor: pointer; }
+.shore-fishing-action:hover { background: #e4d68d; }
+.mini-map:hover { border-color: #eadb88; box-shadow: 0 5px 20px #000d, 0 0 0 4px #07110ef0, 0 0 18px #b9ad6844; }
+.mini-map > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; filter: saturate(.72) brightness(.76) contrast(1.08); }
+.mini-map-north { position: absolute; z-index: 5; left: 50%; top: 4px; transform: translateX(-50%); color: #eadb88; text-shadow: 0 1px 2px #000; font: 600 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.mini-map-object { position: absolute; z-index: 2; width: 3px; height: 3px; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 3px currentColor; pointer-events: none; }
+.mini-map-object--wildlife { color: #cb765d; background: currentColor; }
+.mini-map-object--resource { color: #b8bd72; background: currentColor; }
+.mini-map-object--water { width: 5px; height: 3px; color: #79b7b2; background: currentColor; }
+.mini-map-player { position: absolute; z-index: 6; width: 10px; height: 10px; transform: translate(-50%, -50%) rotate(45deg); border: 2px solid #fff1a8; background: #183b2c; box-shadow: 0 0 0 2px #07110ed4, 0 0 8px #f1dc77; pointer-events: none; }
+.mini-map-player b { position: absolute; inset: 2px; border-radius: 50%; background: #f4df82; }
+.world-caption { position: absolute; z-index: 2; left: 28px; top: 166px; display: flex; gap: 11px; align-items: center; padding: 8px 12px; background: #07110edb; border-left: 2px solid #b9ad68; }
 .world-caption strong, .world-caption small { display: block; }
-.world-caption strong { font: 500 12px "KoPubWorld Dotum"; letter-spacing: .06em; } .world-caption small { margin-top: 2px; color: #7e9185; font: 400 8px "KoPubWorld Dotum"; text-transform: uppercase; }
+.world-caption strong { font: 500 12px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .06em; } .world-caption small { margin-top: 2px; color: #7e9185; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; text-transform: uppercase; }
 .compass { color: #d3c37f; }
-.world-hint { position: absolute; z-index: 2; right: 18px; bottom: 16px; padding: 8px 11px; color: #b0b8aa; background: #07110ed4; font: 400 9px "KoPubWorld Dotum"; }
-.inventory-toggle { position: absolute; z-index: 5; right: 18px; top: 18px; display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 9px; color: #d9d4b2; border: 1px solid #b6ad705c; background: #07110ee8; font: 500 9px "KoPubWorld Dotum"; cursor: pointer; }
+.world-hint { position: absolute; z-index: 2; right: 18px; bottom: 16px; padding: 8px 11px; color: #b0b8aa; background: #07110ed4; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.inventory-toggle { position: absolute; z-index: 5; right: 18px; top: 18px; display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 9px; color: #d9d4b2; border: 1px solid #b6ad705c; background: #07110ee8; font: 500 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; cursor: pointer; }
 .inventory-toggle:hover { border-color: #d3c37f; background: #102019f2; }
 .inventory-toggle svg { width: 20px; height: 20px; fill: #b8aa67; stroke: #e0d28a; stroke-width: 1.2; }
 .inventory-toggle kbd { margin-left: 3px; color: #748279; font-size: 8px; }
-.world-map-overlay { position: absolute; z-index: 6; inset: 18px; display: grid; grid-template-rows: auto minmax(0, 1fr); place-items: stretch center; min-height: 0; padding: 22px; border: 1px solid #b6ad704d; background: #07110ef2; box-shadow: 0 18px 55px #000c; backdrop-filter: blur(8px); }
+.world-map-overlay { position: absolute; z-index: 20; inset: 18px; display: grid; grid-template-rows: auto minmax(0, 1fr); place-items: stretch center; min-height: 0; padding: 22px; border: 1px solid #b6ad704d; background: #07110ef2; box-shadow: 0 18px 55px #000c; backdrop-filter: blur(8px); }
 .world-map-overlay header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .world-map-overlay header h2 { margin-bottom: 0; }
 .world-map-overlay header button { width: 34px; height: 34px; color: #c9c5a4; border: 1px solid #8590714a; background: #111e19; font-size: 22px; cursor: pointer; }
-.world-atlas { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: #514227; border: 1px solid #8c997240; clip-path: polygon(1.5% 4%, 7% 1%, 21% 2.5%, 34% .5%, 48% 2%, 62% .8%, 76% 2.5%, 91% 1%, 98.5% 5%, 99% 20%, 97.8% 35%, 99.5% 51%, 98% 68%, 99% 84%, 96.5% 97%, 82% 99%, 67% 97.8%, 52% 99.5%, 37% 98%, 22% 99.2%, 6% 97%, 1.2% 92%, 2% 76%, .5% 61%, 2% 44%, .7% 28%); }
+.world-atlas { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: #06100f; border: 1px solid #8c997240; }
 .world-atlas::before { content: ""; position: absolute; z-index: 4; inset: 0; pointer-events: none; background: radial-gradient(90% 80% at 50% 50%, transparent 60%, #5b482c55 100%); }
-.atlas-world-plane { position: absolute; left: 50%; top: 50%; height: 100%; aspect-ratio: 1; max-width: 100%; transform: translate(-50%, -50%); background: radial-gradient(120% 120% at 50% 45%, #6f5c3c 0%, #5d4c31 55%, #4a3c26 100%); }
-.atlas-zone { position: absolute; z-index: 1; filter: saturate(1.05) brightness(1.04); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3%; background-position: center; background-size: 100% 100%; background-repeat: no-repeat; box-shadow: inset 0 0 0 1px #4b3c2499, inset 0 0 26px #2a200f66; }
-.atlas-zone-label { position: absolute; bottom: -16px; color: #f6ecd2; text-shadow: 0 1px 3px #000; font: 500 9px "KoPubWorld Dotum"; letter-spacing: .06em; white-space: nowrap; pointer-events: none; }
-.atlas-fog { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 0 10px #000); }
-.atlas-scale { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); color: #6d5c3f; font: 400 8px "KoPubWorld Dotum"; letter-spacing: .18em; }
-.atlas-undiscovered { position: absolute; right: 4%; top: 5%; z-index: 2; color: #829087; font: 400 8px "KoPubWorld Dotum"; letter-spacing: .14em; text-transform: uppercase; }
+.atlas-world-plane { position: absolute; left: 50%; top: 50%; width: min(100%, calc(100vh * 1.7768)); aspect-ratio: 1672 / 941; max-height: 100%; transform: translate(-50%, -50%); overflow: hidden; background: #07110e; }
+.atlas-zone { position: absolute; z-index: 2; overflow: hidden; padding: 0; border: 1px solid #d6dcbd2b; background: #101913; cursor: pointer; }
+.atlas-zone-terrain, .atlas-zone-terrain-tone { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.atlas-zone-terrain { object-fit: cover; filter: saturate(.88) contrast(1.04); }
+.atlas-zone-terrain-tone { opacity: .22; mix-blend-mode: multiply; }
+.atlas-zone::before { content: ""; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; transform: translate(-50%, -50%) rotate(45deg); border: 1px solid #b6b99d; background: #16221d; box-shadow: 0 0 0 2px #07100d99; }
+.atlas-zone:hover:not(:disabled), .atlas-zone:focus-visible { z-index: 5; border-color: #f1dc7780; outline: none; }
+.atlas-zone:hover:not(:disabled)::after, .atlas-zone:focus-visible::after { content: ""; position: absolute; inset: 0; background: #e9d66d24; pointer-events: none; }
+.atlas-zone.is-current { z-index: 4; border: 2px solid #f1dc77; cursor: default; }
+.atlas-zone.is-current::after { content: ""; position: absolute; inset: 0; background: #e0c95b24; pointer-events: none; }
+.atlas-zone.is-current::before { width: 9px; height: 9px; border-color: #fff0a2; background: #d8c96d; box-shadow: 0 0 0 3px #07100dcc, 0 0 14px #f1dc77; }
+/* Unvisited land remains geographically legible, but all local color and detail is suppressed. */
+.atlas-zone.is-unvisited { background: #4d5252; }
+.atlas-zone.is-unvisited .atlas-zone-terrain { filter: grayscale(1) saturate(0) brightness(.48) contrast(.82); opacity: .8; }
+.atlas-zone.is-unvisited .atlas-zone-terrain-tone { background: #626966 !important; opacity: .48; mix-blend-mode: color; }
+.atlas-zone.is-unvisited::before { border-color: #777d79; background: #4b504d; }
+.atlas-zone-index { position: absolute; left: 4px; top: 3px; color: #ece4bd8c; font: 700 7px/1 "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; text-shadow: 0 1px 2px #000; }
+.atlas-zone-label { position: absolute; z-index: 8; left: 50%; top: 50%; display: none; min-width: 132px; padding: 8px 10px; transform: translate(-50%, 13px); color: #fff5d4; border: 1px solid #b6ad705c; border-left: 3px solid #d8c66e; background: #07100df2; text-align: left; text-shadow: 0 1px 3px #000; white-space: nowrap; pointer-events: none; box-shadow: 0 8px 24px #000b; }
+.atlas-zone:hover .atlas-zone-label, .atlas-zone:focus-visible .atlas-zone-label, .atlas-zone.is-current .atlas-zone-label { display: block; }
+.atlas-zone-label strong, .atlas-zone-label small { display: block; }
+.atlas-zone-label strong { font: 700 12px/1.35 "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; letter-spacing: 0; }
+.atlas-zone-label small { margin-top: 3px; color: #b2beb5; font: 500 9px/1.4 "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+.atlas-scale { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); color: #6d5c3f; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .18em; }
+.atlas-undiscovered { position: absolute; right: 4%; top: 5%; z-index: 2; color: #829087; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .14em; text-transform: uppercase; }
 .atlas-player { position: absolute; z-index: 3; width: 11px; height: 11px; transform: translate(-50%, -50%) rotate(45deg); border: 2px solid #f1dc77; background: #1c3329; box-shadow: 0 0 0 4px #09120ec4, 0 0 18px #f1dc77; }
 .atlas-player b { position: absolute; inset: 4px; border-radius: 50%; background: #f4df82; }
 .atlas-player--underground { border-color: #8fa4c4; box-shadow: 0 0 0 4px #09120ec4, 0 0 18px #8fa4c4; }
@@ -91,77 +158,131 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .inventory-overlay header { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 16px; }
 .inventory-overlay header h2 { margin-bottom: 0; }
 .inventory-overlay header button { width: 34px; height: 34px; color: #c9c5a4; border: 1px solid #8590714a; background: #111e19; font-size: 22px; cursor: pointer; }
-.inventory-empty { color: #6f7d72; font: 400 10px "KoPubWorld Dotum"; }
-.inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; margin: 0; padding: 0 6px 0 0; min-height: 0; overflow-y: auto; list-style: none; }
+.inventory-empty { color: #6f7d72; font: 400 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.inventory-categories { min-height: 0; overflow-y: auto; padding-right: 6px; }
+.inventory-category + .inventory-category { margin-top: 18px; }
+.inventory-category h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: #c8bd7a; font: 500 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .12em; }
+.inventory-category h3::after { content: ""; flex: 1; height: 1px; background: #8d966638; }
+.inventory-category h3 small { order: 2; color: #75847a; font-size: 8px; }
+.inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
 .inventory-slot { position: relative; display: grid; grid-template-rows: 1fr auto; place-items: center; gap: 4px; width: 100%; aspect-ratio: 1; padding: 8px 5px 6px; color: inherit; border: 1px solid #76836e33; background: linear-gradient(#111f19, #0a1410); font: inherit; cursor: pointer; transition: border-color .12s, background .12s; }
 .inventory-slot:disabled { cursor: default; }
 .inventory-slot:not(:disabled):hover { border-color: #d3c37fa8; background: linear-gradient(#16281f, #0c1813); }
 .item-icon { width: 34px; height: 34px; filter: drop-shadow(0 2px 3px #0009); }
 .item-icon--tool { object-fit: contain; }
-.inventory-count { position: absolute; right: 4px; top: 4px; padding: 1px 4px; color: #0b1512; background: #d3c37fdd; font: 500 9px "KoPubWorld Dotum"; }
+.inventory-count { position: absolute; right: 4px; top: 4px; padding: 1px 4px; color: #0b1512; background: #d3c37fdd; font: 500 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .inventory-name { max-width: 100%; overflow: hidden; color: #9aa79b; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 1.2; }
+.inventory-damage { position: absolute; left: 5px; top: 5px; padding: 1px 4px; color: #d8c983; border: 1px solid #9d8f4c55; background: #07110ed9; font-size: 8px; }
 .inventory-wear { position: absolute; left: 6px; right: 6px; bottom: 3px; height: 2px; background: #2a3630; }
 .inventory-wear i { display: block; height: 100%; background: #8fb07f; }
-.inventory-eat { position: absolute; inset: auto 0 0; padding: 2px 0; color: #0b1512; background: #8fb07f; opacity: 0; font: 500 8px "KoPubWorld Dotum"; font-style: normal; letter-spacing: .12em; text-transform: uppercase; transition: opacity .12s; }
+.inventory-eat { position: absolute; inset: auto 0 0; padding: 2px 0; color: #0b1512; background: #8fb07f; opacity: 0; font: 500 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; font-style: normal; letter-spacing: .12em; text-transform: uppercase; transition: opacity .12s; }
 .inventory-slot:not(:disabled):hover .inventory-eat { opacity: 1; }
 .crafting-overlay { position: absolute; z-index: 6; inset: 18px; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 22px; border: 1px solid #b6ad704d; background: #07110ef7; box-shadow: 0 18px 55px #000c; backdrop-filter: blur(8px); }
 .crafting-overlay header { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 16px; }
 .crafting-overlay header h2 { margin-bottom: 0; }
 .crafting-overlay header button { width: 34px; height: 34px; color: #c9c5a4; border: 1px solid #8590714a; background: #111e19; font-size: 22px; cursor: pointer; }
 .recipe-list { display: grid; gap: 8px; align-content: start; margin: 0; padding: 0 6px 0 0; min-height: 0; overflow-y: auto; list-style: none; }
+.crafting-content { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; min-height: 0; }
+.recipe-tabs { display: grid; align-content: start; gap: 6px; padding-right: 10px; border-right: 1px solid #76836e2b; }
+.recipe-tabs button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 11px 10px; color: #829087; border: 1px solid transparent; background: transparent; font: 500 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; text-align: left; cursor: pointer; }
+.recipe-tabs button:hover { color: #c8d9a7; background: #101d18; }
+.recipe-tabs button.is-active { color: #e2dbad; border-color: #9a956054; background: linear-gradient(90deg, #29392b, #101d18); }
+.recipe-tabs small { min-width: 22px; padding: 1px 5px; border-radius: 10px; color: #819388; background: #0a1411; font-size: 8px; text-align: center; }
+.recipe-tabs button.is-active small { color: #c7d3a9; background: #314735; }
+.recipe-group { min-height: 0; overflow: hidden; }
+.recipe-group > h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 7px; color: #c8d9a7; font-size: 13px; letter-spacing: .06em; }
+.recipe-group > h3 small { min-width: 22px; padding: 1px 6px; border-radius: 10px; background: #233a2e; color: #9fbd8f; text-align: center; }
+.recipe-family-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 9px; padding: 0 0 7px; border-bottom: 1px solid #76836e2b; }
+.recipe-family-tabs button { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 7px 11px; color: #809087; border: 1px solid #76836e2b; background: #0b1612; font: 500 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; cursor: pointer; }
+.recipe-family-tabs button.is-active { color: #e3ddb7; border-color: #b6ad706b; background: #26372b; }
+.recipe-family-tabs small { color: #718178; font-size: 8px; }
+.recipe-family-tabs button.is-active small { color: #b7c69f; }
+.recipe-group .recipe-list { overflow: visible; }
+.crafting-content .recipe-group .recipe-list { height: calc(100% - 70px); overflow-y: auto; }
+.crafting-content .recipe-group:not(:has(.recipe-family-tabs)) .recipe-list { height: calc(100% - 28px); }
 .recipe { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid #76836e2b; background: #0c1713; }
-.recipe strong { display: block; color: #d9dfd2; font: 500 12px "KoPubWorld Dotum"; letter-spacing: .04em; }
-.recipe small { display: block; margin-top: 4px; color: #77877c; font: 400 9px "KoPubWorld Dotum"; }
-.recipe button { padding: 7px 16px; color: #0b1512; border: 0; background: #c9bd77; font: 500 10px "KoPubWorld Dotum"; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
-.recipe-result { grid-column: 2 / span 2; margin-top: 6px; font: 400 9px "KoPubWorld Dotum"; font-style: normal; letter-spacing: .06em; }
+.recipe strong { display: block; color: #d9dfd2; font: 500 12px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .04em; }
+.recipe .weapon-damage { display: inline-block; margin-left: 9px; padding: 2px 5px; color: #dacb78; border: 1px solid #9e94574d; background: #15231c; font-size: 8px; font-weight: 500; vertical-align: 1px; }
+.recipe small { display: block; margin-top: 4px; color: #77877c; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.recipe button { padding: 7px 16px; color: #0b1512; border: 0; background: #c9bd77; font: 500 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.recipe-result { grid-column: 2 / span 2; margin-top: 6px; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; font-style: normal; letter-spacing: .06em; }
 .recipe-result--made { color: #8fb07f; } .recipe-result--botched { color: #c98a6a; }
 .recipe-result b { color: #d3c37f; font-weight: 400; }
 .recipe button:disabled { color: #6c7a70; background: #1a2620; cursor: default; }
+.shelter-interior { position: absolute; z-index: 8; inset: 0; container-type: size; overflow: hidden; color: #ded7b6; background: #070504; box-shadow: inset 0 0 110px #000c; }
+.shelter-scene { position: absolute; z-index: 0; left: 50%; top: 50%; width: max(100cqw, calc(100cqh * 1.776833)); aspect-ratio: 1672 / 941; background: linear-gradient(90deg, #07050480, transparent 42%, #07050424 70%, #07050470), url("/assets/world/structures/player-log-shelter-interior.png?v=2") center / 100% 100% no-repeat; transform: translate(-50%, -50%); }
+.arrow-counter { position: absolute; z-index: 5; top: 62px; right: 18px; display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 7px; padding: 7px 10px; color: #d9dfd2; border: 1px solid #9e9b665c; background: #07110ee6; box-shadow: 0 4px 16px #0008; font-size: 10px; }
+.arrow-counter span { color: #e2c272; font-size: 20px; line-height: .7; }
+.arrow-counter b { min-width: 24px; color: #f1df8d; font-size: 15px; text-align: right; }
+.arrow-counter.is-empty { border-color: #b85d4c88; }.arrow-counter.is-empty b { color: #d66a5a; }
+.shelter-interior::after { content: ""; position: absolute; z-index: 0; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 77% 75%, #e878241c, transparent 28%), linear-gradient(#0003, transparent 22% 75%, #0006); }
+.shelter-fire { position: absolute; z-index: 2; left: 78.5%; top: 75%; width: 54px; height: 48px; pointer-events: none; filter: drop-shadow(0 0 9px #ff7a24); }
+.shelter-fire::before { content: ""; position: absolute; left: 50%; bottom: -7px; width: 112px; height: 72px; border-radius: 50%; background: radial-gradient(ellipse, #ff9b3b52 0, #d54e1529 35%, transparent 70%); transform: translateX(-50%); animation: fireGlow 1.35s ease-in-out infinite alternate; }
+.shelter-fire::after { content: ""; position: absolute; left: 10px; bottom: 1px; width: 34px; height: 10px; border-radius: 50%; background: #160b05; box-shadow: 0 2px 5px #000c; }
+.shelter-fire span, .shelter-fire span::before, .shelter-fire span::after { position: absolute; display: block; border-radius: 52% 48% 48% 52% / 70% 70% 30% 30%; transform-origin: 50% 100%; }
+.shelter-fire span { z-index: 1; left: 18px; bottom: 5px; width: 18px; height: 36px; background: linear-gradient(#fff2a6 0 18%, #ffb12e 42%, #ef4c17 100%); animation: fireFlame .58s ease-in-out infinite alternate; }
+.shelter-fire span::before { content: ""; left: -10px; bottom: 0; width: 15px; height: 26px; background: linear-gradient(#ffd36b, #e83a13); animation: fireFlame .46s .1s ease-in-out infinite alternate-reverse; }
+.shelter-fire span::after { content: ""; right: -9px; bottom: 0; width: 14px; height: 23px; background: linear-gradient(#ffe183, #df3410); animation: fireFlame .52s .18s ease-in-out infinite alternate; }
+.shelter-interior-copy { position: absolute; z-index: 2; left: 4%; top: 5%; padding: 13px 17px; border: 1px solid #c0a86955; border-left: 3px solid #c0a869; background: #100c08c7; box-shadow: 0 10px 28px #0008; backdrop-filter: blur(6px); }
+.shelter-interior-copy span, .shelter-interior-copy strong { display: block; }
+.shelter-interior-copy span { color: #c6b572; font: 500 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .16em; }
+.shelter-interior-copy strong { margin-top: 7px; font: 400 13px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.shelter-sleeper { position: absolute; z-index: 1; left: 30.5%; top: 52%; width: 8.45%; height: 29.46%; background-repeat: no-repeat; filter: saturate(.9) brightness(.82); transform: translate(-50%, -50%) rotate(-90deg); transform-origin: 50% 50%; animation: shelter-breathe 2.8s ease-in-out infinite alternate; pointer-events: none; }
+.shelter-sleeper--female { background-image: url("/assets/characters/primordial-female-walk.png"); background-size: 771.3% 140.5%; background-position: 1% 49%; }
+.shelter-sleeper--male { width: 7.46%; height: 27.4%; background-image: url("/assets/characters/primordial-walk.png"); background-size: 905% 146%; background-position: 1.45% 39%; }
+@keyframes shelter-breathe { from { transform: translate(-50%, -50%) rotate(-90deg); } to { transform: translate(-50%, -50%) rotate(-90deg) translateX(2px) scale(1.008); } }
+@container (max-aspect-ratio: 7 / 5) {
+  .shelter-scene { left: calc(50cqw - 58.635cqh); top: 0; transform: none; }
+}
+@keyframes fireFlame { from { transform: rotate(-5deg) scale(.92, 1); filter: brightness(.9); } to { transform: rotate(6deg) scale(1.08, .88); filter: brightness(1.24); } }
+@keyframes fireGlow { to { opacity: .58; transform: translateX(-50%) scale(1.12); } }
+.shelter-actions { position: absolute; z-index: 2; right: 4%; top: 5%; display: flex; gap: 8px; padding: 6px; border: 1px solid #c0a86935; background: #100c08ad; backdrop-filter: blur(6px); }
+.shelter-actions button { padding: 10px 15px; color: #17110b; border: 1px solid #e6d99055; background: #c9bd77; font: 500 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; cursor: pointer; box-shadow: 0 4px 12px #0006; }
 .inventory-slot--equipped { border-color: #d3c37f; box-shadow: inset 0 0 0 1px #d3c37f55; }
 .inventory-eat--equip { background: #c9bd77; }
-.auth-only-google { margin-top: 14px; color: #6f7d72; font: 400 9px "KoPubWorld Dotum"; letter-spacing: .06em; }
+.auth-only-google { margin-top: 14px; color: #6f7d72; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .06em; }
 .skill-codex-overlay { position: absolute; z-index: 6; inset: 18px; display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; padding: 22px; border: 1px solid #b6ad704d; background: #07110ef7; box-shadow: 0 18px 55px #000c; backdrop-filter: blur(8px); }
 .skill-codex-overlay header { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 12px; }
 .skill-codex-overlay header h2 { margin-bottom: 0; }
 .skill-codex-overlay header > button { width: 34px; height: 34px; color: #c9c5a4; border: 1px solid #8590714a; background: #111e19; font-size: 22px; cursor: pointer; }
 .skill-total { min-width: 190px; margin-left: auto; text-align: right; }
-.skill-total span { color: #7f8c69; font: 400 8px "KoPubWorld Dotum"; letter-spacing: .14em; text-transform: uppercase; }
-.skill-total strong { display: block; margin: 3px 0 6px; color: #d3c37f; font: 500 15px "KoPubWorld Dotum"; }
+.skill-total span { color: #7f8c69; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .14em; text-transform: uppercase; }
+.skill-total strong { display: block; margin: 3px 0 6px; color: #d3c37f; font: 500 15px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .skill-total strong.skill-total--capped { color: #e0a06a; }
-.skill-total small { display: block; margin-top: 5px; color: #e0a06a; font: 400 8px "KoPubWorld Dotum"; }
-.skill-lock-legend { margin: 0 0 14px; color: #7f9287; font: 400 9px "KoPubWorld Dotum"; }
+.skill-total small { display: block; margin-top: 5px; color: #e0a06a; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.skill-lock-legend { margin: 0 0 14px; color: #7f9287; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .skill-codex-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; min-height: 0; overflow-y: auto; padding-right: 6px; }
-.skill-category h3 { margin: 0 0 9px; color: #a9b39a; font: 500 10px "KoPubWorld Dotum"; letter-spacing: .1em; text-transform: uppercase; }
+.skill-category h3 { margin: 0 0 9px; color: #a9b39a; font: 500 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .1em; text-transform: uppercase; }
 .skill-entry { padding: 8px 0; border-bottom: 1px solid #76836e1c; }
 .skill-entry-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .skill-entry-head span { color: #a6b0a8; font-size: 11px; }
-.skill-entry-head strong { color: #d3c37f; font: 400 10px "KoPubWorld Dotum"; }
-.skill-mvp { margin-left: 6px; padding: 1px 4px; color: #0b1512; background: #7f8c69; font: 400 7px "KoPubWorld Dotum"; letter-spacing: .08em; }
+.skill-entry-head strong { color: #d3c37f; font: 400 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.skill-mvp { margin-left: 6px; padding: 1px 4px; color: #0b1512; background: #7f8c69; font: 400 7px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .08em; }
 .skill-entry .meter { margin: 5px 0 4px; }
 .skill-entry-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.skill-entry-foot small { color: #6f7d72; font: 400 8px "KoPubWorld Dotum"; }
+.skill-entry-foot small { color: #6f7d72; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .skill-lock-group { display: flex; gap: 3px; }
 .skill-lock-group button { width: 20px; height: 18px; color: #7f8c69; border: 1px solid #76836e33; background: #0c1713; font-size: 9px; line-height: 1; cursor: pointer; }
 .skill-lock-group button.is-active { color: #0b1512; border-color: #d3c37f; background: #d3c37f; }
-.action-outcome { display: block; margin-top: 5px; font: 400 9px "KoPubWorld Dotum"; font-style: normal; letter-spacing: .08em; }
+.action-outcome { display: block; margin-top: 5px; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; font-style: normal; letter-spacing: .08em; }
 .action-outcome--success { color: #8fb07f; } .action-outcome--failure { color: #c98a6a; }
 .action-outcome b { margin-left: 7px; color: #d3c37f; }
 .journal-copy { color: #7f9287; font-size: 11px; line-height: 1.7; }
 .objective { display: flex; gap: 11px; padding: 13px 0; border-bottom: 1px solid #76836e1c; }
-.objective > span { color: #7f8c69; font: 400 9px "KoPubWorld Dotum"; }
+.objective > span { color: #7f8c69; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .objective p { margin: 0; color: #a6b0a8; font-size: 10px; line-height: 1.5; }
-.objective strong { display: block; margin-top: 4px; color: #7a897e; font: 400 8px "KoPubWorld Dotum"; }
+.objective strong { display: block; margin-top: 4px; color: #7a897e; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .note { color: #758a7c; font: italic 10px/1.7 Georgia, serif; }
 .command-deck { min-height: 86px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-top: 1px solid #8a9b7330; }
 .chat-preview { display: flex; gap: 11px; align-items: center; min-width: 0; }
-.chat-preview span { color: #9caa70; font: 400 9px "KoPubWorld Dotum"; } .chat-preview p { overflow: hidden; margin: 0; color: #77877e; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
+.chat-preview span { color: #9caa70; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; } .chat-preview p { overflow: hidden; margin: 0; color: #77877e; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
 .quickbar { display: flex; gap: 6px; transform: translateY(-2px); }
 .quickbar button { position: relative; width: 60px; height: 62px; padding: 0; color: #c7c6b2; border: 1px solid #7f927347; background: linear-gradient(145deg, #16251e, #0b1411); cursor: pointer; }
 .quickbar button:hover { border-color: #c1b66e; background: #1b3025; }
-.quickbar kbd { position: absolute; left: 4px; top: 3px; color: #718178; font: 400 8px "KoPubWorld Dotum"; }
+.quickbar kbd { position: absolute; left: 4px; top: 3px; color: #718178; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .quickbar svg { display: block; width: 25px; height: 25px; margin: 0 auto; overflow: visible; fill: #b8aa67; stroke: #e0d28a; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 3px #0009); }
-.quickbar small { display: block; margin-top: 2px; color: #66776d; font: 400 7px "KoPubWorld Dotum"; text-transform: uppercase; }
-.build-mark { justify-self: end; text-align: right; } .build-mark span, .build-mark small { display: block; } .build-mark span { color: #9a9e6b; font: 400 9px "KoPubWorld Dotum"; } .build-mark small { margin-top: 4px; color: #53645b; font: 400 7px "KoPubWorld Dotum"; letter-spacing: .12em; }
+.quickbar small { display: block; margin-top: 2px; color: #66776d; font: 400 7px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; text-transform: uppercase; }
+.build-mark { justify-self: end; text-align: right; } .build-mark span, .build-mark small { display: block; } .build-mark span { color: #9a9e6b; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; } .build-mark small { margin-top: 4px; color: #53645b; font: 400 7px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .12em; }
 .auth-shell { position: relative; display: grid; place-items: center; min-height: 100vh; overflow: hidden; padding: 24px; background: radial-gradient(circle at 50% 30%, #1d3a2c 0, #091813 38%, #030807 78%); }
 .auth-atmosphere { position: absolute; inset: 0; pointer-events: none; opacity: .6; background: linear-gradient(115deg, transparent 20%, #52735912 50%, transparent 80%); }
 .auth-atmosphere::before, .auth-atmosphere::after { content: ""; position: absolute; left: 50%; width: 720px; height: 720px; border: 1px solid #9ca97017; border-radius: 50%; transform: translate(-50%, -28%); }
@@ -169,25 +290,25 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .auth-atmosphere i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #d8cf81; box-shadow: 0 0 10px #d8cf81; animation: drift 5s ease-in-out infinite alternate; }
 .auth-atmosphere i:nth-child(1) { left: 17%; top: 32%; } .auth-atmosphere i:nth-child(2) { right: 19%; top: 61%; animation-delay: -2s; } .auth-atmosphere i:nth-child(3) { left: 29%; bottom: 18%; animation-delay: -3.4s; }
 .auth-card { position: relative; z-index: 1; width: min(390px, 100%); padding: 45px 42px 38px; text-align: center; border: 1px solid #a4b87942; background: linear-gradient(155deg, #10221bd9, #07100edb); box-shadow: 0 30px 90px #000b, inset 0 0 50px #172d202e; }
-.auth-sigil { display: grid; place-items: center; width: 58px; height: 66px; margin: 0 auto 20px; color: #d9c984; font: 600 27px "KoPubWorld Dotum"; border: 1px solid #a4b87966; clip-path: polygon(50% 0, 100% 20%, 86% 86%, 50% 100%, 14% 86%, 0 20%); background: linear-gradient(150deg, #263c2e, #0c1814); }
+.auth-sigil { display: grid; place-items: center; width: 58px; height: 66px; margin: 0 auto 20px; color: #d9c984; font: 600 27px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; border: 1px solid #a4b87966; clip-path: polygon(50% 0, 100% 20%, 86% 86%, 50% 100%, 14% 86%, 0 20%); background: linear-gradient(150deg, #263c2e, #0c1814); }
 .auth-sigil--loading { animation: pulse 1.4s ease-in-out infinite alternate; }
 .auth-card h1 { margin: 6px 0 13px; font-size: 31px; }
 .auth-intro { margin: 0 auto 28px; color: #7f9488; font: italic 12px/1.6 Georgia, serif; }
 .auth-form { display: grid; gap: 15px; text-align: left; }
-.auth-form label { color: #91a096; font: 400 9px "KoPubWorld Dotum"; letter-spacing: .08em; text-transform: uppercase; }
-.auth-form input { width: 100%; height: 43px; margin-top: 7px; padding: 0 12px; color: #e1dfce; outline: none; border: 1px solid #758a7045; background: #07100e; font: 400 12px "KoPubWorld Dotum"; }
+.auth-form label { color: #91a096; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .08em; text-transform: uppercase; }
+.auth-form input { width: 100%; height: 43px; margin-top: 7px; padding: 0 12px; color: #e1dfce; outline: none; border: 1px solid #758a7045; background: #07100e; font: 400 12px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .auth-form input:focus { border-color: #b2aa6f; box-shadow: 0 0 0 2px #b2aa6f16; }
 .auth-primary, .auth-google { width: 100%; height: 45px; border: 1px solid #adab6f63; cursor: pointer; }
-.auth-primary { margin-top: 4px; color: #101710; background: linear-gradient(100deg, #a89b5c, #d2c77f, #a89b5c); font: 600 11px "KoPubWorld Dotum"; letter-spacing: .08em; }
-.auth-google { color: #b8c1ba; background: #101c18; font: 400 10px "KoPubWorld Dotum"; }
-.auth-google b { margin-right: 8px; color: #d8cf81; font: 600 14px "KoPubWorld Dotum"; }
+.auth-primary { margin-top: 4px; color: #101710; background: linear-gradient(100deg, #a89b5c, #d2c77f, #a89b5c); font: 600 11px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .08em; }
+.auth-google { color: #b8c1ba; background: #101c18; font: 400 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.auth-google b { margin-right: 8px; color: #d8cf81; font: 600 14px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .auth-primary:disabled, .auth-google:disabled { opacity: .5; cursor: wait; }
 .auth-error { margin: -3px 0 0; color: #d68c78; font-size: 10px; line-height: 1.5; }
-.auth-divider { display: flex; align-items: center; gap: 9px; margin: 18px 0; color: #53665b; font: 400 8px "KoPubWorld Dotum"; }
+.auth-divider { display: flex; align-items: center; gap: 9px; margin: 18px 0; color: #53665b; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: #77877126; }
 .auth-mode { margin-top: 18px; padding: 0; color: #81958a; border: 0; background: none; font-size: 9px; cursor: pointer; }
 .auth-mode:hover { color: #c4bb78; }
-.auth-footnote { position: absolute; bottom: 20px; color: #506159; font: 400 8px "KoPubWorld Dotum"; letter-spacing: .18em; }
+.auth-footnote { position: absolute; bottom: 20px; color: #506159; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .18em; }
 .character-shell { display: grid; place-items: center; min-height: 100dvh; padding: 28px; background: radial-gradient(circle at 50% 18%, #234233 0, #0a1814 42%, #030807 100%); }
 .character-select-card { width: min(820px, 100%); min-height: 620px; padding: 32px; border: 1px solid #a4b87942; background: linear-gradient(155deg, #10221bf2, #07100ef2); box-shadow: 0 30px 90px #000b, inset 0 0 70px #1731242e; }
 .character-select-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 22px; border-bottom: 1px solid #8a9b7330; }
@@ -200,36 +321,109 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .character-entry:hover { border-color: #c8bb72; background: #183026; transform: translateX(2px); }
 .character-entry img { width: 52px; height: 58px; object-fit: cover; object-position: center 20%; }
 .character-entry span strong, .character-entry span small { display: block; }
-.character-entry span strong { color: #e3ddbf; font: 600 14px "KoPubWorld Dotum"; }
-.character-entry span small { margin-top: 6px; color: #71857a; font: 400 8px "KoPubWorld Dotum"; }
-.character-entry > b { color: #b9ae6d; font: 400 9px "KoPubWorld Dotum"; }
+.character-entry span strong { color: #e3ddbf; font: 600 14px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.character-entry span small { margin-top: 6px; color: #71857a; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.character-entry > b { color: #b9ae6d; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .character-empty { display: grid; place-items: center; margin: 0; min-height: 130px; color: #6e8277; border: 1px dashed #8192722b; font: italic 11px Georgia, serif; }
 .character-create { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; align-items: end; gap: 10px; margin-top: 25px; padding-top: 22px; border-top: 1px solid #8a9b7330; }
-.character-create label { color: #91a096; font: 400 9px "KoPubWorld Dotum"; letter-spacing: .08em; text-transform: uppercase; }
-.character-create input { display: block; width: 100%; height: 43px; margin-top: 7px; padding: 0 12px; color: #e1dfce; outline: none; border: 1px solid #758a7045; background: #07100e; font: 400 12px "KoPubWorld Dotum"; }
-.character-create button { height: 43px; padding: 0 20px; color: #101710; border: 1px solid #adab6f63; background: linear-gradient(100deg, #a89b5c, #d2c77f); font: 600 10px "KoPubWorld Dotum"; cursor: pointer; }
+.character-create label { color: #91a096; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .08em; text-transform: uppercase; }
+.character-create input { display: block; width: 100%; height: 43px; margin-top: 7px; padding: 0 12px; color: #e1dfce; outline: none; border: 1px solid #758a7045; background: #07100e; font: 400 12px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.character-create button { height: 43px; padding: 0 20px; color: #101710; border: 1px solid #adab6f63; background: linear-gradient(100deg, #a89b5c, #d2c77f); font: 600 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; cursor: pointer; }
 .character-create button:disabled { opacity: .45; cursor: wait; }
 .gender-choice { display: flex; min-width: 190px; height: 43px; align-items: center; gap: 14px; margin: 0; padding: 4px 12px; border: 1px solid #758a7045; background: #07100e; }
-.gender-choice legend { padding: 0 5px; color: #91a096; font: 400 8px "KoPubWorld Dotum"; letter-spacing: .08em; text-transform: uppercase; }
+.gender-choice legend { padding: 0 5px; color: #91a096; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; letter-spacing: .08em; text-transform: uppercase; }
 .gender-choice label { display: flex; align-items: center; gap: 6px; color: #e1dfce; cursor: pointer; }
 .gender-choice input { width: 13px; height: 13px; margin: 0; accent-color: #d2c77f; }
-.character-status { margin: 16px 0 0; color: #708278; font: 400 8px "KoPubWorld Dotum"; }
+.character-status { margin: 16px 0 0; color: #708278; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 .admin-shell { min-height: 100dvh; padding: 28px; background: radial-gradient(circle at 50% 10%, #203d30, #07110e 55%, #030706); }
 .admin-card { width: min(1080px, 100%); margin: 0 auto; padding: 30px; border: 1px solid #a4b87942; background: #091510f2; box-shadow: 0 30px 90px #000a; }
 .admin-card > header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid #8a9b7330; }
 .admin-card > header > div:last-child { display: flex; align-items: center; gap: 14px; }
-.admin-exit { padding: 8px 11px; color: #c9c6a4; border: 1px solid #84917350; background: #101e18; font: 400 9px "KoPubWorld Dotum"; cursor: pointer; }
+.admin-exit { padding: 8px 11px; color: #c9c6a4; border: 1px solid #84917350; background: #101e18; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; cursor: pointer; }
 .admin-help { margin: 20px 0; color: #83968a; font-size: 11px; line-height: 1.7; }
 .admin-skill-list { display: grid; gap: 7px; }
 .admin-skill { display: grid; grid-template-columns: minmax(140px, 1fr) 180px 180px 72px; align-items: end; gap: 12px; padding: 12px 14px; border: 1px solid #7f907135; background: #0e1c17; }
 .admin-skill > div strong, .admin-skill > div small { display: block; }
-.admin-skill > div strong { color: #ddd8bc; font: 500 12px "KoPubWorld Dotum"; }.admin-skill > div small { margin-top: 4px; color: #5f7468; font: 400 8px "KoPubWorld Dotum"; }
-.admin-skill label { color: #82958a; font: 400 8px "KoPubWorld Dotum"; }.admin-skill input { display: block; width: 100%; height: 34px; margin-top: 5px; padding: 0 9px; color: #e6e1c7; border: 1px solid #77896f4d; background: #06100d; font: 400 10px "KoPubWorld Dotum"; }
-.admin-skill > button { height: 34px; color: #111811; border: 0; background: #c2b770; font: 600 9px "KoPubWorld Dotum"; cursor: pointer; }
-.admin-message { min-height: 18px; margin: 16px 0 0; color: #aaa66f; font: 400 9px "KoPubWorld Dotum"; }
+.admin-skill > div strong { color: #ddd8bc; font: 500 12px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }.admin-skill > div small { margin-top: 4px; color: #5f7468; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.admin-skill label { color: #82958a; font: 400 8px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }.admin-skill input { display: block; width: 100%; height: 34px; margin-top: 5px; padding: 0 9px; color: #e6e1c7; border: 1px solid #77896f4d; background: #06100d; font: 400 10px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
+.admin-skill > button { height: 34px; color: #111811; border: 0; background: #c2b770; font: 600 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; cursor: pointer; }
+.admin-message { min-height: 18px; margin: 16px 0 0; color: #aaa66f; font: 400 9px "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum"; }
 @keyframes drift { to { transform: translate(18px, -25px); opacity: .25; } } @keyframes pulse { to { filter: brightness(1.5); transform: scale(1.04); } }
 @keyframes bodyAlert { to { opacity: .55; transform: scale(.82); transform-origin: center; } }
 @media (max-width: 1000px) { .game-layout { grid-template-columns: 170px minmax(420px, 1fr); } .journal-panel { display: none; } }
-@media (max-width: 720px) { body { overflow: hidden; } .app-shell { height: 100dvh; min-height: 0; padding: 10px; gap: 9px; } .topbar { min-height: 52px; } h1 { font-size: 20px; } .brand-rune { width: 38px; height: 44px; } .game-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .character-panel { display: grid; grid-template-columns: auto 1fr; gap: 10px; width: 100%; padding: 10px 13px; } .portrait { width: 46px; height: 52px; margin: 0; } .vitals { display: none; } .character-panel .divider, .character-panel .panel-label, .skill-row { display: none; } .world-frame { width: 100%; height: 100%; min-height: 0; } .command-deck { min-height: 66px; grid-template-columns: 1fr; padding-top: 2px; } .chat-preview, .build-mark { display: none; } .quickbar { justify-self: center; } .quickbar button { width: 52px; height: 54px; } .server-pill strong, .signout-button { display: none; } }
+@media (max-width: 900px) {
+  body { overflow: hidden; }
+  .app-shell { height: 100dvh; min-height: 0; padding: 8px 10px; gap: 7px; }
+  .topbar { min-height: 50px; }
+  h1 { font-size: 20px; }
+  .brand-rune { width: 38px; height: 44px; }
+  .game-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 7px; }
+  .character-panel { display: grid; grid-template-columns: minmax(128px, .72fr) minmax(170px, 1.28fr); grid-template-rows: auto auto; align-items: start; gap: 7px 12px; width: 100%; padding: 8px 12px; }
+  .character-identity { grid-column: 1; grid-row: 1; align-self: center; }
+  .vitals { display: none; }
+  .character-panel .divider, .character-panel > .panel-label, .skill-row { display: none; }
+  .body-condition { grid-column: 2; grid-row: 1 / 3; align-self: center; margin: 0; min-height: 0; }
+  .body-condition-figure { width: 100%; height: 104px; }
+  .body-condition > div:last-child { display: none; }
+  .body-condition strong { font-size: 8px; }
+  .body-condition small { font-size: 7px; }
+  .panel-inventory-button { grid-column: 1; grid-row: 2; align-self: start; height: 29px; margin: 0; }
+  .character-panel > .inventory-row { display: none; }
+  .world-frame { width: 100%; height: 100%; min-height: 0; }
+  .mini-map { left: 10px; top: 10px; width: 86px; height: 86px; }
+  .shore-fishing-action { left: 14px; top: 106px; }
+  .world-caption { left: 13px; top: 104px; }
+  .world-hint { display: none; }
+  .inventory-toggle { right: 10px; top: 10px; }
+  .world-map-overlay, .inventory-overlay, .crafting-overlay { inset: 8px; padding: 13px; }
+  .inventory-overlay header, .crafting-overlay header { margin-bottom: 9px; }
+  .crafting-content { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 9px; }
+  .recipe-tabs { display: flex; overflow-x: auto; padding: 0 0 7px; border-right: 0; border-bottom: 1px solid #76836e2b; }
+  .recipe-tabs button { flex: 0 0 auto; width: auto; min-width: 96px; padding: 8px 10px; }
+  .command-deck { min-height: 62px; grid-template-columns: 1fr; padding-top: 0; }
+  .chat-preview, .build-mark { display: none; }
+  .quickbar { justify-self: center; gap: 4px; }
+  .quickbar button { width: 51px; height: 52px; }
+  .server-pill strong, .signout-button { display: none; }
+  .body-condition-modal { padding: 10px; }
+  .body-condition-dialog { width: 80vw; height: 80vh; padding: 16px; }
+  .body-condition-dialog > header h2 { font-size: 23px; }
+  .body-condition-dialog-content { grid-template-columns: 1fr; gap: 14px; min-height: 0; padding-top: 14px; }
+  .body-condition-dialog-content .body-condition-figure { height: auto; aspect-ratio: 180 / 116; }
+  .body-condition-dialog .body-callout text { font-size: 8.5px; }
+  .body-condition-dialog-summary { padding: 14px; border-left: 0; border-top: 1px solid #83917138; }
+  .body-condition-part-list { grid-template-columns: 1fr; }
+  .body-condition-part { padding: 12px; }
+  .body-condition-part > header strong { font-size: 13px; }
+  .body-condition-part > header em { font-size: 10px; }
+  .body-condition-dialog-summary p { font-size: 11px; }
+  .atlas-zone-index { display: none; }
+  .atlas-scale { font-size: 6px; letter-spacing: .08em; }
+}
 @media (max-width: 600px) { .character-shell { padding: 10px; } .character-select-card { min-height: 0; padding: 20px 16px; } .character-select-title { margin-top: 22px; } .character-entry { grid-template-columns: 48px 1fr; } .character-entry img { width: 44px; height: 50px; } .character-entry > b { display: none; } .character-create { grid-template-columns: 1fr; } }
+@media (max-height: 500px) and (orientation: landscape) {
+  body { overflow: hidden; }
+  .app-shell { height: 100dvh; min-height: 0; padding: 5px 8px; gap: 4px; grid-template-rows: 43px minmax(0, 1fr) 46px; }
+  .topbar { min-height: 43px; }
+  .brand-lockup { gap: 8px; }
+  .brand-rune { width: 32px; height: 36px; font-size: 18px; }
+  .brand-lockup .eyebrow { display: none; }
+  h1 { margin: 0; font-size: 18px; }
+  .server-pill { padding: 6px 8px; }
+  .server-pill strong, .signout-button { display: none; }
+  .game-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0; }
+  .character-panel, .journal-panel { display: none; }
+  .world-frame { width: 100%; height: 100%; min-height: 0; }
+  .mini-map { left: 8px; top: 8px; width: 72px; height: 72px; }
+  .world-caption { left: 88px; top: 9px; }
+  .world-hint { display: none; }
+  .inventory-toggle { right: 8px; top: 8px; }
+  .world-map-overlay, .inventory-overlay, .crafting-overlay { inset: 6px; padding: 10px; }
+  .command-deck { min-height: 46px; grid-template-columns: 1fr; padding: 0; }
+  .chat-preview, .build-mark { display: none; }
+  .quickbar { justify-self: center; gap: 4px; transform: none; }
+  .quickbar button { width: 48px; height: 42px; }
+  .quickbar svg { width: 20px; height: 20px; }
+  .quickbar small { display: none; }
+}
 @media (max-width: 760px) { .admin-shell { padding: 8px; }.admin-card { padding: 18px 12px; }.admin-skill { grid-template-columns: 1fr 1fr; }.admin-skill > div { grid-column: 1 / -1; }.admin-card > header { align-items: flex-start; }.admin-card > header h1 { font-size: 16px; } }

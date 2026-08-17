@@ -11,13 +11,13 @@ import type { CharacterSummary, SkillLock } from "@eldoria/game-protocol";
 const MAX_CHARACTERS_PER_ACCOUNT = 1;
 import { AdminSkillSettings } from "./admin/AdminSkillSettings";
 import { itemDisplayName } from "./game/itemNames";
+import { getAssetPath } from "./game/assetRegistry";
 
 const quickSlots: TranslationKey[] = ["fists", "crafting", "fire", "map", "skills", "inventory"];
-const foodNames = new Map(foodCatalog.map((food) => [food.id, food.name]));
+const foodsById = new Map(foodCatalog.map((food) => [food.id, food]));
 const skillLocks: SkillLock[] = ["up", "down", "locked"];
 const lockLabels: Record<SkillLock, TranslationKey> = { up: "lockRaise", down: "lockLower", locked: "lockHold" };
 const lockGlyphs: Record<SkillLock, string> = { up: "↑", down: "↓", locked: "🔒" };
-const zoneTranslationKeys: Record<string, TranslationKey> = { untamedWilds: "untamedWilds", animalDen: "animalDen", mossward: "mossward", greythorn: "greythorn", amberfen: "amberfen", hollowVault: "hollowVault" };
 type PlayerPosition = { zoneId: string; x: number; y: number };
 type MapPoint = { x: number; y: number };
 
@@ -25,50 +25,84 @@ type MapPoint = { x: number; y: number };
 // from its width rather than written down: the same ratio that keeps the terrain art undistorted.
 const ZONE_WIDTH = 1672;
 const ZONE_HEIGHT = 941;
-/**
- * The sheet is the whole frontier, not just the part that exists yet. Five zones are built; they sit
- * in the middle of a 16,384 square world, which is why the walked ground reads as the small corner it
- * actually is. Everything is expressed as a percentage of that square.
- */
-const WORLD_EXTENT = 16_384;
-type ZoneBounds = { left: number; top: number; width: number; height: number };
-let atlasLayoutCache: { bounds: Record<string, ZoneBounds>; sightRx: number; sightRy: number } | null = null;
+type ZoneBounds = { left: number; top: number; width: number; height: number; polygon: string };
+const SURFACE_ZONES = worldDefinition.zones.filter((zone) => zone.id !== "animalDen");
+const ATLAS_COLUMNS = 10;
+const TERRAIN_COLUMN_TONES = ["#f3eadb", "#eee9dc", "#e8ebdd", "#e2ecdd", "#ddebdc", "#dae8d8", "#dce4d2", "#e1dfcf", "#e7dbcb", "#ecd6c6"] as const;
+const ATLAS_BOUNDS: Record<string, ZoneBounds> = Object.fromEntries(SURFACE_ZONES.map((zone, index) => {
+  const column = index % ATLAS_COLUMNS;
+  const row = Math.floor(index / ATLAS_COLUMNS);
+  const left = column * 10;
+  const top = row * 10;
+  return [zone.id, { left, top, width: 10, height: 10, polygon: `polygon(${left}% ${top}%, ${left + 10}% ${top}%, ${left + 10}% ${top + 10}%, ${left}% ${top + 10}%)` }];
+}));
 
-function atlasLayout() {
-  if (atlasLayoutCache) return atlasLayoutCache;
-  const order = orderZonesWestToEast();
-  const width = (ZONE_WIDTH / WORLD_EXTENT) * 100;
-  const height = (ZONE_HEIGHT / WORLD_EXTENT) * 100;
-  const left = (100 - width * order.length) / 2;
-  const top = (100 - height) / 2;
-  atlasLayoutCache = {
-    bounds: Object.fromEntries(order.map((zoneId, index) => [zoneId, { left: left + index * width, top, width, height }])),
-    sightRx: (SIGHT_RADIUS / ZONE_WIDTH) * width,
-    sightRy: (SIGHT_RADIUS / ZONE_HEIGHT) * height,
-  };
-  return atlasLayoutCache;
+const CIVILIZATION_ERAS = [
+  { threshold: 0, en: "Primordial Age", ko: "태초 시대" },
+  { threshold: 40, en: "Old Stone Age", ko: "구석기 시대" },
+  { threshold: 120, en: "New Stone Age", ko: "신석기 시대" },
+  { threshold: 260, en: "Bronze Age", ko: "청동기 시대" },
+  { threshold: 480, en: "Iron Age", ko: "철기 시대" },
+  { threshold: 720, en: "Settled Civilization", ko: "정착 문명" },
+] as const;
+
+function civilizationProgress(skills: CharacterSummary["survival"]["skills"]) {
+  const total = Object.values(skills ?? {}).reduce((sum, skill) => sum + skill.value, 0);
+  let index = 0;
+  for (let candidate = 0; candidate < CIVILIZATION_ERAS.length; candidate += 1) if (total >= CIVILIZATION_ERAS[candidate]!.threshold) index = candidate;
+  const current = CIVILIZATION_ERAS[index]!;
+  const next = CIVILIZATION_ERAS[index + 1];
+  const progress = next ? Math.max(0, Math.min(100, ((total - current.threshold) / (next.threshold - current.threshold)) * 100)) : 100;
+  return { current, next, progress };
 }
 
-/** Walks the world's own exits so the atlas cannot drift out of step with where the zones actually connect. */
-function orderZonesWestToEast(): string[] {
-  const surface = worldDefinition.zones.filter((zone) => zone.exits.length > 0);
-  let head = surface.find((zone) => !zone.exits.some((exit) => exit.edge === "west")) ?? surface[0];
-  const ordered: string[] = [];
-  while (head && !ordered.includes(head.id)) {
-    ordered.push(head.id);
-    const east = head.exits.find((exit) => exit.edge === "east");
-    head = east ? surface.find((zone) => zone.id === east.toZoneId) : undefined;
-  }
-  return ordered;
+function atlasLayout() {
+  return { bounds: ATLAS_BOUNDS };
+}
+
+/** The scene multiplies the same ten colour tones over its terrain art. Reusing the indexed tone in
+ * the atlas makes every overview cell a miniature of the region the player actually enters. */
+function atlasTerrain(zoneId: string) {
+  const index = SURFACE_ZONES.findIndex((zone) => zone.id === zoneId);
+  const zone = getZoneDefinition(zoneId);
+  return {
+    image: zone ? getAssetPath(zone.layers.terrain.assetId) : zoneMapImages.untamedWilds,
+    tone: TERRAIN_COLUMN_TONES[Math.max(0, index) % ATLAS_COLUMNS]!,
+  };
 }
 
 const zoneMapImages: Record<string, string> = {
   untamedWilds: "/assets/world/untamed-wilds.png",
+  animalDen: "/assets/world/animal-den.png",
   mossward: "/assets/world/mossward-crossing.png",
   greythorn: "/assets/world/greythorn-wood.png",
   amberfen: "/assets/world/amberfen-wilds.png",
   hollowVault: "/assets/world/hollow-vault.png",
+  sunscar: "/assets/world/sunscar-desert.png",
+  emeraldJungle: "/assets/world/emerald-jungle.png",
 };
+
+function MiniMap({ position, language, onOpen }: { position: PlayerPosition; language: "en" | "ko"; onOpen: () => void }) {
+  const zone = getZoneDefinition(position.zoneId);
+  const image = zone ? getAssetPath(zone.layers.terrain.assetId) : zoneMapImages.untamedWilds;
+  const left = `${Math.max(0, Math.min(100, position.x / ZONE_WIDTH * 100))}%`;
+  const top = `${Math.max(0, Math.min(100, position.y / ZONE_HEIGHT * 100))}%`;
+  const markers = (zone?.layers.objects ?? []).filter((object) => object.type.startsWith("wildlifeSpawn") || ["wildTree", "wildFruitTree", "fishingWater"].includes(object.type));
+  return (
+    <button type="button" className="mini-map" onClick={onOpen} aria-label={language === "ko" ? "미니맵 열기" : "Open minimap"}>
+      <img src={image} alt="" />
+      <span className="mini-map-north">N</span>
+      {markers.map((object) => (
+        <i
+          key={object.id}
+          className={`mini-map-object ${object.type.startsWith("wildlifeSpawn") ? "mini-map-object--wildlife" : object.type === "fishingWater" ? "mini-map-object--water" : "mini-map-object--resource"}`}
+          style={{ left: `${object.x / ZONE_WIDTH * 100}%`, top: `${object.y / ZONE_HEIGHT * 100}%` }}
+        />
+      ))}
+      <span className="mini-map-player" style={{ left, top }}><b /></span>
+    </button>
+  );
+}
 
 // How far the wanderer can take in the ground around them, in zone pixels. The atlas viewBox is
 // 100x100 stretched over a 5:3 plane, so this circle on the ground becomes an ellipse on the sheet.
@@ -137,17 +171,76 @@ function GameSession({ user, isAdmin, onSignOut }: { user: User; isAdmin: boolea
   return <CharacterScreen connection={connection} isAdmin={isAdmin} onSignOut={onSignOut} />;
 }
 
+function localizedSystemMessage(message: string, language: "en" | "ko") {
+  if (language === "en") return message;
+  const exact: Record<string, string> = {
+    "Opening a path to the realm…": "세계로 연결하고 있습니다…",
+    "Character records loaded.": "저장된 캐릭터 정보를 불러왔습니다.",
+    "You regain consciousness in the meadow.": "초원에서 정신을 차렸습니다.",
+    "Item equipped.": "도구를 오른손에 장착했습니다.",
+    "Item unequipped.": "도구 장착을 해제했습니다.",
+  };
+  if (exact[message]) return exact[message];
+  const speciesNames: Record<string, string> = { Rabbit: "토끼", Deer: "사슴", Boar: "멧돼지", Wolf: "늑대", Fox: "여우", Bear: "불곰", Bison: "들소", Goat: "산양", Turkey: "칠면조", Turtle: "거북이", Hare: "산토끼" };
+  const entering = message.match(/^Entering the realm as (.+)\.$/);
+  if (entering) return `${entering[1]} 캐릭터로 세계에 입장했습니다.`;
+  const ready = message.match(/^(.+) is ready\.$/);
+  if (ready) return `${ready[1]} 캐릭터가 준비되었습니다.`;
+  const defeated = message.match(/^(.+) defeated\.$/);
+  if (defeated) return `${speciesNames[defeated[1]!] ?? defeated[1]}을(를) 처치했습니다.`;
+  const counter = message.match(/^(.+) strikes back for (\d+)\.$/);
+  if (counter) return `${speciesNames[counter[1]!] ?? counter[1]}의 반격으로 피해 ${counter[2]}을 받았습니다.`;
+  const first = message.match(/^(.+) attacks first for (\d+)\.$/);
+  if (first) return `${speciesNames[first[1]!] ?? first[1]}의 선공으로 피해 ${first[2]}을 받았습니다.`;
+  return message;
+}
+
 function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection: GameConnection; character: CharacterSummary; isAdmin: boolean; onSignOut: () => Promise<void> }) {
   const { t, language } = useLanguage();
   const bodyConditions = evaluateBodyConditions(character.survival.nutrition);
-  const [zoneId, setZoneId] = useState("untamedWilds");
-  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ zoneId: "untamedWilds", x: 836, y: 470 });
-  const [exploredTrail, setExploredTrail] = useState<PlayerPosition[]>(loadExploredTrail);
+  const [zoneId, setZoneId] = useState(character.position.zoneId);
+  const [playerPosition, setPlayerPosition] = useState<PlayerPosition>(character.position);
+  const [, setExploredTrail] = useState<PlayerPosition[]>(loadExploredTrail);
   const [mapOpen, setMapOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [craftingOpen, setCraftingOpen] = useState(false);
+  const [bodyStatusOpen, setBodyStatusOpen] = useState(false);
+  const shelterStorageKey = `eldoria.shelter-state.${character.id}`;
+  const [insideShelter, setInsideShelter] = useState<string | null>(() => {
+    try { return (JSON.parse(localStorage.getItem(shelterStorageKey) ?? "null") as { structureId?: string } | null)?.structureId ?? null; } catch { return null; }
+  });
+  const [sleepingInShelter, setSleepingInShelter] = useState(() => {
+    try { return Boolean((JSON.parse(localStorage.getItem(shelterStorageKey) ?? "null") as { sleeping?: boolean } | null)?.sleeping); } catch { return false; }
+  });
+  const [systemMessages, setSystemMessages] = useState<string[]>(() => [localizedSystemMessage(connection.message, language)]);
   const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["untamedWilds"]') as string[]));
+  const equippedItem = character.survival.equipment?.mainHand ?? character.survival.equipped ?? null;
+  const bowEquipped = Boolean(equippedItem?.endsWith("-bow"));
+  const arrowCount = character.survival.inventory?.find((stack) => stack.itemId === "ammunition.arrow")?.quantity ?? 0;
+  const sidebarSkills = [...defaultSkillProgression]
+    .sort((left, right) => (character.survival.skills?.[right.id]?.value ?? 0) - (character.survival.skills?.[left.id]?.value ?? 0) || Number(right.mvp) - Number(left.mvp))
+    .slice(0, 8);
+  const era = civilizationProgress(character.survival.skills);
+  useEffect(() => {
+    const enterShelter = (event: Event) => {
+      const structureId = (event as CustomEvent<string>).detail;
+      localStorage.setItem(shelterStorageKey, JSON.stringify({ structureId, sleeping: false }));
+      setSleepingInShelter(false);
+      setInsideShelter(structureId);
+    };
+    window.addEventListener("eldoria:structure-enter", enterShelter);
+    return () => window.removeEventListener("eldoria:structure-enter", enterShelter);
+  }, [shelterStorageKey]);
+  useEffect(() => {
+    if (!insideShelter) localStorage.removeItem(shelterStorageKey);
+    else localStorage.setItem(shelterStorageKey, JSON.stringify({ structureId: insideShelter, sleeping: sleepingInShelter }));
+  }, [insideShelter, shelterStorageKey, sleepingInShelter]);
+  useEffect(() => {
+    if (!connection.message) return;
+    const localized = localizedSystemMessage(connection.message, language);
+    setSystemMessages((current) => current.at(-1) === localized ? current : [...current.slice(-7), localized]);
+  }, [connection.message, language]);
   useEffect(() => {
     const handlePanels = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
@@ -160,6 +253,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
         setCraftingOpen(false);
         setSkillsOpen(false);
         setMapOpen(false);
+        setBodyStatusOpen(false);
       }
     };
     window.addEventListener("keydown", handlePanels);
@@ -198,7 +292,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
       window.removeEventListener("eldoria:player-state", handlePosition);
     };
   }, []);
-  const zoneKey = zoneTranslationKeys[zoneId] ?? "mossward";
+  const zoneName = getZoneDefinition(zoneId)?.name[language] ?? zoneId;
 
   return (
     <main className="app-shell">
@@ -222,11 +316,13 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
 
       <section className="game-layout">
         <aside className="character-panel panel">
-          <div className="portrait"><img src={character.gender === "female" ? "/assets/characters/female-wanderer-portrait.png" : "/assets/characters/wanderer-portrait.png"} alt="" /></div>
-          <div>
+          <div className="character-identity">
             <p className="eyebrow">{t("wanderer")}</p>
             <h2>{character.name}</h2>
-            <p className="location">{t(zoneKey)}</p>
+            <p className="location">{zoneName}</p>
+            <div className="era-progress" title={era.next ? `${era.next[language]} ${Math.round(era.progress)}%` : era.current[language]}>
+              <span>{language === "ko" ? "문명 단계" : "ERA"}</span><strong>{era.current[language]}</strong><i><b style={{ width: `${era.progress}%` }} /></i>
+            </div>
           </div>
           <div className="vitals" aria-label="Character vitals">
             <Vital label={t("health")} value={Math.round(((character.survival.health?.current ?? 100) / (character.survival.health?.maximum ?? 100)) * 100)} tone="health" />
@@ -235,42 +331,82 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           </div>
           <div className="divider" />
           <p className="panel-label">{t("bodyCondition")}</p>
-          <div className={`body-condition ${bodyConditions.length === 0 ? "body-condition--healthy" : "body-condition--warning"}`}>
-            <BodyConditionFigure conditions={bodyConditions} />
+          <button type="button" className={`body-condition ${bodyConditions.length === 0 ? "body-condition--healthy" : "body-condition--warning"}`} onClick={() => setBodyStatusOpen(true)} aria-haspopup="dialog">
+            <BodyConditionFigure conditions={bodyConditions} gender={character.gender} language={language} />
             <div>
               {bodyConditions.length === 0 && <><strong>{t("wholeBodyHealthy")}</strong><small>{t("nutritionBalanced")}</small></>}
               {bodyConditions.slice(0, 3).map((condition) => <span key={condition.id}><strong>{condition.name[language]}</strong><small>{condition.effect[language]}</small></span>)}
             </div>
-          </div>
+            <span className="body-condition-open-hint">{language === "ko" ? "눌러서 크게 보기" : "Open detailed view"}</span>
+          </button>
           <div className="divider" />
           <p className="panel-label">{t("activeSkills")}</p>
-          <Skill name={t("fishing")} value={(character.survival.skills?.fishing?.value ?? 0).toFixed(3)} />
-          <Skill name={t("foraging")} value={(character.survival.skills?.foraging?.value ?? 0).toFixed(3)} />
-          <Skill name={t("materialProcessing")} value={(character.survival.skills?.materialProcessing?.value ?? 0).toFixed(3)} />
-          <div className="divider" />
-          <button type="button" className="panel-inventory-button" onClick={() => setInventoryOpen(true)}>
-            <span>{t("inventory")}</span><kbd>I</kbd>
-          </button>
-          {(character.survival.inventory ?? []).slice(0, 5).map((item) => <div className="inventory-row" key={item.itemId}><span>{itemDisplayName(item.itemId, language)}</span><strong>× {item.quantity}</strong></div>)}
+          {sidebarSkills.map((skill) => <Skill key={skill.id} name={skill.name[language]} value={(character.survival.skills?.[skill.id]?.value ?? 0).toFixed(3)} />)}
         </aside>
 
         <section className="world-frame" aria-label={t("worldAria")}>
-          <GameCanvas gender={character.gender} language={language} equipped={character.survival.equipment?.mainHand ?? character.survival.equipped ?? null} equipment={character.survival.equipment ?? {}} />
+          <GameCanvas gender={character.gender} language={language} position={character.position} equipped={equippedItem} equipment={character.survival.equipment ?? {}} arrowCount={arrowCount} structures={character.survival.structures ?? []} />
+          <MiniMap position={playerPosition} language={language} onOpen={() => setMapOpen(true)} />
+          {bowEquipped && <div className={`arrow-counter ${arrowCount === 0 ? "is-empty" : ""}`}><span aria-hidden="true">➶</span><strong>{language === "ko" ? "화살" : "Arrows"}</strong><b>{arrowCount}</b></div>}
           <button type="button" className="inventory-toggle" onClick={() => setInventoryOpen(true)} aria-label={t("inventory")}>
             <QuickSlotIcon slot="inventory" /><span>{t("inventory")}</span><kbd>I</kbd>
           </button>
           <div className="world-caption">
             <span className="compass">✦</span>
             <div>
-              <strong>{t(zoneKey)}</strong>
-              <small>{t(zoneId === "mossward" ? "safeSettlement" : "wildZone")}</small>
+              <strong>{zoneName}</strong>
+              <small>{getZoneDefinition(zoneId)?.ecology.biome.replaceAll("-", " ") ?? t("wildZone")}</small>
             </div>
           </div>
           <div className="world-hint">{t("clickMove")} · {t("wheelZoom")} · {t("roadHint")}</div>
-          {mapOpen && <WorldMapOverlay position={playerPosition} exploredTrail={exploredTrail} onClose={() => setMapOpen(false)} />}
+          {mapOpen && <WorldMapOverlay position={playerPosition} visitedZones={visitedZones} onTravel={(destinationZoneId) => {
+            const destination = getZoneDefinition(destinationZoneId);
+            if (!destination || destination.id === playerPosition.zoneId) return;
+            const spawn = destination.layers.spawn.find((candidate) => candidate.id === "arrival")
+              ?? destination.layers.spawn.find((candidate) => candidate.id === "west-road")
+              ?? destination.layers.spawn[0];
+            if (!spawn) return;
+            const nextPosition = { zoneId: destination.id, x: spawn.x, y: spawn.y };
+            setSleepingInShelter(false);
+            setInsideShelter(null);
+            window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: destination.id }));
+            window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: nextPosition }));
+            setMapOpen(false);
+          }} onClose={() => setMapOpen(false)} />}
+          {bodyStatusOpen && <div className="body-condition-modal" role="presentation" onMouseDown={() => setBodyStatusOpen(false)}>
+            <section className={`body-condition-dialog ${bodyConditions.length === 0 ? "body-condition--healthy" : "body-condition--warning"}`} role="dialog" aria-modal="true" aria-label={language === "ko" ? "신체 상태 상세" : "Detailed body condition"} onMouseDown={(event) => event.stopPropagation()}>
+              <header><div><p className="eyebrow">{language === "ko" ? "부위별 상태" : "ANATOMICAL STATUS"}</p><h2>{t("bodyCondition")}</h2></div><button type="button" onClick={() => setBodyStatusOpen(false)} aria-label={language === "ko" ? "신체 상태 닫기" : "Close body status"}>×</button></header>
+              <div className="body-condition-dialog-content">
+                <BodyConditionFigure conditions={bodyConditions} gender={character.gender} language={language} />
+                <BodyConditionDetails conditions={bodyConditions} language={language} healthyTitle={t("wholeBodyHealthy")} healthySummary={t("nutritionBalanced")} />
+              </div>
+            </section>
+          </div>}
           {skillsOpen && <SkillCodexOverlay character={character} onSetLock={connection.setSkillLock} onClose={() => setSkillsOpen(false)} />}
           {inventoryOpen && <InventoryOverlay character={character} onEat={connection.eatItem} onEquip={connection.equipItem} onClose={() => setInventoryOpen(false)} />}
           {craftingOpen && <CraftingOverlay character={character} lastCraft={connection.lastCraft} onCraft={connection.craft} onClose={() => setCraftingOpen(false)} />}
+          {insideShelter && <section className="shelter-interior" aria-label={language === "ko" ? "통나무 집 내부" : "Log shelter interior"}>
+            <div className="shelter-scene">
+              <div className="shelter-fire" aria-hidden="true"><span /></div>
+              {sleepingInShelter && <div className={`shelter-sleeper shelter-sleeper--${character.gender}`} role="img" aria-label={language === "ko" ? `${character.name}이(가) 침대에서 자는 모습` : `${character.name} sleeping in bed`} />}
+            </div>
+            <div className="shelter-interior-copy"><span>{language === "ko" ? "통나무 집 내부" : "Inside the log shelter"}</span><strong>{language === "ko" ? "바람을 피할 수 있는 안전한 공간" : "A safe place out of the wind"}</strong></div>
+            <div className="shelter-actions">
+              <button type="button" aria-pressed={sleepingInShelter} onClick={() => {
+                const nextSleeping = !sleepingInShelter;
+                localStorage.setItem(shelterStorageKey, JSON.stringify({ structureId: insideShelter, sleeping: nextSleeping }));
+                setSleepingInShelter(nextSleeping);
+                if (nextSleeping) window.dispatchEvent(new CustomEvent("eldoria:sleep"));
+              }}>{sleepingInShelter ? (language === "ko" ? "일어나기" : "Wake up") : (language === "ko" ? "잠자기" : "Sleep")}</button>
+              <button type="button" onClick={() => { window.dispatchEvent(new CustomEvent("eldoria:structure-move", { detail: insideShelter })); localStorage.removeItem(shelterStorageKey); setSleepingInShelter(false); setInsideShelter(null); }}>{language === "ko" ? "집 옮기기" : "Move house"}</button>
+              <button type="button" onClick={() => {
+                window.dispatchEvent(new CustomEvent("eldoria:structure-exit", { detail: insideShelter }));
+                localStorage.removeItem(shelterStorageKey);
+                setSleepingInShelter(false);
+                setInsideShelter(null);
+              }}>{language === "ko" ? "밖으로 나가기" : "Exit"}</button>
+            </div>
+          </section>}
         </section>
 
         <aside className="journal-panel panel">
@@ -282,13 +418,20 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           <div className="divider" />
           <p className="panel-label">{t("worldNotes")}</p>
           <p className="note">{t("wolvesNote")}</p>
+          <div className="divider" />
+          <section className="system-chat" aria-label={language === "ko" ? "시스템 채팅" : "System chat"}>
+            <p className="panel-label">{language === "ko" ? "시스템 채팅" : "SYSTEM CHAT"}</p>
+            <div className="system-chat-log">
+              {systemMessages.map((message, index) => <p key={`${index}-${message}`}><span>[{language === "ko" ? "시스템" : "SYSTEM"}]</span>{message}</p>)}
+            </div>
+          </section>
         </aside>
       </section>
 
       <footer className="command-deck">
         <div className="chat-preview">
           <span>{t("system")}</span>
-          <p>{connection.message}</p>
+          <p>{localizedSystemMessage(connection.message, language)}</p>
           {connection.lastOutcome && (
             <em className={`action-outcome action-outcome--${connection.lastOutcome.success ? "success" : "failure"}`}>
               {t(connection.lastOutcome.success ? "succeeded" : "failed")} · {t("chanceLabel")} {Math.round(connection.lastOutcome.chance * 100)}%
@@ -305,25 +448,85 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
   );
 }
 
-const bodyRegionPoints: Record<string, Array<[number, number]>> = {
-  blood: [[50, 52]],
-  eyes: [[46, 17], [54, 17]],
-  gumsSkin: [[50, 25]],
-  bonesMuscles: [[34, 58], [66, 58], [42, 92]],
-  muscles: [[30, 52], [70, 52]],
-  nervousSystem: [[50, 14]],
-  thyroid: [[50, 31]],
-  kidneysBrain: [[50, 14], [42, 62], [58, 62]],
-};
+type BodyPartId = "head" | "chest" | "abdomen" | "leftArm" | "rightArm" | "leftLeg" | "rightLeg";
+const bodyParts: Array<{ id: BodyPartId; ko: string; en: string; regions: string[]; anchor: [number, number]; label: [number, number]; side: "left" | "right" }> = [
+  // The 80×140 source meets a 64×154 slot at 0.8 scale and is bottom-aligned, so its
+  // visible anatomy begins near y=50 rather than y=2. These anchors include that letterbox offset.
+  // Left-side labels describe the character's anatomical right side in this front-facing view.
+  { id: "head", ko: "머리", en: "Head", regions: ["eyes", "gumsSkin", "nervousSystem", "kidneysBrain"], anchor: [91, 58], label: [4, 54], side: "left" },
+  { id: "rightArm", ko: "오른팔", en: "Right arm", regions: ["blood", "bonesMuscles", "muscles", "nervousSystem"], anchor: [75, 87], label: [4, 84], side: "left" },
+  { id: "rightLeg", ko: "오른다리", en: "Right leg", regions: ["blood", "bonesMuscles", "muscles", "nervousSystem"], anchor: [85, 124], label: [4, 128], side: "left" },
+  { id: "chest", ko: "가슴", en: "Chest", regions: ["blood", "bonesMuscles", "muscles", "thyroid", "nervousSystem"], anchor: [91, 78], label: [176, 72], side: "right" },
+  { id: "leftArm", ko: "왼팔", en: "Left arm", regions: ["blood", "bonesMuscles", "muscles", "nervousSystem"], anchor: [107, 87], label: [176, 88], side: "right" },
+  { id: "abdomen", ko: "복부", en: "Abdomen", regions: ["blood", "kidneysBrain"], anchor: [91, 96], label: [176, 104], side: "right" },
+  { id: "leftLeg", ko: "왼다리", en: "Left leg", regions: ["blood", "bonesMuscles", "muscles", "nervousSystem"], anchor: [97, 124], label: [176, 130], side: "right" },
+];
 
-/** A standing human read at a glance, with the affected organs marked on it. */
-function BodyConditionFigure({ conditions }: { conditions: BodyCondition[] }) {
-  const markers = conditions.flatMap((condition) => (bodyRegionPoints[condition.region] ?? [[50, 52]]).map(([x, y]) => ({ x, y, severity: condition.severity, id: condition.id })));
+function bodyPartSeverity(part: (typeof bodyParts)[number], conditions: BodyCondition[]) {
+  const affected = conditions.filter((condition) => part.regions.includes(condition.region));
+  return affected.some((condition) => condition.severity === "critical") ? "critical" : affected.length > 0 ? "strained" : "healthy";
+}
+
+type BodyPartSeverity = "healthy" | "strained" | "critical";
+
+function bodyPartStatusLabel(status: BodyPartSeverity, language: "ko" | "en") {
+  return language === "ko"
+    ? ({ healthy: "정상", strained: "주의", critical: "위험" }[status])
+    : ({ healthy: "Stable", strained: "Strained", critical: "Critical" }[status]);
+}
+
+function BodyConditionDetails({ conditions, language, healthyTitle, healthySummary }: { conditions: BodyCondition[]; language: "ko" | "en"; healthyTitle: string; healthySummary: string }) {
+  return <div className="body-condition-dialog-summary">
+    <section className="body-condition-overall">
+      <span>{language === "ko" ? "종합 진단" : "OVERALL ASSESSMENT"}</span>
+      <strong>{conditions.length === 0 ? healthyTitle : (language === "ko" ? `${conditions.length}개 이상 징후 감지` : `${conditions.length} condition${conditions.length === 1 ? "" : "s"} detected`)}</strong>
+      <p>{conditions.length === 0 ? healthySummary : (language === "ko" ? "영향을 받는 부위와 증상을 아래에서 확인하세요." : "Review each affected region and symptom below.")}</p>
+    </section>
+    <div className="body-condition-part-list">
+      {bodyParts.map((part) => {
+        const severity = bodyPartSeverity(part, conditions);
+        const affected = conditions.filter((condition) => part.regions.includes(condition.region));
+        return <article key={part.id} className={`body-condition-part body-condition-part--${severity}`}>
+          <header><strong>{part[language]}</strong><em>{bodyPartStatusLabel(severity, language)}</em></header>
+          {affected.length === 0
+            ? <p>{language === "ko" ? "외상, 통증 또는 기능 저하 징후가 없습니다." : "No sign of trauma, pain, or impaired function."}</p>
+            : affected.map((condition) => <div key={condition.id}><b>{condition.name[language]}</b><p>{condition.effect[language]}</p></div>)}
+        </article>;
+      })}
+    </div>
+  </div>;
+}
+
+/** The character art stays central while its traced outline and side callouts report each body part. */
+function BodyConditionFigure({ conditions, gender, language }: { conditions: BodyCondition[]; gender: "female" | "male"; language: "ko" | "en" }) {
+  const statusByPart = Object.fromEntries(bodyParts.map((part) => [part.id, bodyPartSeverity(part, conditions)])) as Record<BodyPartId, "healthy" | "strained" | "critical">;
+  const outlineColor = conditions.some((condition) => condition.severity === "critical") ? "#e05a4c" : conditions.length > 0 ? "#d69a5d" : "#8fcf7b";
   return (
-    <svg className="body-condition-figure" viewBox="0 0 100 130" role="img" aria-label={conditions.length === 0 ? "Healthy body" : conditions.map((condition) => condition.name.en).join(", ")}>
-      <path className="body-silhouette" d="M50 6c-5.4 0-9.4 4.2-9.4 9.6 0 3.6 1.6 6.6 4 8.4-6.4 1.8-11 5.4-12.8 10.6l-5.6 17c-.8 2.4.4 4.8 2.8 5.6 2.4.8 4.8-.5 5.6-2.9l3.6-11v13.5c0 2 .3 3.4.8 5l2.4 7.6-3.2 30.4c-.3 2.8 1.7 5.2 4.5 5.5 2.8.3 5.2-1.7 5.5-4.5l3-27.4h2.4l3 27.4c.3 2.8 2.7 4.8 5.5 4.5 2.8-.3 4.8-2.7 4.5-5.5l-3.2-30.4 2.4-7.6c.5-1.6.8-3 .8-5V48.3l3.6 11c.8 2.4 3.2 3.7 5.6 2.9 2.4-.8 3.6-3.2 2.8-5.6l-5.6-17c-1.8-5.2-6.4-8.8-12.8-10.6 2.4-1.8 4-4.8 4-8.4C59.4 10.2 55.4 6 50 6z" />
-      {markers.map((marker, index) => <circle key={`${marker.id}-${index}`} className={`body-marker body-marker--${marker.severity}`} cx={marker.x} cy={marker.y} r="5.5" />)}
-    </svg>
+    <div className="body-condition-anatomy">
+      <svg className="body-condition-figure" viewBox="0 42 180 116" role="img" aria-label={conditions.length === 0 ? (language === "ko" ? "모든 신체 부위 정상" : "All body parts stable") : conditions.map((condition) => condition.name[language]).join(", ")}>
+        <defs>
+          <filter id="body-alpha-outline" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.35" result="expanded" />
+            <feComposite in="expanded" in2="SourceAlpha" operator="out" result="edge" />
+            <feFlood floodColor={outlineColor} result="color" />
+            <feComposite in="color" in2="edge" operator="in" />
+          </filter>
+        </defs>
+        <image className="body-character-source" href={`/assets/characters/body-condition-${gender}.png`} x="59" y="2" width="64" height="154" preserveAspectRatio="xMidYMax meet" />
+        <image className="body-outline-source" href={`/assets/characters/body-condition-${gender}.png`} x="59" y="2" width="64" height="154" preserveAspectRatio="xMidYMax meet" filter="url(#body-alpha-outline)" />
+        {bodyParts.map((part) => {
+          const status = statusByPart[part.id];
+          const elbowX = part.side === "left" ? 51 : 130;
+          const lineEndX = part.side === "left" ? 43 : 137;
+          return <g key={part.id} className={`body-callout body-callout--${status}`}>
+            <polyline points={`${part.anchor[0]},${part.anchor[1]} ${elbowX},${part.label[1]} ${lineEndX},${part.label[1]}`} />
+            <circle className="body-callout-target" cx={part.anchor[0]} cy={part.anchor[1]} r="2.35" />
+            <circle className="body-callout-core" cx={part.anchor[0]} cy={part.anchor[1]} r="0.85" />
+            <text x={part.label[0]} y={part.label[1] + 2.5} textAnchor={part.side === "left" ? "start" : "end"}>{part[language]} · {bodyPartStatusLabel(status, language)}</text>
+          </g>;
+        })}
+      </svg>
+    </div>
   );
 }
 
@@ -385,14 +588,54 @@ const fruitShapes: Record<string, { fill: string; body: string }> = {
 const defaultFruit = { fill: "#c0392b", body: "M16 10.5c5.1 0 9 3.7 9 8.7 0 4.7-3.9 8.4-9 8.4s-9-3.7-9-8.4c0-5 3.9-8.7 9-8.7z" };
 const toolIconPaths: Record<string, string> = {
   "tool.hand-axe": "/assets/items/stone-axe.svg?v=4",
+  "tool.copper-axe": "/assets/items/copper-axe.svg",
+  "tool.iron-axe": "/assets/items/iron-axe.svg",
+  "tool.steel-axe": "/assets/items/steel-axe.svg",
   "tool.pickaxe": "/assets/items/stone-pickaxe.svg?v=3",
+  "tool.copper-pickaxe": "/assets/items/copper-pickaxe.svg",
+  "tool.iron-pickaxe": "/assets/items/iron-pickaxe.svg",
+  "tool.steel-pickaxe": "/assets/items/steel-pickaxe.svg",
   "tool.stone-spear": "/assets/items/stone-spear.svg",
   "tool.fishing-rod": "/assets/items/fishing-rod.svg",
 };
+function toolIconPath(itemId: string): string | undefined {
+  if (toolIconPaths[itemId]) return toolIconPaths[itemId];
+  if (itemId.endsWith("-pickaxe")) return "/assets/items/stone-pickaxe.svg?v=3";
+  if (itemId.endsWith("-axe")) return "/assets/items/stone-axe.svg?v=4";
+  if (itemId.endsWith("-dagger")) return "/assets/items/dagger.svg";
+  if (itemId.endsWith("-longsword")) return "/assets/items/longsword.svg";
+  if (itemId.endsWith("-fishing-rod")) return "/assets/items/fishing-rod.svg";
+  if (itemId.endsWith("-bow")) return "/assets/items/bow.svg";
+  if (itemId.endsWith("-spear")) return "/assets/items/stone-spear.svg";
+  return undefined;
+}
 
 /** No item art exists yet, so each stack is drawn from its id: category shape, species outline. */
+function FishItemIcon({ itemId }: { itemId: string }) {
+  const namedArt = ["fish.carp", "fish.minnow", "fish.perch", "fish.trout"];
+  if (namedArt.includes(itemId)) return <img className="item-icon item-icon--food" src={`/assets/items/fish-${itemId.slice(5)}.png`} alt="" />;
+  let hash = 0;
+  for (const character of itemId) hash = (Math.imul(hash, 31) + character.charCodeAt(0)) | 0;
+  const colours = ["#879f72", "#6696a5", "#b28a5c", "#8e83ad", "#b46e61", "#779486"];
+  const body = colours[Math.abs(hash) % colours.length]!;
+  const striped = Math.abs(hash) % 2 === 0;
+  const longBody = Math.abs(hash) % 3 === 0;
+  return <svg className="item-icon item-icon--food" viewBox="0 0 42 32" aria-hidden="true">
+    <path d="M8 16 2 8v16z" fill={body} stroke="#293b35" strokeWidth="1.2" />
+    <ellipse cx="23" cy="16" rx={longBody ? 15 : 12} ry={longBody ? 6 : 8} fill={body} stroke="#293b35" strokeWidth="1.2" />
+    <path d={longBody ? "M18 10 25 4l6 7" : "M17 9 23 3l5 7"} fill={body} stroke="#293b35" strokeWidth="1" />
+    {striped ? <path d="M18 10v12m6-13v14m6-12v10" stroke="#e6d6a4" strokeWidth="1.4" opacity=".72" /> : <><circle cx="21" cy="13" r="1.2" fill="#e8d69b" /><circle cx="27" cy="19" r="1" fill="#e8d69b" /></>}
+    <circle cx={longBody ? 34 : 31} cy="14" r="1.4" fill="#101813" />
+  </svg>;
+}
+
 function ItemIcon({ itemId }: { itemId: string }) {
   const [category] = itemId.split(".");
+  if (category === "ammunition") return <img className="item-icon item-icon--tool" src="/assets/items/arrow.svg" alt="" />;
+  if (category === "bird") return <img className="item-icon item-icon--food" src="/assets/items/raw-bird-meat.svg" alt="" />;
+  if (category === "reptile" || itemId.includes("turtle")) return <img className="item-icon item-icon--food" src="/assets/items/raw-reptile-meat.svg" alt="" />;
+  if (category === "amphibian") return <img className="item-icon item-icon--food" src="/assets/items/raw-amphibian-meat.svg" alt="" />;
+  if (category === "crustacean") return <img className="item-icon item-icon--food" src="/assets/items/raw-crustacean.svg" alt="" />;
   if (category === "fruit") {
     const shape = fruitShapes[itemId] ?? defaultFruit;
     return (
@@ -406,22 +649,21 @@ function ItemIcon({ itemId }: { itemId: string }) {
   if (category === "meat") {
     return (
       <svg className="item-icon" viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M9 20c-4-4-2-11 4-13s12 1 13 7-4 10-9 9c0 3-2 5-4 5s-4-2-4-4 1-3 0-4z" fill="#a94b46" />
-        <path d="M22 12c2 1 3 3 2 5" stroke="#e6d9c4" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <path d="M4.2 19.4c-.8-4.7 2.1-9.5 7.4-11.5 4.8-1.8 11.2-.8 14.3 2.7 2.8 3.2 2.2 8.1-.8 11-2.7 2.6-7 3.3-10.3 2.3-2.5-.8-3.7 2.3-6.3 1.2-2.1-.9-3.8-3.1-4.3-5.7z" fill="#702d31" stroke="#3f1b1e" strokeWidth="1" strokeLinejoin="round" />
+        <path d="M6.6 18.5c-.3-3.5 2.1-7 6.1-8.5 3.9-1.5 9-.7 11.3 2 2 2.3 1.4 5.9-.8 8-2.1 2-5.3 2.4-8 1.6-2.6-.8-3.4 1.8-5.4 1.2-1.7-.5-3-2.1-3.2-4.3z" fill="#b95352" />
+        <path d="M7.3 16.2c1.7-3.4 5.5-5.4 9.6-5.3 3.3.1 6.1 1.2 7.7 3" fill="none" stroke="#edc9a8" strokeWidth="1.5" strokeLinecap="round" opacity=".9" />
+        <path d="M9.1 20.8c2.1-1.8 3.2-3.7 3.2-6.1m6.3 7.2c-.7-2.2.1-4.2 2.4-5.8" fill="none" stroke="#eab89d" strokeWidth="1" strokeLinecap="round" opacity=".78" />
+        <ellipse cx="17.2" cy="16.3" rx="3.1" ry="2.7" fill="#f0d8b8" stroke="#8a4440" strokeWidth=".8" />
+        <ellipse cx="17.3" cy="16.3" rx="1.35" ry="1.15" fill="#a85a4d" opacity=".72" />
+        <path d="M5.4 19.1c.7 2.9 2.5 4.8 4.5 5" fill="none" stroke="#f0d4b0" strokeWidth="1.1" strokeLinecap="round" opacity=".75" />
       </svg>
     );
   }
   if (category === "fish") {
-    return (
-      <svg className="item-icon" viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M4 16c5-7 14-8 20-4 2 1 3 3 4 4-1 1-2 3-4 4-6 4-15 3-20-4z" fill="#5b8ba3" />
-        <path d="M4 16l-2-5v10z" fill="#5b8ba3" />
-        <circle cx="21" cy="14" r="1.6" fill="#0b1512" />
-      </svg>
-    );
+    return <FishItemIcon itemId={itemId} />;
   }
   if (category === "tool") {
-    const iconPath = toolIconPaths[itemId];
+    const iconPath = toolIconPath(itemId);
     if (iconPath) return <img className="item-icon item-icon--tool" src={iconPath} alt="" />;
   }
   if (category === "stone") {
@@ -449,7 +691,33 @@ function ItemIcon({ itemId }: { itemId: string }) {
 
 function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character: CharacterSummary; lastCraft: GameConnection["lastCraft"]; onCraft: (recipeId: string) => void; onClose: () => void }) {
   const { t, language } = useLanguage();
+  const [activeGroupId, setActiveGroupId] = useState("tools");
+  const [activeFamilyId, setActiveFamilyId] = useState("axe");
   const carried = new Map((character.survival.inventory ?? []).map((stack) => [stack.itemId, stack.quantity]));
+  const legacyToolAliases = new Set(["tool.hand-axe", "tool.pickaxe", "tool.fishing-rod"]);
+  const groups = [
+    { id: "tools", label: language === "ko" ? "도구·무기" : "Tools & weapons", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("toolmaking.") && !legacyToolAliases.has(recipe.output.itemId)) },
+    { id: "construction", label: language === "ko" ? "건축" : "Construction", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("shelter.")) },
+    { id: "ammunition", label: language === "ko" ? "탄약" : "Ammunition", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("ammunition.")) },
+    { id: "materials", label: language === "ko" ? "재료 가공" : "Materials", recipes: craftingRecipes.filter((recipe) => !recipe.id.startsWith("toolmaking.") && !recipe.id.startsWith("shelter.") && !recipe.id.startsWith("ammunition.")) },
+  ].filter((group) => group.recipes.length > 0);
+  const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
+  const toolFamilyOf = (itemId: string) => itemId.includes("pickaxe") ? "pickaxe"
+    : itemId.includes("fishing-rod") ? "fishing-rod"
+      : itemId.includes("longsword") ? "longsword"
+        : itemId.includes("dagger") ? "dagger"
+          : itemId.includes("spear") ? "spear"
+            : itemId.includes("bow") ? "bow"
+              : itemId.includes("axe") ? "axe" : "other";
+  const familyLabels: Record<string, { en: string; ko: string }> = {
+    axe: { en: "Axes", ko: "도끼" }, pickaxe: { en: "Pickaxes", ko: "곡괭이" }, dagger: { en: "Daggers", ko: "단검" }, longsword: { en: "Longswords", ko: "장검" },
+    "fishing-rod": { en: "Fishing rods", ko: "낚싯대" }, bow: { en: "Bows", ko: "활" }, spear: { en: "Spears", ko: "창" }, other: { en: "Other", ko: "기타" },
+  };
+  const toolFamilies = activeGroup?.id === "tools"
+    ? Object.keys(familyLabels).map((id) => ({ id, label: familyLabels[id]![language], recipes: activeGroup.recipes.filter((recipe) => toolFamilyOf(recipe.output.itemId) === id) })).filter((family) => family.recipes.length > 0)
+    : [];
+  const activeFamily = toolFamilies.find((family) => family.id === activeFamilyId) ?? toolFamilies[0];
+  const visibleRecipes = activeFamily?.recipes ?? activeGroup?.recipes ?? [];
 
   return (
     <section className="crafting-overlay" aria-modal="true" role="dialog" aria-label={t("craftingTitle")}>
@@ -460,14 +728,39 @@ function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character
         </div>
         <button onClick={onClose} aria-label={t("closeCrafting")}>×</button>
       </header>
-      <ul className="recipe-list">
-        {craftingRecipes.map((recipe) => {
+      <div className="crafting-content">
+        <nav className="recipe-tabs" role="tablist" aria-label={language === "ko" ? "제작 카테고리" : "Crafting categories"}>
+          {groups.map((group) => (
+            <button
+              className={group.id === activeGroup?.id ? "is-active" : ""}
+              key={group.id}
+              type="button"
+              role="tab"
+              aria-selected={group.id === activeGroup?.id}
+              onClick={() => setActiveGroupId(group.id)}
+            >
+              <span>{group.label}</span><small>{group.recipes.length}</small>
+            </button>
+          ))}
+        </nav>
+      {activeGroup && <section className="recipe-group" role="tabpanel" aria-label={activeGroup.label}>
+        <h3>{activeGroup.label}<small>{activeGroup.recipes.length}</small></h3>
+        {toolFamilies.length > 0 && <nav className="recipe-family-tabs" aria-label={language === "ko" ? "도구 종류" : "Tool families"}>
+          {toolFamilies.map((family) => (
+            <button className={family.id === activeFamily?.id ? "is-active" : ""} key={family.id} type="button" onClick={() => setActiveFamilyId(family.id)}>
+              {family.label}<small>{family.recipes.length}</small>
+            </button>
+          ))}
+        </nav>}
+        <ul className="recipe-list">
+        {visibleRecipes.map((recipe) => {
           const ready = recipe.inputs.every((input) => (carried.get(input.itemId) ?? 0) >= input.quantity);
+          const craftedTool = findTool(recipe.output.itemId);
           return (
             <li key={recipe.id} className="recipe">
               <ItemIcon itemId={recipe.output.itemId} />
               <div>
-                <strong>{recipe.name[language]}</strong>
+                <strong>{recipe.name[language]}{craftedTool && <b className="weapon-damage">{language === "ko" ? "공격력" : "Damage"} {craftedTool.damage}</b>}</strong>
                 <small>
                   {t("needs")}: {recipe.inputs.map((input) => `${itemDisplayName(input.itemId, language)} ${carried.get(input.itemId) ?? 0}/${input.quantity}`).join(" · ")}
                 </small>
@@ -482,7 +775,9 @@ function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character
             </li>
           );
         })}
-      </ul>
+        </ul>
+      </section>}
+      </div>
     </section>
   );
 }
@@ -491,6 +786,12 @@ function InventoryOverlay({ character, onEat, onEquip, onClose }: { character: C
   const { t, language } = useLanguage();
   const stacks = [...(character.survival.inventory ?? [])].sort((left, right) => right.quantity - left.quantity);
   const totalUnits = stacks.reduce((sum, stack) => sum + stack.quantity, 0);
+  const isFoodItem = (itemId: string) => foodsById.has(itemId) || /^(meat|bird|fish|fruit)\./.test(itemId);
+  const categories = [
+    { id: "food", label: language === "ko" ? "식재료" : "Food", stacks: stacks.filter((stack) => isFoodItem(stack.itemId)) },
+    { id: "tools", label: language === "ko" ? "도구" : "Tools", stacks: stacks.filter((stack) => Boolean(findTool(stack.itemId))) },
+    { id: "materials", label: language === "ko" ? "재료" : "Materials", stacks: stacks.filter((stack) => !isFoodItem(stack.itemId) && !findTool(stack.itemId)) },
+  ].filter((category) => category.stacks.length > 0);
 
   return (
     <section className="inventory-overlay" aria-modal="true" role="dialog" aria-label={t("inventory")}>
@@ -504,10 +805,15 @@ function InventoryOverlay({ character, onEat, onEquip, onClose }: { character: C
       {stacks.length === 0
         ? <p className="inventory-empty">{t("inventoryEmpty")}</p>
         : (
-          <ul className="inventory-grid">
-            {stacks.map((stack) => {
+          <div className="inventory-categories">
+            {categories.map((category) => <section className="inventory-category" key={category.id}>
+              <h3>{category.label}<small>{category.stacks.reduce((sum, stack) => sum + stack.quantity, 0)}</small></h3>
+              <ul className="inventory-grid">
+            {category.stacks.map((stack) => {
               const name = itemDisplayName(stack.itemId, language);
-              const edible = foodNames.has(stack.itemId);
+              const food = foodsById.get(stack.itemId);
+              const edible = food?.category === "fruit";
+              const needsCooking = food && food.category !== "fruit";
               const tool = findTool(stack.itemId);
               const wieldable = Boolean(tool);
               const condition = tool ? Math.max(0, tool.durability - (character.survival.toolWear?.[stack.itemId] ?? 0)) / tool.durability : 1;
@@ -527,14 +833,18 @@ function InventoryOverlay({ character, onEat, onEquip, onClose }: { character: C
                     <ItemIcon itemId={stack.itemId} />
                     <b className="inventory-count">×{stack.quantity}</b>
                     <span className="inventory-name">{name}</span>
+                    {tool && <span className="inventory-damage">{language === "ko" ? "공격력" : "DMG"} {tool.damage}</span>}
                     {tool && <span className="inventory-wear"><i style={{ width: `${Math.round(condition * 100)}%` }} /></span>}
                     {edible && <em className="inventory-eat">{t("eat")}</em>}
+                    {needsCooking && <em className="inventory-eat">{t("needsCooking")}</em>}
                     {wieldable && <em className="inventory-eat inventory-eat--equip">{t(isEquipped ? "unequip" : "equip")}</em>}
                   </button>
                 </li>
               );
             })}
-          </ul>
+              </ul>
+            </section>)}
+          </div>
         )}
     </section>
   );
@@ -605,48 +915,45 @@ function SkillCodexOverlay({ character, onSetLock, onClose }: { character: Chara
   );
 }
 
-function WorldMapOverlay({ position, exploredTrail, onClose }: { position: PlayerPosition; exploredTrail: PlayerPosition[]; onClose: () => void }) {
+function WorldMapOverlay({ position, visitedZones, onTravel, onClose }: { position: PlayerPosition; visitedZones: Set<string>; onTravel: (zoneId: string) => void; onClose: () => void }) {
   const { t, language } = useLanguage();
   const playerPoint = toMapPoint(position);
-  // Only where the wanderer stands is lit. The trail is still recorded, but the atlas shows a lamp,
-  // not a history: at world scale a walked path would smear across the whole frontier.
   const underground = Boolean(INTERIOR_ZONES[position.zoneId]);
+  const surfaceZoneId = toSurfacePosition(position).zoneId;
   return (
     <section className="world-map-overlay" aria-modal="true" role="dialog" aria-label={t("worldMap")}>
       <header>
         <div>
-          <p className="eyebrow">{WORLD_EXTENT.toLocaleString()} × {WORLD_EXTENT.toLocaleString()} · THE VERDANT FRONTIER</p>
+          <p className="eyebrow">100 CONNECTED REGIONS · 10 × 10 CONTINENT</p>
           <h2>{t("worldMap")}</h2>
         </div>
         <button onClick={onClose} aria-label={t("close")}>×</button>
       </header>
       <div className="world-atlas">
         <div className="atlas-world-plane">
-          {Object.entries(atlasLayout().bounds).map(([zoneId, bounds]) => (
-            <div
+          {Object.entries(atlasLayout().bounds).map(([zoneId, bounds], index) => {
+            const terrain = atlasTerrain(zoneId);
+            return <button
+              type="button"
               key={zoneId}
-              className="atlas-zone"
-              style={{ left: `${bounds.left}%`, top: `${bounds.top}%`, width: `${bounds.width}%`, height: `${bounds.height}%`, backgroundImage: `url(${zoneMapImages[zoneId]})` }}
+              className={`atlas-zone${zoneId === surfaceZoneId ? " is-current" : ""}${visitedZones.has(zoneId) ? " is-visited" : " is-unvisited"}`}
+              aria-label={zoneId === surfaceZoneId
+                ? `${getZoneDefinition(zoneId)?.name[language] ?? zoneId} · ${language === "ko" ? "현재 지역" : "Current region"}`
+                : `${getZoneDefinition(zoneId)?.name[language] ?? zoneId}${language === "ko" ? "(으)로 이동" : " · travel"}`}
+              disabled={zoneId === surfaceZoneId}
+              onClick={() => onTravel(zoneId)}
+              style={{ left: `${bounds.left}%`, top: `${bounds.top}%`, width: `${bounds.width}%`, height: `${bounds.height}%` }}
             >
-              <span className="atlas-zone-label">{getZoneDefinition(zoneId)?.name[language] ?? zoneId}</span>
-            </div>
-          ))}
-          <svg className="atlas-fog" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <mask id="exploration-mask">
-                <rect width="100" height="100" fill="white" />
-                {!underground && <ellipse cx={playerPoint.x} cy={playerPoint.y} rx={atlasLayout().sightRx} ry={atlasLayout().sightRy} fill="black" />}
-              </mask>
-              <pattern id="fog-texture" width="6" height="6" patternUnits="userSpaceOnUse">
-                <rect width="6" height="6" fill="#4a3c26" />
-              </pattern>
-            </defs>
-            <rect width="100" height="100" fill="url(#fog-texture)" opacity=".82" mask="url(#exploration-mask)" />
-          </svg>
+              <img className="atlas-zone-terrain" src={terrain.image} alt="" />
+              <i className="atlas-zone-terrain-tone" style={{ backgroundColor: terrain.tone }} aria-hidden="true" />
+              <span className="atlas-zone-index">{String(index + 1).padStart(3, "0")}</span>
+              <span className="atlas-zone-label"><strong>{getZoneDefinition(zoneId)?.name[language] ?? zoneId}</strong><small>{zoneId === surfaceZoneId ? (language === "ko" ? "현재 위치" : "Current") : visitedZones.has(zoneId) ? (language === "ko" ? "방문함" : "Visited") : (language === "ko" ? "미탐사 · 지형만 확인됨" : "Unvisited · terrain known")}</small></span>
+            </button>;
+          })}
           <i className={`atlas-player${underground ? " atlas-player--underground" : ""}`} style={{ left: `${playerPoint.x}%`, top: `${playerPoint.y}%` }}><b /></i>
         </div>
         <span className="atlas-undiscovered">{t("undiscovered")}</span>
-        <span className="atlas-scale">{WORLD_EXTENT.toLocaleString()} × {WORLD_EXTENT.toLocaleString()}</span>
+        <span className="atlas-scale">100 REGIONS · 167,200 × 94,100 WORLD UNITS · START: SOUTHWEST CORNER</span>
       </div>
     </section>
   );

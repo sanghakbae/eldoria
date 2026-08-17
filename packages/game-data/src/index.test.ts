@@ -1,18 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { calculateDifficultyFactor, calculateSkillGain, calculateSuccessChance, defaultSkillProgression, evaluateBodyConditions, findSkillForAction, foodCatalog, getZoneDefinition, initialNutrition, isPositionWalkable, parseWorldDefinition, resolveSkillAction, skillCategories, skillSystemDefinition, worldDefinition } from "./index";
+import { calculateDifficultyFactor, calculateMiningYield, calculateSkillDamage, calculateSkillGain, calculateSkillInterval, calculateSkillYield, calculateSuccessChance, craftingRecipes, defaultSkillProgression, evaluateBodyConditions, findSkillForAction, foodCatalog, getZoneDefinition, initialNutrition, isPositionWalkable, parseWorldDefinition, resolveSkillAction, skillCategories, skillSystemDefinition, toolDefinitions, worldDefinition } from "./index";
 
 describe("zone collision data", () => {
-  it("blocks Mossward buildings while leaving the road open", () => {
-    expect(isPositionWalkable("mossward", 700, 200)).toBe(false);
+  it("blocks the Mossward river while leaving open meadow walkable", () => {
+    expect(isPositionWalkable("mossward", 350, 400)).toBe(false);
     expect(isPositionWalkable("mossward", 900, 700)).toBe(true);
   });
 
   it("treats placed trees and water as solid ground", () => {
     const pear = getZoneDefinition("untamedWilds")!.layers.objects.find((object) => object.id === "wilds.wild-pear")!;
+    const pond = getZoneDefinition("untamedWilds")!.layers.objects.find((object) => object.type === "fishingWater")!;
     expect(isPositionWalkable("untamedWilds", pear.x, pear.y)).toBe(false);
     expect(isPositionWalkable("untamedWilds", pear.x + 60, pear.y)).toBe(true);
+    expect(isPositionWalkable("untamedWilds", pond.x, pond.y)).toBe(false);
+    expect(isPositionWalkable("untamedWilds", pond.x - 125, pond.y)).toBe(false);
+    expect(isPositionWalkable("untamedWilds", pond.x + 125, pond.y)).toBe(false);
+    expect(isPositionWalkable("untamedWilds", pond.x, pond.y + 90)).toBe(false);
+    expect(isPositionWalkable("untamedWilds", pond.x - 340, pond.y)).toBe(true);
     // The spawn must never open inside an obstacle, or the wanderer starts wedged.
     expect(isPositionWalkable("untamedWilds", 836, 470)).toBe(true);
+  });
+
+  it("keeps the wilds river solid until the player builds a bridge", () => {
+    expect(isPositionWalkable("untamedWilds", 320, 240)).toBe(false);
+    expect(isPositionWalkable("untamedWilds", 320, 304)).toBe(false);
+    expect(isPositionWalkable("untamedWilds", 288, 656)).toBe(false);
   });
 
   it("rejects positions outside known zones", () => {
@@ -20,23 +32,84 @@ describe("zone collision data", () => {
     expect(isPositionWalkable("greythorn", -1, 400)).toBe(false);
   });
 
+  it("connects all 100 surface regions through reciprocal cardinal exits", () => {
+    const surface = worldDefinition.zones.filter((zone) => zone.id !== "animalDen");
+    expect(surface).toHaveLength(100);
+    const opposite = { north: "south", east: "west", south: "north", west: "east" } as const;
+    for (const zone of surface) {
+      for (const exit of zone.exits) {
+        const destination = getZoneDefinition(exit.toZoneId);
+        expect(destination?.layers.spawn.some((spawn) => spawn.id === exit.toSpawnId)).toBe(true);
+        expect(destination?.exits.some((candidate) => candidate.edge === opposite[exit.edge] && candidate.toZoneId === zone.id)).toBe(true);
+      }
+    }
+  });
+
   it("loads validated 32 pixel tile layers from content data", () => {
     expect(worldDefinition.tileSize).toBe(32);
     expect(getZoneDefinition("mossward")).toMatchObject({ columns: 53, rows: 30, layers: { terrain: { assetId: "world.mossward" } } });
   });
 
-  it("defines distinct regional water and wild fruit ecology", () => {
+  it("defines regional ecology with common wood and stone but sparse ore", () => {
     const wilds = getZoneDefinition("untamedWilds");
     const forest = getZoneDefinition("greythorn");
     const marsh = getZoneDefinition("amberfen");
 
-    expect(wilds?.ecology).toMatchObject({ biome: "primordial-dry-scrub", hydrology: { type: "pond" } });
+    expect(wilds?.ecology).toMatchObject({ biome: "primordial-coast", hydrology: { type: "coastal-river" } });
     expect(wilds?.ecology.wildFruits).toContain("crabapple");
-    expect(forest?.ecology).toMatchObject({ biome: "deep-temperate-forest", hydrology: { type: "river" } });
-    expect(marsh?.ecology).toMatchObject({ biome: "warm-marsh", hydrology: { type: "wetland-channels" } });
+    expect(forest?.ecology).toMatchObject({ biome: "temperate-forest", hydrology: { type: "forest-creek" } });
+    expect(marsh?.ecology).toMatchObject({ biome: "wetland-marsh", hydrology: { type: "marsh-channel" } });
     expect(new Set(worldDefinition.zones.map((zone) => zone.ecology.wildFruits.join(","))).size).toBeGreaterThan(3);
-    expect(wilds?.layers.objects.map((object) => object.type)).toEqual(expect.arrayContaining(["copperOreDeposit", "coalDeposit", "ironOreDeposit", "wildlifeSpawnRabbit", "wildlifeSpawnDeer", "wildlifeSpawnBoar"]));
+    expect(wilds?.layers.objects.map((object) => object.type)).toEqual(expect.arrayContaining(["wildFruitTree", "wildTree", "fishingWater", "wildlifeSpawnRabbit", "wildlifeSpawnDeer", "wildlifeSpawnBoar"]));
+    const surfaceZones = worldDefinition.zones.filter((zone) => zone.id !== "animalDen");
+    const surfaceTypes = surfaceZones.flatMap((zone) => zone.layers.objects.map((object) => object.type));
+    expect(surfaceTypes.every((type) => type === "wildFruitTree" || type === "wildTree" || type === "looseStone" || type === "stoneOutcrop" || type === "fallenBranch" || type === "fishingWater" || type === "riverFishingWater" || type === "animalDenEntrance" || type.endsWith("OreDeposit") || type === "coalDeposit" || type.startsWith("wildlifeSpawn") || type.startsWith("ambientBirdFlock"))).toBe(true);
+    for (const zone of surfaceZones) {
+      expect(zone.layers.objects.some((object) => object.type === "wildTree")).toBe(true);
+      expect(zone.layers.objects.some((object) => object.type === "looseStone")).toBe(true);
+      expect(zone.layers.objects.some((object) => object.type.startsWith("ambientBirdFlock"))).toBe(true);
+    }
+    expect(new Set(surfaceZones.flatMap((zone) => zone.ecology.hydrology.fishHabitats)).size).toBeGreaterThanOrEqual(12);
+    expect(surfaceZones.filter((zone) => zone.layers.objects.some((object) => object.type.endsWith("OreDeposit") || object.type === "coalDeposit")).length).toBeLessThan(surfaceZones.length);
+    expect(new Set(wilds?.layers.objects.filter((object) => object.type.startsWith("wildlifeSpawn")).map((object) => object.type)).size).toBeGreaterThanOrEqual(11);
     expect(getZoneDefinition("animalDen")).toMatchObject({ layers: { terrain: { assetId: "world.animalDen" }, objects: expect.arrayContaining([expect.objectContaining({ type: "animalDenExit" })]) } });
+  });
+
+  it("anchors the starting-zone fish and cave to the painted terrain features", () => {
+    const objects = getZoneDefinition("untamedWilds")!.layers.objects;
+    const water = objects.filter((object) => object.type === "fishingWater" || object.type === "riverFishingWater");
+    const entrances = objects.filter((object) => object.type === "animalDenEntrance");
+
+    expect(water).toEqual([expect.objectContaining({ type: "fishingWater", x: 1340, y: 342 })]);
+    expect(entrances).toEqual([expect.objectContaining({ x: 385, y: 210 })]);
+  });
+
+  it("keeps trees, loose materials, and ore deposits out of ponds and rivers", () => {
+    const waterRadius: Record<string, { x: number; y: number }> = {
+      fishingWater: { x: 165, y: 110 },
+      riverFishingWater: { x: 135, y: 90 },
+    };
+    const clearance: Record<string, number> = {
+      wildTree: 72,
+      wildFruitTree: 76,
+      looseStone: 60,
+      fallenBranch: 48,
+      copperOreDeposit: 96,
+      coalDeposit: 96,
+      ironOreDeposit: 96,
+    };
+    for (const zone of worldDefinition.zones) {
+      const waters = zone.layers.objects.filter((object) => waterRadius[object.type]);
+      for (const object of zone.layers.objects.filter((candidate) => clearance[candidate.type])) {
+        for (const water of waters) {
+          const radius = waterRadius[water.type]!;
+          const margin = clearance[object.type]!;
+          const dx = (object.x - water.x) / (radius.x + margin);
+          const dy = (object.y - water.y) / (radius.y + margin);
+          expect(dx * dx + dy * dy, `${zone.id}: ${object.id} overlaps ${water.id}`).toBeGreaterThanOrEqual(1);
+        }
+      }
+    }
   });
 
   it("rejects malformed world content before the server starts", () => {
@@ -45,10 +118,20 @@ describe("zone collision data", () => {
 });
 
 describe("survival skill system", () => {
-  it("loads the GDD's 40 skills and cap rules", () => {
-    expect(defaultSkillProgression).toHaveLength(40);
+  it("loads the GDD's 41 skills and cap rules", () => {
+    expect(defaultSkillProgression).toHaveLength(41);
     expect(skillSystemDefinition).toMatchObject({ totalSkillCap: 720, individualSkillCap: 120 });
     expect(findSkillForAction("bow.shot")?.id).toBe("hunting");
+    expect(craftingRecipes.every((recipe) => findSkillForAction(recipe.actionId))).toBe(true);
+  });
+
+  it("scales yield, damage, and action time with the relevant skill", () => {
+    expect(calculateSkillYield(1, 0, 40)).toBe(1);
+    expect(calculateSkillYield(1, 80, 40)).toBe(3);
+    expect(calculateSkillDamage(10, 0)).toBe(8);
+    expect(calculateSkillDamage(10, 120)).toBe(14);
+    expect(calculateSkillInterval(2_000, 0)).toBe(2_000);
+    expect(calculateSkillInterval(2_000, 120)).toBe(1_200);
   });
 
   it("applies the adjustable gain only after the configured action count", () => {
@@ -62,6 +145,27 @@ describe("survival skill system", () => {
     expect(skillCategories).toHaveLength(8);
     expect(defaultSkillProgression.every((skill) => skillCategories.some((category) => category.id === skill.category))).toBe(true);
     expect(defaultSkillProgression.filter((skill) => skill.mvp).map((skill) => skill.id)).toEqual(["observation", "foraging", "firecraft", "toolmaking", "hunting", "butchery", "cooking", "shelter", "firstAid"]);
+  });
+
+  it("combines pickaxe material and mining skill when calculating each mining yield", () => {
+    expect(calculateMiningYield("tool.pickaxe", 0)).toBe(1);
+    expect(calculateMiningYield("tool.copper-pickaxe", 30)).toBe(3);
+    expect(calculateMiningYield("tool.iron-pickaxe", 90)).toBe(6);
+    expect(calculateMiningYield("tool.steel-pickaxe", 120)).toBe(8);
+    expect(calculateMiningYield("tool.hand-axe", 120)).toBe(0);
+  });
+});
+
+describe("crafting catalog", () => {
+  it("provides ten material tiers for every requested tool family", () => {
+    for (const family of ["axe", "pickaxe", "dagger", "longsword", "fishing-rod", "bow", "spear"]) {
+      expect(toolDefinitions.filter((tool) => tool.itemId.endsWith(`-${family}`) && !["tool.hand-axe"].includes(tool.itemId))).toHaveLength(10);
+    }
+  });
+
+  it("includes a player-built shelter recipe", () => {
+    expect(craftingRecipes.find((recipe) => recipe.id === "shelter.log-house")).toMatchObject({ output: { itemId: "structure.log-shelter" } });
+    expect(craftingRecipes.find((recipe) => recipe.id === "shelter.wood-bridge")).toMatchObject({ output: { itemId: "structure.wood-bridge" } });
   });
 });
 

@@ -25,4 +25,14 @@ describe("game protocol", () => {
     const result: ServerMessage = { type: "world.action", requestId: "resource-1", payload: { objectId: "wilds.pond", actionId: "fishing.cast", message: "Caught a trout.", reward: { itemId: "fish.trout", quantity: 1 } } };
     expect(decodeServerMessage(encodeMessage(result))).toEqual(result);
   });
+
+  it("validates authoritative world object snapshots", () => {
+    const observe = { type: "world.observe", requestId: "observe-1", payload: { zoneId: "untamedWilds" } } as const;
+    expect(decodeClientMessage(encodeMessage(observe))).toEqual(observe);
+    const snapshot: ServerMessage = { type: "world.snapshot", requestId: "observe-1", payload: { zoneId: "untamedWilds", objects: [
+      { kind: "resource", zoneId: "untamedWilds", objectId: "wilds.stone-scatter-c", remaining: 0, maximum: 1, exhaustedUntil: Date.now() + 1000 },
+      { kind: "wildlife", zoneId: "untamedWilds", objectId: "wilds.wolf-pack", health: 10, maximumHealth: 10, defeatedUntil: 0 },
+    ] } };
+    expect(decodeServerMessage(encodeMessage(snapshot))).toEqual(snapshot);
+  });
 });

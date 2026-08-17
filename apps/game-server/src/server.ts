@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
-import { decodeClientMessage, encodeMessage, type ActionOutcome, type CharacterSummary, type TargetState } from "@eldoria/game-protocol";
-import { MAXIMUM_HEALTH, createInitialSurvivalState, defaultSkillProgression, findRecipe, findTool, foodCatalog, getZoneDefinition, isEquipmentSlot, nutrientIds, resolveSkillAction, type ToolDefinition } from "@eldoria/game-data";
+import { decodeClientMessage, encodeMessage, type ActionOutcome, type CharacterSummary, type CombatState, type TargetState, type WorldObjectState } from "@eldoria/game-protocol";
+import { MAXIMUM_HEALTH, calculateMiningYield, calculateSkillDamage, calculateSkillInterval, calculateSkillYield, createInitialSurvivalState, defaultSkillProgression, findRecipe, findTool, foodCatalog, getZoneDefinition, isEquipmentSlot, nutrientIds, resolveSkillAction, type ToolDefinition } from "@eldoria/game-data";
 import { WebSocketServer } from "ws";
 import type { GameServerConfig } from "./config";
 import type { VerifyIdToken } from "./auth-verifier";
@@ -25,6 +25,32 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
   });
 
   const webSocketServer = new WebSocketServer({ server: httpServer, maxPayload: 16 * 1024 });
+  const broadcastObjectState = (object: WorldObjectState) => {
+    const message = encodeMessage({ type: "world.object", requestId: `object-${object.objectId}-${Date.now()}`, payload: { object } });
+    for (const client of webSocketServer.clients) if (client.readyState === client.OPEN) client.send(message);
+  };
+  const snapshotForZone = (zoneId: string): WorldObjectState[] => {
+    const now = Date.now();
+    const zone = getZoneDefinition(zoneId);
+    if (!zone) return [];
+    return zone.layers.objects.flatMap((object): WorldObjectState[] => {
+      const yields = NODE_YIELDS[object.type];
+      if (yields) {
+        const key = `${zoneId}:${object.id}`;
+        const stored = nodeStates.get(key);
+        if (stored?.exhaustedUntil && stored.exhaustedUntil <= now) nodeStates.delete(key);
+        const state = nodeStates.get(key) ?? { remaining: yields.charges, exhaustedUntil: 0 };
+        return [{ kind: "resource", zoneId, objectId: object.id, remaining: state.exhaustedUntil > now ? 0 : state.remaining, maximum: yields.charges, exhaustedUntil: state.exhaustedUntil }];
+      }
+      if (isWildlifeType(object.type)) {
+        const species = wildlifeSpecies(object.type);
+        const maximumHealth = WILDLIFE[species].maximumHealth;
+        const state = wildlifeStates.get(`${zoneId}:${object.id}`) ?? { health: maximumHealth, defeatedUntil: 0 };
+        return [{ kind: "wildlife", zoneId, objectId: object.id, health: state.defeatedUntil > now ? 0 : state.health, maximumHealth, defeatedUntil: state.defeatedUntil }];
+      }
+      return [];
+    });
+  };
   webSocketServer.on("connection", (socket, request) => {
     let uid: string | null = null;
     let selectedCharacterId: string | null = null;
@@ -99,6 +125,7 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
         equippedItem = character.survival?.equipment?.mainHand ?? character.survival?.equipped ?? null;
         survivalWear = { ...(character.survival?.toolWear ?? {}) };
         socket.send(encodeMessage({ type: "character.selected", requestId: message.requestId, payload: { character } }));
+        socket.send(encodeMessage({ type: "world.snapshot", requestId: message.requestId, payload: { zoneId: character.position.zoneId, objects: snapshotForZone(character.position.zoneId) } }));
       } else if (message.type === "player.move") {
         if (!uid) {
           socket.send(encodeMessage({ type: "error", requestId: message.requestId, payload: { code: "auth.required", message: "Authenticate before sending gameplay commands." } }));
@@ -109,6 +136,13 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           return;
         }
         world.setDirection(uid, message.payload.direction, message.payload.sequence);
+      } else if (message.type === "world.observe") {
+        const player = uid ? world.get(uid) : undefined;
+        if (!uid || !selectedCharacterId || !player || player.position.zoneId !== message.payload.zoneId) {
+          sendError(socket, message.requestId, "world.unavailable", "Select a character in that zone before observing it.");
+          return;
+        }
+        socket.send(encodeMessage({ type: "world.snapshot", requestId: message.requestId, payload: { zoneId: message.payload.zoneId, objects: snapshotForZone(message.payload.zoneId) } }));
       } else if (message.type === "world.interact") {
         if (!uid || !selectedCharacterId) {
           sendError(socket, message.requestId, "character.required", "Select a character before interacting.");
@@ -118,7 +152,9 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
         const object = player ? getZoneDefinition(player.position.zoneId)?.layers.objects.find((candidate) => candidate.id === message.payload.objectId) : undefined;
         // The server bound is an anti-cheat ceiling, not the feel of the fight; the client closes to
         // arm's length before it swings. 600 was wide enough to hit across most of a screen.
-        const interactionRange = object?.type.startsWith("wildlifeSpawn") ? 300 : 260;
+        // The client only emits melee attacks at 68px; this wider server ceiling absorbs network
+        // position lag without making a distant attack possible through the normal game controls.
+        const interactionRange = object?.type.startsWith("ambientBirdFlock") ? 520 : object?.type.startsWith("wildlifeSpawn") ? 300 : 260;
         if (!player || !object || Math.hypot(player.position.x - object.x, player.position.y - object.y) > interactionRange) {
           sendError(socket, message.requestId, "interaction.too_far", "Move closer to the resource.");
           return;
@@ -129,13 +165,21 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
             ? world.teleport(uid, "animalDen", "arrival")
             : world.place(uid, denReturnPositions.get(uid) ?? { zoneId: "untamedWilds", x: 385, y: 300 });
           if (object.type === "animalDenExit") denReturnPositions.delete(uid);
-          if (moved) socket.send(encodeMessage({ type: "world.action", requestId: message.requestId, payload: { objectId: object.id, actionId: "travel.enter", message: object.type === "animalDenEntrance" ? "Entered the wild animal den." : "Returned to the untamed wilds." } }));
+          if (moved) {
+            socket.send(encodeMessage({ type: "world.action", requestId: message.requestId, payload: { objectId: object.id, actionId: "travel.enter", message: object.type === "animalDenEntrance" ? "Entered the wild animal den." : "Returned to the untamed wilds." } }));
+            socket.send(encodeMessage({ type: "world.snapshot", requestId: message.requestId, payload: { zoneId: moved.position.zoneId, objects: snapshotForZone(moved.position.zoneId) } }));
+          }
           return;
         }
-        let action = resolveResourceAction(object.type, object.id);
+        let action = resolveResourceAction(object.type, object.id, player.position.zoneId, equippedItem);
         let quarry: { key: string; state: { health: number; defeatedUntil: number }; species: keyof typeof WILDLIFE; maximumHealth: number } | null = null;
-        if (object.type.startsWith("wildlifeSpawn")) {
-          const species = object.type.endsWith("Rabbit") ? "rabbit" : object.type.endsWith("Deer") ? "deer" : "wild-boar";
+        const flyingBird = object.type.startsWith("ambientBirdFlock");
+        if (flyingBird && !equippedItem?.endsWith("-bow")) {
+          sendError(socket, message.requestId, "interaction.needs_bow", "Flying birds must be hunted with a bow and arrow.");
+          return;
+        }
+        if (isWildlifeType(object.type)) {
+          const species = wildlifeSpecies(object.type);
           const quarryProfile = WILDLIFE[species];
           const maximumHealth = quarryProfile.maximumHealth;
           const wildlifeKey = `${player.position.zoneId}:${object.id}`;
@@ -151,7 +195,7 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           quarry = { key: wildlifeKey, state, species, maximumHealth };
           const inHand = findTool(equippedItem ?? "");
           const sharpness = toolCondition(inHand, survivalWear);
-          action = { actionId: "club.strike", difficulty: Math.max(0, quarryProfile.barehandedDifficulty - Math.round((inHand?.huntingBonus ?? 0) * sharpness)), successFloor: quarryProfile.barehandedFloor, message: "", failureMessage: `The ${species} slipped away from the blow.`, cooldownMs: 700 };
+          action = { actionId: flyingBird ? "bow.shot" : "club.strike", difficulty: Math.max(0, quarryProfile.barehandedDifficulty - Math.round((inHand?.huntingBonus ?? 0) * sharpness)), successFloor: quarryProfile.barehandedFloor, message: "", failureMessage: `The ${species} slipped away from the blow.`, cooldownMs: 700 };
         }
         if (!action) {
           sendError(socket, message.requestId, "interaction.unavailable", "This object cannot be used yet.");
@@ -180,7 +224,6 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           sendError(socket, message.requestId, "interaction.cooldown", "Wait before using this resource again.");
           return;
         }
-        interactionCooldowns.set(cooldownKey, now + action.cooldownMs);
         const character = await dependencies.characters.getOwned(uid, selectedCharacterId);
         if (!character) {
           sendError(socket, message.requestId, "character.not_found", "Character was not found.");
@@ -190,6 +233,15 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
         survival.inventory ??= [];
         survival.skills ??= {};
         survival.locks ??= {};
+        if (flyingBird) {
+          const arrows = survival.inventory.find((stack) => stack.itemId === "ammunition.arrow");
+          if (!arrows || arrows.quantity < 1) {
+            sendError(socket, message.requestId, "interaction.needs_arrow", "Craft an arrow before hunting a flying bird.");
+            return;
+          }
+          arrows.quantity -= 1;
+          survival.inventory = survival.inventory.filter((stack) => stack.quantity > 0);
+        }
 
         // GDD section 6: skill decides the odds, never the permission. A failure costs time and the reward only.
         const skillConfig = (await skills.list()).find((candidate) => candidate.actionIds.includes(action.actionId));
@@ -203,21 +255,25 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           succeeded = result.success;
           outcome = { success: result.success, chance: result.chance, skillId: skillConfig.id, gain: result.gain, drained: result.drained };
         }
+        const skilledCooldown = calculateSkillInterval(action.cooldownMs, skillValue);
+        interactionCooldowns.set(cooldownKey, now + Math.round(skilledCooldown * (succeeded ? 1 : FAILURE_COOLDOWN_MULTIPLIER)));
 
         let reward = succeeded ? scaleReward(action, skillValue) : undefined;
         let resultMessage = succeeded ? action.message : action.failureMessage;
         let target: TargetState | undefined;
+        let combat: CombatState | undefined;
+        let objectState: WorldObjectState | undefined;
         if (quarry) {
           let defeated = false;
           if (succeeded) {
-            quarry.state.health -= strikeDamage(findTool(equippedItem ?? ""), survivalWear);
+            quarry.state.health -= strikeDamage(findTool(equippedItem ?? ""), survivalWear, skillValue);
             defeated = quarry.state.health <= 0;
             if (defeated) {
               quarry.state.health = quarry.maximumHealth;
               quarry.state.defeatedUntil = now + 45_000;
-              reward = { itemId: `meat.${quarry.species}`, quantity: WILDLIFE[quarry.species].yield };
+              reward = { itemId: WILDLIFE[quarry.species].rewardItem, quantity: calculateSkillYield(WILDLIFE[quarry.species].yield, skillValue, 50) };
             }
-            resultMessage = defeated ? `Caught the ${quarry.species}.` : `Struck the ${quarry.species} with bare fists. ${quarry.state.health} health remains.`;
+            resultMessage = defeated ? `Caught the ${quarry.species}.` : flyingBird ? `The arrow hit the ${quarry.species}. ${quarry.state.health} health remains.` : `Struck the ${quarry.species} with bare fists. ${quarry.state.health} health remains.`;
           }
           wildlifeStates.set(quarry.key, quarry.state);
           target = { health: defeated ? 0 : quarry.state.health, maximumHealth: quarry.maximumHealth, defeated };
@@ -227,12 +283,14 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           if (!defeated && Math.random() < counter.retaliationChance) {
             survival.health ??= { current: MAXIMUM_HEALTH, maximum: MAXIMUM_HEALTH };
             const bite = counter.retaliation;
+            combat = { counterDamage: bite, playerDefeated: false };
             survival.health.current = Math.max(0, survival.health.current - bite);
             resultMessage = `${resultMessage} The ${quarry.species} strikes back for ${bite}.`;
             if (survival.health.current <= 0) {
               // Death handling is an open GDD question (section 14), so for now the wanderer wakes at
               // the arrival spawn, whole, with everything they were carrying.
               survival.health.current = survival.health.maximum;
+              combat.playerDefeated = true;
               world.teleport(uid, player.position.zoneId, "arrival") ?? world.place(uid, player.position);
               resultMessage = `The ${quarry.species} put you down. You wake at the arrival stones.`;
               quarry.state.health = quarry.maximumHealth;
@@ -240,10 +298,9 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
               target = { health: quarry.maximumHealth, maximumHealth: quarry.maximumHealth, defeated: false };
             }
           }
+          objectState = { kind: "wildlife", zoneId: player.position.zoneId, objectId: object.id, health: quarry.state.defeatedUntil > now ? 0 : quarry.state.health, maximumHealth: quarry.maximumHealth, defeatedUntil: quarry.state.defeatedUntil };
         }
         // The failure penalty is time: the resource stays out of reach for longer than a clean attempt would cost.
-        if (!succeeded) interactionCooldowns.set(cooldownKey, now + Math.round(action.cooldownMs * FAILURE_COOLDOWN_MULTIPLIER));
-
         // A tool wears with use and finally breaks. Wear is only spent on work that landed.
         const wielded = equippedItem ? findTool(equippedItem) : undefined;
         if (succeeded && wielded) {
@@ -273,6 +330,7 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
             resultMessage = `${resultMessage} That is the last of it here.`;
           }
           nodeStates.set(nodeKey, node);
+          objectState = { kind: "resource", zoneId: player.position.zoneId, objectId: object.id, remaining: node.exhaustedUntil > now ? 0 : node.remaining, maximum: yields.charges, exhaustedUntil: node.exhaustedUntil };
         }
         if (reward) {
           const stack = survival.inventory.find((item) => item.itemId === reward.itemId);
@@ -280,7 +338,8 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           else survival.inventory.push({ ...reward });
         }
         await dependencies.characters.saveSurvival(uid, selectedCharacterId, survival);
-        socket.send(encodeMessage({ type: "world.action", requestId: message.requestId, payload: { objectId: object.id, actionId: action.actionId, message: resultMessage, ...(reward ? { reward } : {}), survival, ...(outcome ? { outcome } : {}), ...(target ? { target } : {}) } }));
+        socket.send(encodeMessage({ type: "world.action", requestId: message.requestId, payload: { objectId: object.id, actionId: action.actionId, message: resultMessage, ...(reward ? { reward } : {}), survival, ...(outcome ? { outcome } : {}), ...(target ? { target } : {}), ...(combat ? { combat } : {}) } }));
+        if (objectState) broadcastObjectState(objectState);
       } else if (message.type === "item.equip") {
         if (!uid || !selectedCharacterId) {
           sendError(socket, message.requestId, "character.required", "Select a character before equipping.");
@@ -382,6 +441,10 @@ export function createGameServer(config: GameServerConfig, dependencies: { verif
           sendError(socket, message.requestId, "item.inedible", "That cannot be eaten.");
           return;
         }
+        if (food.category !== "fruit") {
+          sendError(socket, message.requestId, "item.needs_cooking", "Raw meat and fish must be cooked before eating.");
+          return;
+        }
         const character = await dependencies.characters.getOwned(uid, selectedCharacterId);
         if (!character) {
           sendError(socket, message.requestId, "character.not_found", "Character was not found.");
@@ -479,6 +542,7 @@ const NUTRITION_CEILING = 100;
  */
 const NODE_YIELDS: Record<string, { charges: number; respawnMs: number }> = {
   looseStone: { charges: 1, respawnMs: 150_000 },
+  stoneOutcrop: { charges: 12, respawnMs: 300_000 },
   fallenBranch: { charges: 2, respawnMs: 150_000 },
   wildFruitTree: { charges: 6, respawnMs: 240_000 },
   wildTree: { charges: 4, respawnMs: 360_000 },
@@ -488,16 +552,60 @@ const NODE_YIELDS: Record<string, { charges: number; respawnMs: number }> = {
 };
 const HEALTH_PER_NOURISHMENT = 0.35;
 
+function hashText(value: string) {
+  let hash = 0;
+  for (const character of value) hash = Math.imul(31, hash) + character.charCodeAt(0) | 0;
+  return hash;
+}
+
 /**
  * GDD section 6 forbids locking an action behind a skill: anyone may try anything, and mastery only
  * moves the odds. So a stag is not off-limits to bare hands — it is simply a very poor idea, priced
  * through `barehandedDifficulty` on the Hunting curve until there is a weapon worth carrying.
  */
 const WILDLIFE = {
-  rabbit: { maximumHealth: 3, barehandedDifficulty: 10, barehandedFloor: 0.5, yield: 2, retaliation: 1, retaliationChance: 0.2 },
-  deer: { maximumHealth: 8, barehandedDifficulty: 55, barehandedFloor: 0.08, yield: 8, retaliation: 5, retaliationChance: 0.4 },
-  "wild-boar": { maximumHealth: 11, barehandedDifficulty: 70, barehandedFloor: 0.05, yield: 10, retaliation: 8, retaliationChance: 0.5 },
+  rabbit: { maximumHealth: 3, barehandedDifficulty: 10, barehandedFloor: 0.5, yield: 2, rewardItem: "meat.rabbit", retaliation: 1, retaliationChance: 1 },
+  deer: { maximumHealth: 8, barehandedDifficulty: 55, barehandedFloor: 0.08, yield: 8, rewardItem: "meat.deer", retaliation: 5, retaliationChance: 1 },
+  "wild-boar": { maximumHealth: 11, barehandedDifficulty: 70, barehandedFloor: 0.05, yield: 10, rewardItem: "meat.wild-boar", retaliation: 8, retaliationChance: 1 },
+  wolf: { maximumHealth: 10, barehandedDifficulty: 72, barehandedFloor: 0.04, yield: 4, rewardItem: "meat.hare", retaliation: 9, retaliationChance: 1 },
+  fox: { maximumHealth: 5, barehandedDifficulty: 45, barehandedFloor: 0.12, yield: 2, rewardItem: "meat.hare", retaliation: 3, retaliationChance: 1 },
+  bear: { maximumHealth: 24, barehandedDifficulty: 92, barehandedFloor: 0.01, yield: 18, rewardItem: "meat.bear", retaliation: 16, retaliationChance: 1 },
+  bison: { maximumHealth: 20, barehandedDifficulty: 84, barehandedFloor: 0.02, yield: 16, rewardItem: "meat.bison", retaliation: 13, retaliationChance: 1 },
+  goat: { maximumHealth: 7, barehandedDifficulty: 48, barehandedFloor: 0.1, yield: 5, rewardItem: "meat.goat", retaliation: 4, retaliationChance: 1 },
+  turkey: { maximumHealth: 4, barehandedDifficulty: 34, barehandedFloor: 0.18, yield: 3, rewardItem: "bird.turkey", retaliation: 2, retaliationChance: 1 },
+  turtle: { maximumHealth: 9, barehandedDifficulty: 58, barehandedFloor: 0.08, yield: 2, rewardItem: "meat.turtle", retaliation: 2, retaliationChance: 1 },
+  hare: { maximumHealth: 4, barehandedDifficulty: 26, barehandedFloor: 0.3, yield: 2, rewardItem: "meat.hare", retaliation: 1, retaliationChance: 1 },
+  eagle: { maximumHealth: 7, barehandedDifficulty: 58, barehandedFloor: 0.2, yield: 3, rewardItem: "bird.eagle", retaliation: 0, retaliationChance: 0 },
+  hawk: { maximumHealth: 5, barehandedDifficulty: 50, barehandedFloor: 0.24, yield: 2, rewardItem: "bird.hawk", retaliation: 0, retaliationChance: 0 },
+  falcon: { maximumHealth: 5, barehandedDifficulty: 56, barehandedFloor: 0.2, yield: 2, rewardItem: "bird.falcon", retaliation: 0, retaliationChance: 0 },
+  vulture: { maximumHealth: 7, barehandedDifficulty: 48, barehandedFloor: 0.25, yield: 3, rewardItem: "bird.vulture", retaliation: 0, retaliationChance: 0 },
+  crow: { maximumHealth: 3, barehandedDifficulty: 40, barehandedFloor: 0.3, yield: 1, rewardItem: "bird.crow", retaliation: 0, retaliationChance: 0 },
+  owl: { maximumHealth: 4, barehandedDifficulty: 52, barehandedFloor: 0.22, yield: 2, rewardItem: "bird.owl", retaliation: 0, retaliationChance: 0 },
+  gull: { maximumHealth: 4, barehandedDifficulty: 42, barehandedFloor: 0.28, yield: 2, rewardItem: "bird.gull", retaliation: 0, retaliationChance: 0 },
+  heron: { maximumHealth: 5, barehandedDifficulty: 46, barehandedFloor: 0.26, yield: 2, rewardItem: "bird.heron", retaliation: 0, retaliationChance: 0 },
+  crane: { maximumHealth: 6, barehandedDifficulty: 48, barehandedFloor: 0.25, yield: 3, rewardItem: "bird.crane", retaliation: 0, retaliationChance: 0 },
+  parrot: { maximumHealth: 3, barehandedDifficulty: 44, barehandedFloor: 0.27, yield: 1, rewardItem: "bird.parrot", retaliation: 0, retaliationChance: 0 },
+  hornbill: { maximumHealth: 5, barehandedDifficulty: 46, barehandedFloor: 0.25, yield: 2, rewardItem: "bird.hornbill", retaliation: 0, retaliationChance: 0 },
 } as const;
+
+function isWildlifeType(type: string) {
+  return type.startsWith("wildlifeSpawn") || type.startsWith("ambientBirdFlock");
+}
+
+function wildlifeSpecies(type: string): keyof typeof WILDLIFE {
+  if (type.startsWith("ambientBirdFlock")) return type.slice("ambientBirdFlock".length).toLowerCase() as keyof typeof WILDLIFE;
+  if (type.endsWith("Rabbit")) return "rabbit";
+  if (type.endsWith("Deer")) return "deer";
+  if (type.endsWith("Wolf")) return "wolf";
+  if (type.endsWith("Fox")) return "fox";
+  if (type.endsWith("Bear")) return "bear";
+  if (type.endsWith("Bison")) return "bison";
+  if (type.endsWith("Goat")) return "goat";
+  if (type.endsWith("Turkey")) return "turkey";
+  if (type.endsWith("Turtle")) return "turtle";
+  if (type.endsWith("Hare")) return "hare";
+  return "wild-boar";
+}
 
 // GDD section 6: skill improves odds, time and yield — it never grants permission. Reaching ripe fruit
 // is limited by showing up, so it always succeeds and Foraging raises how much comes back instead.
@@ -541,23 +649,37 @@ function toolCondition(tool: ToolDefinition | undefined, wear: Record<string, nu
   return 0.5 + remaining * 0.5;
 }
 
-function strikeDamage(tool: ToolDefinition | undefined, wear: Record<string, number>): number {
-  if (!tool) return 1;
-  return Math.max(1, Math.round(tool.damage * toolCondition(tool, wear)));
+function strikeDamage(tool: ToolDefinition | undefined, wear: Record<string, number>, skillValue: number): number {
+  if (!tool) return calculateSkillDamage(1, skillValue);
+  return calculateSkillDamage(tool.damage * toolCondition(tool, wear), skillValue);
 }
 
 function scaleReward(action: ResourceAction, skillValue: number): ResourceAction["reward"] {
   if (!action.reward || !action.yieldPerSkillTier) return action.reward;
-  return { ...action.reward, quantity: action.reward.quantity * (1 + Math.floor(skillValue / action.yieldPerSkillTier)) };
+  return { ...action.reward, quantity: calculateSkillYield(action.reward.quantity, skillValue, action.yieldPerSkillTier) };
 }
 
-function resolveResourceAction(type: string, objectId: string): ResourceAction | null {
+function resolveResourceAction(type: string, objectId: string, zoneId?: string, equippedItem?: string | null): ResourceAction | null {
   // Ground material first: without these there is no way to make the very first tool.
-  if (type === "looseStone") return { actionId: "stone.flake", successFloor: ALWAYS_SUCCEEDS, reward: { itemId: "stone.raw", quantity: 1 }, message: "Picked up a loose stone.", failureMessage: "Nothing usable underfoot.", cooldownMs: 900 };
-  if (type === "fallenBranch") return { actionId: "material.process", successFloor: ALWAYS_SUCCEEDS, reward: { itemId: "wood.branch", quantity: 1 }, message: "Gathered a fallen branch.", failureMessage: "The branch crumbled to rot.", cooldownMs: 900 };
-  if (type === "fishingWater") return { actionId: "fishing.cast", requiresTool: ["tool.fishing-rod"], successFloor: 0.55, reward: { itemId: "fish.trout", quantity: 1 }, message: "Caught a trout from the pond.", failureMessage: "The float moved, but the fish slipped free.", cooldownMs: 3000 };
-  if (type === "wildTree") return { actionId: "material.process", requiresTool: ["tool.hand-axe"], successFloor: 0.3, reward: { itemId: "wood.raw-log", quantity: 1 }, message: "Cut usable wood from the tree.", failureMessage: "The wood splintered and nothing usable came free.", cooldownMs: 2200 };
-  if (type.endsWith("OreDeposit") || type === "coalDeposit") return { actionId: "stone.flake", requiresTool: ["tool.pickaxe"], successFloor: 0.55, reward: { itemId: "stone.raw", quantity: 3 }, message: "Broke workable stone out of the face.", failureMessage: "The rock held; nothing came free.", cooldownMs: 1800 };
+  if (type === "looseStone") return { actionId: "stone.flake", successFloor: ALWAYS_SUCCEEDS, yieldPerSkillTier: 40, reward: { itemId: "stone.raw", quantity: 1 }, message: "Picked up a loose stone.", failureMessage: "Nothing usable underfoot.", cooldownMs: 900 };
+  if (type === "fallenBranch") return { actionId: "material.process", successFloor: ALWAYS_SUCCEEDS, yieldPerSkillTier: 40, reward: { itemId: "wood.branch", quantity: 1 }, message: "Gathered a fallen branch.", failureMessage: "The branch crumbled to rot.", cooldownMs: 900 };
+  if (type === "fishingWater" || type === "riverFishingWater") {
+    const regionalFish = (zoneId ? getZoneDefinition(zoneId)?.ecology.hydrology.fishHabitats : undefined)?.filter((itemId) => itemId.startsWith("fish.")) ?? [];
+    const itemId = regionalFish[Math.abs(hashText(objectId)) % Math.max(1, regionalFish.length)] ?? "fish.trout";
+    const fishName = foodCatalog.find((food) => food.id === itemId)?.name.en ?? itemId;
+    return { actionId: "fishing.cast", requiresTool: ["tool.fishing-rod"], successFloor: 0.55, yieldPerSkillTier: 40, reward: { itemId, quantity: 1 }, message: `Caught ${fishName} from the ${type === "riverFishingWater" ? "river" : "pond"}.`, failureMessage: "The float moved, but the fish slipped free.", cooldownMs: 3000 };
+  }
+  if (type === "wildTree") return { actionId: "material.process", requiresTool: ["tool.hand-axe", "tool.copper-axe", "tool.iron-axe", "tool.steel-axe"], successFloor: 0.3, yieldPerSkillTier: 30, reward: { itemId: "wood.raw-log", quantity: 1 }, message: "Cut usable wood from the tree.", failureMessage: "The wood splintered and nothing usable came free.", cooldownMs: 2200 };
+  if (type === "stoneOutcrop" || type.endsWith("OreDeposit") || type === "coalDeposit") return {
+    actionId: "ore.mine",
+    requiresTool: ["tool.pickaxe", "tool.copper-pickaxe", "tool.iron-pickaxe", "tool.steel-pickaxe"],
+    successFloor: 0.55,
+    yieldPerSkillTier: 30,
+    reward: { itemId: "stone.raw", quantity: calculateMiningYield(equippedItem, 0) || 1 },
+    message: "Broke workable stone out of the face.",
+    failureMessage: "The rock held; nothing came free.",
+    cooldownMs: 1800,
+  };
   if (type === "wildFruitTree") return { actionId: "fruit.gather", successFloor: ALWAYS_SUCCEEDS, yieldPerSkillTier: 40, reward: { itemId: fruitOf(objectId), quantity: 1 }, message: "Gathered ripe wild fruit.", failureMessage: "The fruit fell and bruised beyond use.", cooldownMs: 1200 };
   return null;
 }

@@ -52,8 +52,9 @@ export function useAuth(language: Language) {
   };
 }
 
-// Embedded browsers, strict popup blockers, and COOP-isolated contexts reject the popup flow.
-// Those cases fall back to the redirect flow, which getRedirectResult picks up after the round trip.
+// Embedded browsers and strict popup blockers can reject the popup flow. Regular
+// local development uses the popup so the Firebase session stays on localhost;
+// environments that cannot open it fall back to the redirect flow.
 const POPUP_UNAVAILABLE = new Set([
   "auth/popup-blocked",
   "auth/cancelled-popup-request",
@@ -63,13 +64,12 @@ const POPUP_UNAVAILABLE = new Set([
 
 async function signInWithGoogleProvider(): Promise<void> {
   const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
   try {
     await signInWithPopup(auth, provider);
   } catch (error) {
     const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
-    if (!POPUP_UNAVAILABLE.has(code)) {
-      throw error;
-    }
+    if (!POPUP_UNAVAILABLE.has(code)) throw error;
     await signInWithRedirect(auth, provider);
   }
 }
