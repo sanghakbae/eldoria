@@ -6,7 +6,7 @@ export type InventoryStack = { itemId: string; quantity: number };
 export type SkillProgress = { value: number; completedActions: number };
 export type SkillLock = "up" | "down" | "locked";
 export type VitalState = { current: number; maximum: number };
-export type BuiltStructure = { id: string; type: "log-shelter"; zoneId: string; x: number; y: number };
+export type BuiltStructure = { id: string; type: "log-shelter" | "wood-bridge"; zoneId: string; x: number; y: number };
 /** What is worn or held, keyed by layer slot. `equipped` is the older single-slot form, kept so
  *  characters saved before the rig existed still load. */
 export type Equipment = Partial<Record<string, string | null>>;

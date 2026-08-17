@@ -148,8 +148,18 @@ export function useGameConnection(user: User): GameConnection {
         if (!object?.type.startsWith("wildlifeSpawn")) return;
         const targetX = interaction.x ?? object.x;
         const targetY = interaction.y ?? object.y;
-        if (Math.hypot(character.position.x - targetX, character.position.y - targetY) > 80) {
-          setState((current) => ({ ...current, message: "맨손 사냥은 팔이 닿는 거리에서만 가능합니다." }));
+        const equippedId = character.survival.equipment?.mainHand ?? character.survival.equipped ?? "";
+        const equippedTool = equippedId ? findTool(equippedId) : undefined;
+        const bowEquipped = equippedId.endsWith("-bow");
+        const inventory = (character.survival.inventory ?? []).map((stack) => ({ ...stack }));
+        const arrows = inventory.find((stack) => stack.itemId === "ammunition.arrow");
+        if (bowEquipped && (!arrows || arrows.quantity < 1)) {
+          setState((current) => ({ ...current, message: "화살이 없습니다. 화살을 제작해야 합니다." }));
+          return;
+        }
+        const attackDistance = Math.hypot(character.position.x - targetX, character.position.y - targetY);
+        if (attackDistance > (bowEquipped ? 420 : 80)) {
+          setState((current) => ({ ...current, message: bowEquipped ? "활의 사거리 밖입니다." : "근접 공격은 팔이 닿는 거리에서만 가능합니다." }));
           return;
         }
         const species = object.type.slice("wildlifeSpawn".length);
@@ -157,23 +167,26 @@ export function useGameConnection(user: User): GameConnection {
         if (!profile) return;
         const combatKey = `${character.position.zoneId}:${objectId}`;
         const currentHealth = localWildlifeHealthRef.current.get(combatKey) ?? profile.health;
-        const nextHealth = Math.max(0, currentHealth - 1);
+        const damage = Math.max(1, equippedTool?.damage ?? 1);
+        if (bowEquipped && arrows) arrows.quantity -= 1;
+        const nextHealth = Math.max(0, currentHealth - damage);
         const defeated = nextHealth <= 0;
         localWildlifeHealthRef.current.set(combatKey, defeated ? profile.health : nextHealth);
         const currentPlayerHealth = character.survival.health ?? { current: 100, maximum: 100 };
-        const nextPlayerHealth = defeated ? currentPlayerHealth.current : Math.max(0, currentPlayerHealth.current - profile.retaliation);
-        const playerDefeated = !defeated && nextPlayerHealth <= 0;
-        const survival = { ...character.survival, health: { ...currentPlayerHealth, current: nextPlayerHealth } };
+        const canCounter = !defeated && attackDistance <= 80;
+        const nextPlayerHealth = canCounter ? Math.max(0, currentPlayerHealth.current - profile.retaliation) : currentPlayerHealth.current;
+        const playerDefeated = canCounter && nextPlayerHealth <= 0;
+        const survival = { ...character.survival, inventory: inventory.filter((stack) => stack.quantity > 0), health: { ...currentPlayerHealth, current: nextPlayerHealth } };
         const updated = { ...character, survival };
-        setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: defeated ? `${species} defeated.` : `${species} strikes back for ${profile.retaliation}.` }));
+        setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: defeated ? `${species}을(를) 쓰러뜨렸습니다.` : bowEquipped ? `화살이 명중해 ${damage}의 피해를 입혔습니다.` : `${species}에게 ${damage}의 피해를 입혔습니다.` }));
         void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() });
         window.dispatchEvent(new CustomEvent("eldoria:world-action", { detail: {
           objectId,
-          actionId: "club.strike",
+          actionId: bowEquipped ? "bow.shot" : "club.strike",
           success: true,
           target: { health: nextHealth, maximumHealth: profile.health, defeated },
           reward: defeated ? profile.reward : null,
-          combat: defeated ? null : { counterDamage: profile.retaliation, playerDefeated },
+          combat: canCounter ? { counterDamage: profile.retaliation, playerDefeated } : null,
         } }));
         if (playerDefeated) recoverDefeatedCharacter(updated);
       };
@@ -205,6 +218,30 @@ export function useGameConnection(user: User): GameConnection {
         const object = getZoneDefinition(character.position.zoneId)?.layers.objects.find((candidate) => candidate.id === objectId);
         if (!object || object.type.startsWith("wildlifeSpawn")) return;
         if (Math.hypot(character.position.x - object.x, character.position.y - object.y) > 260) return;
+        if (object.type === "animalDenEntrance" || object.type === "animalDenExit") {
+          const returnKey = `eldoria.den-return.${character.id}`;
+          let nextPosition = { zoneId: "untamedWilds", x: 680, y: 225 };
+          if (object.type === "animalDenEntrance") {
+            localStorage.setItem(returnKey, JSON.stringify(character.position));
+            const arrival = getZoneDefinition("animalDen")?.layers.spawn.find((spawn) => spawn.id === "arrival");
+            nextPosition = { zoneId: "animalDen", x: arrival?.x ?? 836, y: arrival?.y ?? 790 };
+          } else {
+            try {
+              const saved = JSON.parse(localStorage.getItem(returnKey) ?? "null") as typeof nextPosition | null;
+              if (saved?.zoneId === "untamedWilds" && Number.isFinite(saved.x) && Number.isFinite(saved.y)) nextPosition = saved;
+            } catch {
+              // Return to the safe ground outside the entrance if the local checkpoint is malformed.
+            }
+            localStorage.removeItem(returnKey);
+          }
+          const updated = { ...character, position: nextPosition };
+          writeLocalPosition(user.uid, character.id, nextPosition);
+          setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: object.type === "animalDenEntrance" ? "동물 굴 안으로 들어갔습니다." : "동물 굴 밖으로 나왔습니다." }));
+          void updateDoc(doc(firestore, "characters", character.id), { position: nextPosition, positionUpdatedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+          window.dispatchEvent(new CustomEvent("eldoria:zone-change", { detail: nextPosition.zoneId }));
+          window.dispatchEvent(new CustomEvent("eldoria:player-state", { detail: nextPosition }));
+          return;
+        }
         const equipped = character.survival.equipment?.mainHand ?? character.survival.equipped ?? null;
         const isAxe = Boolean(equipped && (equipped === "tool.hand-axe" || equipped.endsWith("-axe")));
         const isPickaxe = Boolean(equipped && (equipped === "tool.pickaxe" || equipped.endsWith("-pickaxe")));
@@ -586,10 +623,10 @@ export function useGameConnection(user: User): GameConnection {
       const remaining = inventory.filter((stack) => stack.quantity > 0);
       let structures = character.survival.structures ?? [];
       let built: BuiltStructure | undefined;
-      if (recipe.output.itemId === "structure.log-shelter") {
+      if (recipe.output.itemId === "structure.log-shelter" || recipe.output.itemId === "structure.wood-bridge") {
         // Negative coordinates represent a crafted but not yet placed structure. The scene presents a
         // placement preview and persists the chosen clear ground through eldoria:structure-place.
-        built = { id: crypto.randomUUID(), type: "log-shelter", zoneId: character.position.zoneId, x: -1, y: -1 };
+        built = { id: crypto.randomUUID(), type: recipe.output.itemId === "structure.wood-bridge" ? "wood-bridge" : "log-shelter", zoneId: character.position.zoneId, x: -1, y: -1 };
         structures = [...structures, built];
       } else {
         const output = remaining.find((stack) => stack.itemId === recipe.output.itemId);
@@ -598,7 +635,7 @@ export function useGameConnection(user: User): GameConnection {
       }
       const survival = { ...character.survival, inventory: remaining, structures };
       const updated = { ...character, survival };
-      const message = recipe.output.itemId === "structure.log-shelter" ? "통나무 집 제작을 완료했습니다. 월드의 원하는 빈 땅을 클릭해 배치하세요." : `${recipe.name.ko} 제작을 완료했습니다.`;
+      const message = built ? `${recipe.name.ko} 제작을 완료했습니다. 월드의 원하는 위치를 클릭해 배치하세요.` : `${recipe.name.ko} 제작을 완료했습니다.`;
       setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message, lastCraft: { recipeId, success: true, message, chance: 1 } }));
       void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));
       if (built) window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));

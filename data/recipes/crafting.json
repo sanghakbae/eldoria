@@ -22,6 +22,18 @@
       }
     },
     {
+      "id": "ammunition.arrow",
+      "name": { "en": "Wood arrows ×5", "ko": "나무 화살 ×5" },
+      "actionId": "toolmaking.assemble",
+      "difficulty": 12,
+      "successFloor": 0.75,
+      "inputs": [
+        { "itemId": "wood.branch", "quantity": 2 },
+        { "itemId": "stone.raw", "quantity": 1 }
+      ],
+      "output": { "itemId": "ammunition.arrow", "quantity": 5 }
+    },
+    {
       "id": "toolmaking.hand-axe",
       "name": {
         "en": "Stone axe",
@@ -212,6 +224,19 @@
         { "itemId": "stone.raw", "quantity": 4 }
       ],
       "output": { "itemId": "structure.log-shelter", "quantity": 1 }
+    },
+    {
+      "id": "shelter.wood-bridge",
+      "name": { "en": "Wood bridge", "ko": "나무 다리" },
+      "actionId": "structure.build",
+      "difficulty": 28,
+      "successFloor": 0.45,
+      "inputs": [
+        { "itemId": "wood.raw-log", "quantity": 6 },
+        { "itemId": "wood.branch", "quantity": 4 },
+        { "itemId": "material.cord", "quantity": 3 }
+      ],
+      "output": { "itemId": "structure.wood-bridge", "quantity": 1 }
     }
   ],
   "tools": [

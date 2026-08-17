@@ -20,6 +20,8 @@ const fallbackItemNames: Record<string, { en: string; ko: string }> = {
   "tool.fishing-rod": { en: "Fishing rod", ko: "낚싯대" },
   "material.cord": { en: "Plant cord", ko: "풀 끈" },
   "structure.log-shelter": { en: "Log shelter", ko: "통나무 집" },
+  "structure.wood-bridge": { en: "Wood bridge", ko: "나무 다리" },
+  "ammunition.arrow": { en: "Arrow", ko: "화살" },
   "meat.turtle": { en: "Meat (turtle)", ko: "육고기(거북이)" },
   "meat.wolf": { en: "Meat (wolf)", ko: "육고기(늑대)" },
   "meat.fox": { en: "Meat (fox)", ko: "육고기(여우)" },

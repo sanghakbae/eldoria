@@ -8,6 +8,7 @@ const assets = {
   "resource.copperOreDeposit": "/assets/world/resources/copper-ore.png",
   "resource.coalDeposit": "/assets/world/resources/coal-ore.png",
   "resource.ironOreDeposit": "/assets/world/resources/iron-ore.png",
+  "resource.animalDenEntrance": "/assets/world/animal-den-entrance.png",
   "world.mossward": "/assets/world/verdant-meadow-ground.png",
   "world.greythorn": "/assets/world/verdant-meadow-ground.png",
   "world.amberfen": "/assets/world/verdant-meadow-ground.png",

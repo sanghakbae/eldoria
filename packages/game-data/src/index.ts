@@ -212,7 +212,7 @@ const toolFamilies = [
   { id: "dagger", en: "dagger", ko: "단검", damage: 4, bonus: 28 },
   { id: "longsword", en: "longsword", ko: "장검", damage: 6, bonus: 38 },
   { id: "fishing-rod", en: "fishing rod", ko: "낚싯대", damage: 1, bonus: 0 },
-  { id: "bow", en: "bow", ko: "활", damage: 5, bonus: 45 },
+  { id: "bow", en: "bow", ko: "활", damage: 2, bonus: 28 },
   { id: "spear", en: "spear", ko: "창", damage: 5, bonus: 42 },
 ] as const;
 
@@ -224,7 +224,7 @@ const tieredTools: ToolDefinition[] = materialTiers.flatMap((material, tier) => 
   name: { en: `${material.en} ${family.en}`, ko: `${material.ko} ${family.ko}` },
   slot: "mainHand" as const,
   huntingBonus: family.bonus + tier * 4,
-  damage: family.damage + Math.floor(tier * 0.8),
+  damage: family.damage + Math.floor(tier * (family.id === "bow" ? 0.4 : 0.8)),
   durability: 35 + tier * 28,
 }))).filter((tool) => !existingToolIds.has(tool.itemId));
 const existingRecipeOutputs = new Set(baseRecipes.map((recipe) => recipe.output.itemId));

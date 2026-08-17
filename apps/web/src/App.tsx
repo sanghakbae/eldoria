@@ -204,9 +204,14 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
   const [systemMessages, setSystemMessages] = useState<string[]>(() => [localizedSystemMessage(connection.message, language)]);
   const [visitedZones, setVisitedZones] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem("eldoria.visited-zones") ?? '["untamedWilds"]') as string[]));
   const equippedItem = character.survival.equipment?.mainHand ?? character.survival.equipped ?? null;
+  const bowEquipped = Boolean(equippedItem?.endsWith("-bow"));
+  const arrowCount = character.survival.inventory?.find((stack) => stack.itemId === "ammunition.arrow")?.quantity ?? 0;
   const hasFishingRod = Boolean(equippedItem && (equippedItem === "tool.fishing-rod" || equippedItem.endsWith("-fishing-rod")))
     || (character.survival.inventory ?? []).some((stack) => (stack.itemId === "tool.fishing-rod" || stack.itemId.endsWith("-fishing-rod")) && stack.quantity > 0);
   const nearbyFishingWater = getZoneDefinition(playerPosition.zoneId)?.layers.objects.find((object) => (object.type === "fishingWater" || object.type === "riverFishingWater") && Math.hypot(playerPosition.x - object.x, playerPosition.y - object.y) <= 260);
+  const sidebarSkills = [...defaultSkillProgression]
+    .sort((left, right) => (character.survival.skills?.[right.id]?.value ?? 0) - (character.survival.skills?.[left.id]?.value ?? 0) || Number(right.mvp) - Number(left.mvp))
+    .slice(0, 8);
   useEffect(() => {
     const enterShelter = (event: Event) => {
       const structureId = (event as CustomEvent<string>).detail;
@@ -322,19 +327,13 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           </div>
           <div className="divider" />
           <p className="panel-label">{t("activeSkills")}</p>
-          <Skill name={t("fishing")} value={(character.survival.skills?.fishing?.value ?? 0).toFixed(3)} />
-          <Skill name={t("foraging")} value={(character.survival.skills?.foraging?.value ?? 0).toFixed(3)} />
-          <Skill name={t("materialProcessing")} value={(character.survival.skills?.materialProcessing?.value ?? 0).toFixed(3)} />
-          <div className="divider" />
-          <button type="button" className="panel-inventory-button" onClick={() => setInventoryOpen(true)}>
-            <span>{t("inventory")}</span><kbd>I</kbd>
-          </button>
-          {(character.survival.inventory ?? []).slice(0, 5).map((item) => <div className="inventory-row" key={item.itemId}><span>{itemDisplayName(item.itemId, language)}</span><strong>× {item.quantity}</strong></div>)}
+          {sidebarSkills.map((skill) => <Skill key={skill.id} name={skill.name[language]} value={(character.survival.skills?.[skill.id]?.value ?? 0).toFixed(3)} />)}
         </aside>
 
         <section className="world-frame" aria-label={t("worldAria")}>
-          <GameCanvas gender={character.gender} language={language} position={character.position} equipped={equippedItem} equipment={character.survival.equipment ?? {}} hasFishingRod={hasFishingRod} structures={character.survival.structures ?? []} />
+          <GameCanvas gender={character.gender} language={language} position={character.position} equipped={equippedItem} equipment={character.survival.equipment ?? {}} hasFishingRod={hasFishingRod} arrowCount={arrowCount} structures={character.survival.structures ?? []} />
           <MiniMap position={playerPosition} language={language} onOpen={() => setMapOpen(true)} />
+          {bowEquipped && <div className={`arrow-counter ${arrowCount === 0 ? "is-empty" : ""}`}><span aria-hidden="true">➶</span><strong>{language === "ko" ? "화살" : "Arrows"}</strong><b>{arrowCount}</b></div>}
           {hasFishingRod && nearbyFishingWater && <button type="button" className="shore-fishing-action" onClick={() => window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: nearbyFishingWater.id } }))}>{language === "ko" ? "낚시하기" : "Fish here"}</button>}
           <button type="button" className="inventory-toggle" onClick={() => setInventoryOpen(true)} aria-label={t("inventory")}>
             <QuickSlotIcon slot="inventory" /><span>{t("inventory")}</span><kbd>I</kbd>
@@ -353,6 +352,7 @@ function WorldScreen({ connection, character, isAdmin, onSignOut }: { connection
           {craftingOpen && <CraftingOverlay character={character} lastCraft={connection.lastCraft} onCraft={connection.craft} onClose={() => setCraftingOpen(false)} />}
           {insideShelter && <section className="shelter-interior" aria-label={language === "ko" ? "통나무 집 내부" : "Log shelter interior"}>
             <div className="shelter-interior-copy"><span>{language === "ko" ? "통나무 집 내부" : "Inside the log shelter"}</span><strong>{language === "ko" ? "바람을 피할 수 있는 안전한 공간" : "A safe place out of the wind"}</strong></div>
+            <div className="shelter-fire" aria-hidden="true"><span /></div>
             {sleepingInShelter && <div className={`shelter-sleeper shelter-sleeper--${character.gender}`} role="img" aria-label={language === "ko" ? `${character.name}이(가) 침대에서 자는 모습` : `${character.name} sleeping in bed`} />}
             <div className="shelter-actions">
               <button type="button" aria-pressed={sleepingInShelter} onClick={() => {
@@ -538,6 +538,7 @@ function toolIconPath(itemId: string): string | undefined {
 /** No item art exists yet, so each stack is drawn from its id: category shape, species outline. */
 function ItemIcon({ itemId }: { itemId: string }) {
   const [category] = itemId.split(".");
+  if (category === "ammunition") return <img className="item-icon item-icon--tool" src="/assets/items/arrow.svg" alt="" />;
   if (category === "fruit") {
     const shape = fruitShapes[itemId] ?? defaultFruit;
     return (
@@ -601,7 +602,8 @@ function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character
   const groups = [
     { id: "tools", label: language === "ko" ? "도구·무기" : "Tools & weapons", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("toolmaking.") && !legacyToolAliases.has(recipe.output.itemId)) },
     { id: "construction", label: language === "ko" ? "건축" : "Construction", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("shelter.")) },
-    { id: "materials", label: language === "ko" ? "재료 가공" : "Materials", recipes: craftingRecipes.filter((recipe) => !recipe.id.startsWith("toolmaking.") && !recipe.id.startsWith("shelter.")) },
+    { id: "ammunition", label: language === "ko" ? "탄약" : "Ammunition", recipes: craftingRecipes.filter((recipe) => recipe.id.startsWith("ammunition.")) },
+    { id: "materials", label: language === "ko" ? "재료 가공" : "Materials", recipes: craftingRecipes.filter((recipe) => !recipe.id.startsWith("toolmaking.") && !recipe.id.startsWith("shelter.") && !recipe.id.startsWith("ammunition.")) },
   ].filter((group) => group.recipes.length > 0);
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
   const toolFamilyOf = (itemId: string) => itemId.includes("pickaxe") ? "pickaxe"
@@ -657,11 +659,12 @@ function CraftingOverlay({ character, lastCraft, onCraft, onClose }: { character
         <ul className="recipe-list">
         {visibleRecipes.map((recipe) => {
           const ready = recipe.inputs.every((input) => (carried.get(input.itemId) ?? 0) >= input.quantity);
+          const craftedTool = findTool(recipe.output.itemId);
           return (
             <li key={recipe.id} className="recipe">
               <ItemIcon itemId={recipe.output.itemId} />
               <div>
-                <strong>{recipe.name[language]}</strong>
+                <strong>{recipe.name[language]}{craftedTool && <b className="weapon-damage">{language === "ko" ? "공격력" : "Damage"} {craftedTool.damage}</b>}</strong>
                 <small>
                   {t("needs")}: {recipe.inputs.map((input) => `${itemDisplayName(input.itemId, language)} ${carried.get(input.itemId) ?? 0}/${input.quantity}`).join(" · ")}
                 </small>
@@ -734,6 +737,7 @@ function InventoryOverlay({ character, onEat, onEquip, onClose }: { character: C
                     <ItemIcon itemId={stack.itemId} />
                     <b className="inventory-count">×{stack.quantity}</b>
                     <span className="inventory-name">{name}</span>
+                    {tool && <span className="inventory-damage">{language === "ko" ? "공격력" : "DMG"} {tool.damage}</span>}
                     {tool && <span className="inventory-wear"><i style={{ width: `${Math.round(condition * 100)}%` }} /></span>}
                     {edible && <em className="inventory-eat">{t("eat")}</em>}
                     {needsCooking && <em className="inventory-eat">{t("needsCooking")}</em>}

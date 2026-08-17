@@ -127,6 +127,7 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .item-icon--tool { object-fit: contain; }
 .inventory-count { position: absolute; right: 4px; top: 4px; padding: 1px 4px; color: #0b1512; background: #d3c37fdd; font: 500 9px "KoPubWorld Dotum"; }
 .inventory-name { max-width: 100%; overflow: hidden; color: #9aa79b; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 1.2; }
+.inventory-damage { position: absolute; left: 5px; top: 5px; padding: 1px 4px; color: #d8c983; border: 1px solid #9d8f4c55; background: #07110ed9; font-size: 8px; }
 .inventory-wear { position: absolute; left: 6px; right: 6px; bottom: 3px; height: 2px; background: #2a3630; }
 .inventory-wear i { display: block; height: 100%; background: #8fb07f; }
 .inventory-eat { position: absolute; inset: auto 0 0; padding: 2px 0; color: #0b1512; background: #8fb07f; opacity: 0; font: 500 8px "KoPubWorld Dotum"; font-style: normal; letter-spacing: .12em; text-transform: uppercase; transition: opacity .12s; }
@@ -156,6 +157,7 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .crafting-content .recipe-group:not(:has(.recipe-family-tabs)) .recipe-list { height: calc(100% - 28px); }
 .recipe { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid #76836e2b; background: #0c1713; }
 .recipe strong { display: block; color: #d9dfd2; font: 500 12px "KoPubWorld Dotum"; letter-spacing: .04em; }
+.recipe .weapon-damage { display: inline-block; margin-left: 9px; padding: 2px 5px; color: #dacb78; border: 1px solid #9e94574d; background: #15231c; font-size: 8px; font-weight: 500; vertical-align: 1px; }
 .recipe small { display: block; margin-top: 4px; color: #77877c; font: 400 9px "KoPubWorld Dotum"; }
 .recipe button { padding: 7px 16px; color: #0b1512; border: 0; background: #c9bd77; font: 500 10px "KoPubWorld Dotum"; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
 .recipe-result { grid-column: 2 / span 2; margin-top: 6px; font: 400 9px "KoPubWorld Dotum"; font-style: normal; letter-spacing: .06em; }
@@ -163,7 +165,18 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .recipe-result b { color: #d3c37f; font-weight: 400; }
 .recipe button:disabled { color: #6c7a70; background: #1a2620; cursor: default; }
 .shelter-interior { position: absolute; z-index: 8; inset: 0; overflow: hidden; color: #ded7b6; background: linear-gradient(90deg, #07050480, transparent 42%, #07050424 70%, #07050470), url("/assets/world/structures/player-log-shelter-interior.png") center / cover no-repeat; box-shadow: inset 0 0 110px #000c; }
+.arrow-counter { position: absolute; z-index: 5; top: 62px; right: 18px; display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 7px; padding: 7px 10px; color: #d9dfd2; border: 1px solid #9e9b665c; background: #07110ee6; box-shadow: 0 4px 16px #0008; font-size: 10px; }
+.arrow-counter span { color: #e2c272; font-size: 20px; line-height: .7; }
+.arrow-counter b { min-width: 24px; color: #f1df8d; font-size: 15px; text-align: right; }
+.arrow-counter.is-empty { border-color: #b85d4c88; }.arrow-counter.is-empty b { color: #d66a5a; }
 .shelter-interior::after { content: ""; position: absolute; z-index: 0; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 77% 75%, #e878241c, transparent 28%), linear-gradient(#0003, transparent 22% 75%, #0006); }
+.shelter-fire { position: absolute; z-index: 2; left: 78.5%; top: 75%; width: 54px; height: 48px; pointer-events: none; filter: drop-shadow(0 0 9px #ff7a24); }
+.shelter-fire::before { content: ""; position: absolute; left: 50%; bottom: -7px; width: 112px; height: 72px; border-radius: 50%; background: radial-gradient(ellipse, #ff9b3b52 0, #d54e1529 35%, transparent 70%); transform: translateX(-50%); animation: fireGlow 1.35s ease-in-out infinite alternate; }
+.shelter-fire::after { content: ""; position: absolute; left: 10px; bottom: 1px; width: 34px; height: 10px; border-radius: 50%; background: #160b05; box-shadow: 0 2px 5px #000c; }
+.shelter-fire span, .shelter-fire span::before, .shelter-fire span::after { position: absolute; display: block; border-radius: 52% 48% 48% 52% / 70% 70% 30% 30%; transform-origin: 50% 100%; }
+.shelter-fire span { z-index: 1; left: 18px; bottom: 5px; width: 18px; height: 36px; background: linear-gradient(#fff2a6 0 18%, #ffb12e 42%, #ef4c17 100%); animation: fireFlame .58s ease-in-out infinite alternate; }
+.shelter-fire span::before { content: ""; left: -10px; bottom: 0; width: 15px; height: 26px; background: linear-gradient(#ffd36b, #e83a13); animation: fireFlame .46s .1s ease-in-out infinite alternate-reverse; }
+.shelter-fire span::after { content: ""; right: -9px; bottom: 0; width: 14px; height: 23px; background: linear-gradient(#ffe183, #df3410); animation: fireFlame .52s .18s ease-in-out infinite alternate; }
 .shelter-interior-copy { position: absolute; z-index: 2; left: 4%; top: 5%; padding: 13px 17px; border: 1px solid #c0a86955; border-left: 3px solid #c0a869; background: #100c08c7; box-shadow: 0 10px 28px #0008; backdrop-filter: blur(6px); }
 .shelter-interior-copy span, .shelter-interior-copy strong { display: block; }
 .shelter-interior-copy span { color: #c6b572; font: 500 10px "KoPubWorld Dotum"; letter-spacing: .16em; }
@@ -172,6 +185,8 @@ h2 { margin: 5px 0 4px; color: #e8e2c6; font: 600 17px/1.3 "KoPubWorld Dotum"; }
 .shelter-sleeper--female { background-image: url("/assets/characters/primordial-female-walk.png"); background-size: 2098px 749px; background-position: -18px -106px; }
 .shelter-sleeper--male { width: 240px; height: 496px; background-image: url("/assets/characters/primordial-walk.png"); background-size: 2172px 724px; background-position: -28px -89px; }
 @keyframes shelter-breathe { from { transform: rotate(-90deg) scale(var(--sleeper-scale)); } to { transform: rotate(-90deg) translateX(2px) scale(calc(var(--sleeper-scale) + .005)); } }
+@keyframes fireFlame { from { transform: rotate(-5deg) scale(.92, 1); filter: brightness(.9); } to { transform: rotate(6deg) scale(1.08, .88); filter: brightness(1.24); } }
+@keyframes fireGlow { to { opacity: .58; transform: translateX(-50%) scale(1.12); } }
 .shelter-actions { position: absolute; z-index: 2; right: 4%; top: 5%; display: flex; gap: 8px; padding: 6px; border: 1px solid #c0a86935; background: #100c08ad; backdrop-filter: blur(6px); }
 .shelter-actions button { padding: 10px 15px; color: #17110b; border: 1px solid #e6d99055; background: #c9bd77; font: 500 10px "KoPubWorld Dotum"; cursor: pointer; box-shadow: 0 4px 12px #0006; }
 @media (max-width: 1400px) {

@@ -88,6 +88,12 @@
         ],
         "objects": [
           {
+            "id": "wilds.animal-den",
+            "type": "animalDenEntrance",
+            "x": 680,
+            "y": 160
+          },
+          {
             "id": "wilds.pond",
             "type": "fishingWater",
             "x": 1245,

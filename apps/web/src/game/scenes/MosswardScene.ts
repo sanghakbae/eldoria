@@ -98,7 +98,7 @@ const VERTICAL_HAND_ANCHORS: ReadonlyArray<{ fx: number; fy: number; angle: numb
  * `grip` is where the hand closes on it, as a fraction of the drawing, so an axe hangs from its haft
  * while a spear rides upright with the point above the fist.
  */
-const HELD_ITEM_ART: Record<string, { key: string; path: string; height: number; grip: [number, number]; outwardAngle?: number }> = {
+const HELD_ITEM_ART: Record<string, { key: string; path?: string; height: number; grip: [number, number]; outwardAngle?: number }> = {
   "tool.hand-axe": { key: "item.stone-axe.v4", path: "/assets/items/stone-axe.svg?v=4", height: 25, grip: [0.23, 0.84] },
   "tool.copper-axe": { key: "item.copper-axe", path: "/assets/items/copper-axe.svg", height: 27, grip: [0.23, 0.84] },
   "tool.iron-axe": { key: "item.iron-axe", path: "/assets/items/iron-axe.svg", height: 28, grip: [0.23, 0.84] },
@@ -111,7 +111,7 @@ const HELD_ITEM_ART: Record<string, { key: string; path: string; height: number;
   "tool.fishing-rod": { key: "item.fishing-rod", path: "/assets/items/fishing-rod.svg", height: 34, grip: [0.22, 0.9] },
   "family.dagger": { key: "item.dagger", path: "/assets/items/dagger.svg", height: 28, grip: [0.5, 0.82] },
   "family.longsword": { key: "item.longsword", path: "/assets/items/longsword.svg", height: 43, grip: [0.5, 0.84] },
-  "family.bow": { key: "item.bow", path: "/assets/items/bow.svg", height: 44, grip: [0.37, 0.5] },
+  "family.bow": { key: "item.bow.runtime", height: 44, grip: [0.34, 0.5] },
 };
 function heldItemArt(itemId: string) {
   if (HELD_ITEM_ART[itemId]) return HELD_ITEM_ART[itemId];
@@ -156,6 +156,7 @@ const RESOURCE_ART: Record<string, { texture: string; width: number; height: num
   copperOreDeposit: { texture: "resource.copperOreDeposit", width: 72, height: 81, shadowWidth: 59, shadowHeight: 15 },
   coalDeposit: { texture: "resource.coalDeposit", width: 70, height: 80, shadowWidth: 58, shadowHeight: 15 },
   ironOreDeposit: { texture: "resource.ironOreDeposit", width: 74, height: 79, shadowWidth: 60, shadowHeight: 15 },
+  animalDenEntrance: { texture: "resource.animalDenEntrance", width: 148, height: 96, shadowWidth: 78, shadowHeight: 10 },
 };
 
 function stableNumber(value: string): number {
@@ -299,8 +300,9 @@ export class MosswardScene extends Phaser.Scene {
     }
     this.load.spritesheet("wildlife.pondFish", "/assets/characters/wildlife/pond-fish-atlas.png", { frameWidth: 256, frameHeight: 256, endFrame: 3 });
     this.load.image("item.rawGameMeat", "/assets/items/raw-game-meat.png");
+    this.load.image("item.arrow", "/assets/items/arrow.svg");
     this.load.image("structure.log-shelter", "/assets/world/structures/player-log-shelter.png");
-    for (const art of Object.values(HELD_ITEM_ART)) this.load.image(art.key, art.path);
+    for (const art of Object.values(HELD_ITEM_ART)) if (art.path) this.load.image(art.key, art.path);
   }
 
   create() {
@@ -309,6 +311,8 @@ export class MosswardScene extends Phaser.Scene {
     // own collision-aware position. Keying this off VITE_GAME_SERVER_URL left the character frozen
     // whenever that legacy variable happened to be present even though no socket movement handler ran.
     this.localAuthority = true;
+    this.createBowTexture();
+    this.createBridgeTexture();
     this.registerSideWalkFrames();
     this.registerWildlifeFrames();
     const female = this.game.canvas.parentElement?.dataset.gender === "female";
@@ -427,6 +431,33 @@ export class MosswardScene extends Phaser.Scene {
       this.background = undefined;
       this.collisionLayer = undefined;
     });
+  }
+
+  /** A canvas-native bow avoids the failed SVG texture that Phaser rendered as a black rectangle. */
+  private createBowTexture() {
+    if (this.textures.exists("item.bow.runtime")) return;
+    const bow = this.make.graphics({ x: 0, y: 0 });
+    bow.lineStyle(7, 0x6e4223, 1).beginPath().moveTo(45, 5);
+    for (let step = 1; step <= 20; step += 1) {
+      const t = step / 20;
+      bow.lineTo(45 - Math.sin(Math.PI * t) * 31, 5 + t * 102);
+    }
+    bow.strokePath();
+    bow.lineStyle(2, 0xddd0aa, 1).beginPath().moveTo(45, 5).lineTo(23, 56).lineTo(45, 107).strokePath();
+    bow.generateTexture("item.bow.runtime", 64, 112).destroy();
+  }
+
+  private createBridgeTexture() {
+    if (this.textures.exists("structure.wood-bridge")) return;
+    const bridge = this.make.graphics({ x: 0, y: 0 });
+    bridge.fillStyle(0x3a2515, 1).fillRoundedRect(0, 5, 180, 50, 8);
+    for (let index = 0; index < 9; index += 1) {
+      const x = 4 + index * 20;
+      bridge.fillStyle(index % 2 ? 0x8a5b32 : 0x9e6a3b, 1).fillRoundedRect(x, 3, 17, 54, 4);
+      bridge.lineStyle(1, 0xd1a06b, 0.45).strokeRoundedRect(x, 3, 17, 54, 4);
+    }
+    bridge.lineStyle(4, 0x5a361e, 1).lineBetween(0, 9, 180, 9).lineBetween(0, 51, 180, 51);
+    bridge.generateTexture("structure.wood-bridge", 180, 60).destroy();
   }
 
   update(_time: number, delta: number) {
@@ -556,6 +587,10 @@ export class MosswardScene extends Phaser.Scene {
     // Equipment must consume the frame selected above. Updating it first left hands and tools one
     // pose behind the body, which was especially visible at the ends of each stride.
     this.syncHeldItem();
+    for (const animal of this.animals.values()) {
+      if (!animal.outline.visible) continue;
+      animal.outline.setFrame(animal.sprite.frame.name).setFlipX(animal.sprite.flipX).setDisplaySize(animal.sprite.displayWidth, animal.sprite.displayHeight);
+    }
     if (this.rig && this.playerSprite) {
       const frameName = this.playerSprite.frame.name;
       this.rig.followBody(this.playerSprite, Number.parseInt(frameName, 10) || 0);
@@ -604,7 +639,17 @@ export class MosswardScene extends Phaser.Scene {
         existing.setPosition(structure.x, structure.y).setDepth(8 + structure.y / WORLD_HEIGHT).setVisible(true);
         continue;
       }
-      const image = this.add.image(structure.x, structure.y, "structure.log-shelter").setDisplaySize(190, 134).setOrigin(0.5, 0.86).setDepth(8 + structure.y / WORLD_HEIGHT).setInteractive({ useHandCursor: true });
+      const bridge = structure.type === "wood-bridge";
+      const image = this.add.image(structure.x, structure.y, bridge ? "structure.wood-bridge" : "structure.log-shelter")
+        .setDisplaySize(bridge ? 180 : 190, bridge ? 60 : 134)
+        .setOrigin(0.5, bridge ? 0.5 : 0.86)
+        .setDepth(bridge ? 9.4 : 8 + structure.y / WORLD_HEIGHT)
+        .setData("structureType", structure.type)
+        .setInteractive({ useHandCursor: true });
+      if (bridge) {
+        this.builtStructures.set(structure.id, image);
+        continue;
+      }
       image.on("pointerover", () => this.showStructureEntryHint(structure));
       image.on("pointerout", () => this.hideStructureEntryHint());
       image.on("pointerdown", () => {
@@ -640,13 +685,19 @@ export class MosswardScene extends Phaser.Scene {
     this.placingStructure = structure;
     this.builtStructures.get(structure.id)?.setVisible(false);
     this.placementPreview?.destroy();
-    this.placementPreview = this.add.image(this.target.x, this.target.y, "structure.log-shelter")
-      .setDisplaySize(190, 134).setOrigin(0.5, 0.86).setTint(0x9fcb88).setAlpha(0.72).setDepth(40);
+    const bridge = structure.type === "wood-bridge";
+    this.placementPreview = this.add.image(this.target.x, this.target.y, bridge ? "structure.wood-bridge" : "structure.log-shelter")
+      .setDisplaySize(bridge ? 180 : 190, bridge ? 60 : 134).setOrigin(0.5, bridge ? 0.5 : 0.86).setTint(0x9fcb88).setAlpha(0.72).setDepth(40);
   }
 
   private canPlaceStructure(x: number, y: number) {
     const zone = getZoneDefinition(this.zoneId);
     if (!zone || x < 95 || y < 80 || x > zone.width - 95 || y > zone.height - 45) return false;
+    if (this.placingStructure?.type === "wood-bridge") {
+      const centerBlocked = !isPositionWalkable(this.zoneId, x, y);
+      const banksOpen = isPositionWalkable(this.zoneId, x - 95, y) && isPositionWalkable(this.zoneId, x + 95, y);
+      return centerBlocked && banksOpen && [...this.builtStructures.values()].every((building) => Phaser.Math.Distance.Between(x, y, building.x, building.y) >= 150);
+    }
     if (![[-52, -24], [52, -24], [-52, 18], [52, 18], [0, 0]].every(([offsetX, offsetY]) => isPositionWalkable(this.zoneId, x + offsetX!, y + offsetY!))) return false;
     if (zone.layers.objects.some((object) => Phaser.Math.Distance.Between(x, y, object.x, object.y) < 105)) return false;
     return [...this.builtStructures.values()].every((building) => Phaser.Math.Distance.Between(x, y, building.x, building.y) >= 170);
@@ -791,7 +842,7 @@ export class MosswardScene extends Phaser.Scene {
         const shadow = this.add.ellipse(0, isRootedTree ? -2 : 1, art.shadowWidth, isRootedTree ? Math.max(9, art.shadowHeight - 5) : art.shadowHeight, 0x020604, isRootedTree ? 0.34 : 0.55);
         // Keep the highlight exactly behind the object. Enlarging a full tinted copy produced a
         // translucent duplicate that looked like a motion trail beside trees and rocks.
-        const groundOrigin = object.type === "wildFruitTree" ? 0.92 : object.type === "wildTree" ? 0.99 : 1;
+        const groundOrigin = 1;
         outline = this.add.image(0, 0, art.texture).setOrigin(0.5, groundOrigin).setDisplaySize(art.width, art.height).setTint(0xeadb78).setAlpha(0.28).setVisible(false);
         const sprite = this.add.image(0, 0, art.texture).setOrigin(0.5, groundOrigin).setDisplaySize(art.width, art.height);
         const barY = -art.height - 8;
@@ -1004,6 +1055,7 @@ export class MosswardScene extends Phaser.Scene {
       return;
     }
     const itemFlipped = vertical ? frameIndex >= 8 : sprite.flipX;
+    const visualFlip = art.key === "item.bow.runtime" ? !itemFlipped : itemFlipped;
     // Phaser preserves the configured origin while flipping the rendered pixels. Mirroring the origin
     // a second time detached the handle from the wrist in front/back poses.
     this.heldItem.setOrigin(art.grip[0], art.grip[1]);
@@ -1018,7 +1070,7 @@ export class MosswardScene extends Phaser.Scene {
     const handOffsetX = this.rightHandOffsetX(pose.fx, width, vertical, sprite.flipX);
     this.heldItem
       .setPosition(sprite.x + handOffsetX, sprite.y + (pose.fy - 1) * height)
-      .setFlipX(itemFlipped)
+      .setFlipX(visualFlip)
       .setRotation(sprite.rotation + rotationSide * (pose.angle + (vertical ? 0 : art.outwardAngle ?? 0)))
       .setVisible(true);
     // Seen from behind, the hand and torso occlude the grip. From the front the tool stays visible.
@@ -1118,9 +1170,11 @@ export class MosswardScene extends Phaser.Scene {
   }
 
   private isSceneWalkable(x: number, y: number) {
-    if (!isPositionWalkable(this.zoneId, x, y)) return false;
+    const onBridge = [...this.builtStructures.values()].some((building) => building.visible && building.getData("structureType") === "wood-bridge" && Math.abs(x - building.x) <= 88 && Math.abs(y - building.y) <= 20);
+    if (!onBridge && !isPositionWalkable(this.zoneId, x, y)) return false;
     for (const building of this.builtStructures.values()) {
       if (!building.visible) continue;
+      if (building.getData("structureType") === "wood-bridge") continue;
       const dx = (x - building.x) / 82;
       const dy = (y - building.y) / 38;
       if (dx * dx + dy * dy < 1) return false;
@@ -1221,9 +1275,12 @@ export class MosswardScene extends Phaser.Scene {
     animal.outline.setVisible(true);
     const markHeight = animal.profile.displayHeight;
     this.engagedMark?.setPosition(animal.container.x, animal.container.y - markHeight - 14).setVisible(true);
+    const ranged = this.isBowEquipped();
+    const attackReach = ranged ? 360 : STRIKE_REACH;
+    const breakOff = ranged ? 410 : STRIKE_BREAK_OFF;
     const reach = Phaser.Math.Distance.Between(this.target.x, this.target.y, animal.container.x, animal.container.y);
     const closing = this.clickTarget !== undefined;
-    if (reach > (closing ? STRIKE_REACH : STRIKE_BREAK_OFF)) {
+    if (reach > (closing ? attackReach : breakOff)) {
       // The quarry keeps moving, so the route is refreshed rather than plotted once and trusted.
       if (this.time.now >= this.nextRepathAt) {
         this.nextRepathAt = this.time.now + 500;
@@ -1239,8 +1296,44 @@ export class MosswardScene extends Phaser.Scene {
     this.nextStrikeAt = this.time.now + STRIKE_INTERVAL_MS;
     // Swing on the attempt, not on the reply. The server may refuse the blow outright — a stag will
     // not be taken bare-handed — and the wanderer should still be seen throwing the punch.
-    this.playStrikeMotion(animal.container.x);
-    window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: this.engagedTarget, x: animal.container.x, y: animal.container.y } }));
+    if (ranged && this.hasArrow()) this.playBowShot(this.engagedTarget, animal.container.x, animal.container.y - animal.profile.displayHeight * 0.4);
+    else if (ranged) window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: this.engagedTarget, x: animal.container.x, y: animal.container.y } }));
+    else {
+      this.playStrikeMotion(animal.container.x);
+      window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId: this.engagedTarget, x: animal.container.x, y: animal.container.y } }));
+    }
+  }
+
+  private isBowEquipped() {
+    const equipped = this.game.canvas.parentElement?.dataset.equipped ?? "";
+    return equipped.endsWith("-bow");
+  }
+
+  private hasArrow() {
+    return Number(this.game.canvas.parentElement?.dataset.arrowCount ?? 0) > 0;
+  }
+
+  private playBowShot(objectId: string, targetX: number, targetY: number) {
+    if (!this.player || !this.playerSprite) return;
+    const startX = this.player.x + (targetX >= this.player.x ? 18 : -18);
+    const startY = this.player.y - 48;
+    const angle = Phaser.Math.Angle.Between(startX, startY, targetX, targetY);
+    this.playerSprite.setFlipX(targetX < this.player.x);
+    const glow = this.add.rectangle(-7, 0, 68, 10, 0xf5d77b, 0.18);
+    const projectile = this.add.image(0, 0, "item.arrow").setDisplaySize(68, 17);
+    const arrow = this.add.container(startX, startY, [glow, projectile]).setRotation(angle).setDepth(50);
+    const distance = Phaser.Math.Distance.Between(startX, startY, targetX, targetY);
+    this.tweens.add({
+      targets: arrow,
+      x: targetX,
+      y: targetY,
+      duration: Phaser.Math.Clamp(distance * 1.8, 360, 760),
+      ease: "Linear",
+      onComplete: () => {
+        arrow.destroy();
+        if (this.engagedTarget === objectId) window.dispatchEvent(new CustomEvent("eldoria:interact", { detail: { objectId, x: targetX, y: targetY } }));
+      },
+    });
   }
 
   private requestInteraction(id: string, x: number, y: number) {

@@ -15,6 +15,12 @@ describe("zone collision data", () => {
     expect(isPositionWalkable("untamedWilds", 836, 470)).toBe(true);
   });
 
+  it("keeps the wilds river solid until the player builds a bridge", () => {
+    expect(isPositionWalkable("untamedWilds", 320, 240)).toBe(false);
+    expect(isPositionWalkable("untamedWilds", 320, 304)).toBe(false);
+    expect(isPositionWalkable("untamedWilds", 288, 656)).toBe(false);
+  });
+
   it("rejects positions outside known zones", () => {
     expect(isPositionWalkable("unknown", 10, 10)).toBe(false);
     expect(isPositionWalkable("greythorn", -1, 400)).toBe(false);
@@ -37,7 +43,7 @@ describe("zone collision data", () => {
     expect(new Set(worldDefinition.zones.map((zone) => zone.ecology.wildFruits.join(","))).size).toBeGreaterThan(3);
     expect(wilds?.layers.objects.map((object) => object.type)).toEqual(expect.arrayContaining(["wildFruitTree", "wildTree", "fishingWater", "wildlifeSpawnRabbit", "wildlifeSpawnDeer", "wildlifeSpawnBoar"]));
     const surfaceTypes = worldDefinition.zones.filter((zone) => zone.id !== "animalDen").flatMap((zone) => zone.layers.objects.map((object) => object.type));
-    expect(surfaceTypes.every((type) => type === "wildFruitTree" || type === "wildTree" || type === "fallenBranch" || type === "fishingWater" || type === "riverFishingWater" || type.startsWith("wildlifeSpawn"))).toBe(true);
+    expect(surfaceTypes.every((type) => type === "wildFruitTree" || type === "wildTree" || type === "fallenBranch" || type === "fishingWater" || type === "riverFishingWater" || type === "animalDenEntrance" || type.startsWith("wildlifeSpawn"))).toBe(true);
     expect(new Set(wilds?.layers.objects.filter((object) => object.type.startsWith("wildlifeSpawn")).map((object) => object.type)).size).toBeGreaterThanOrEqual(11);
     expect(getZoneDefinition("animalDen")).toMatchObject({ layers: { terrain: { assetId: "world.animalDen" }, objects: expect.arrayContaining([expect.objectContaining({ type: "animalDenExit" })]) } });
   });
@@ -77,6 +83,7 @@ describe("crafting catalog", () => {
 
   it("includes a player-built shelter recipe", () => {
     expect(craftingRecipes.find((recipe) => recipe.id === "shelter.log-house")).toMatchObject({ output: { itemId: "structure.log-shelter" } });
+    expect(craftingRecipes.find((recipe) => recipe.id === "shelter.wood-bridge")).toMatchObject({ output: { itemId: "structure.wood-bridge" } });
   });
 });
 
