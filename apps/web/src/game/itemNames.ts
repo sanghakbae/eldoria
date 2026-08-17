@@ -25,6 +25,16 @@ const fallbackItemNames: Record<string, { en: string; ko: string }> = {
   "meat.turtle": { en: "Meat (turtle)", ko: "육고기(거북이)" },
   "meat.wolf": { en: "Meat (wolf)", ko: "육고기(늑대)" },
   "meat.fox": { en: "Meat (fox)", ko: "육고기(여우)" },
+  "bird.eagle": { en: "Poultry (eagle)", ko: "새고기(독수리)" },
+  "bird.hawk": { en: "Poultry (hawk)", ko: "새고기(매)" },
+  "bird.falcon": { en: "Poultry (falcon)", ko: "새고기(송골매)" },
+  "bird.vulture": { en: "Poultry (vulture)", ko: "새고기(독수리)" },
+  "bird.crow": { en: "Poultry (crow)", ko: "새고기(까마귀)" },
+  "bird.owl": { en: "Poultry (owl)", ko: "새고기(올빼미)" },
+  "bird.gull": { en: "Poultry (gull)", ko: "새고기(갈매기)" },
+  "bird.heron": { en: "Poultry (heron)", ko: "새고기(왜가리)" },
+  "bird.parrot": { en: "Poultry (parrot)", ko: "새고기(앵무새)" },
+  "bird.hornbill": { en: "Poultry (hornbill)", ko: "새고기(코뿔새)" },
 };
 
 /**

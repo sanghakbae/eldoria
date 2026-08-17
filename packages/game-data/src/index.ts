@@ -36,7 +36,7 @@ function parseSkillProgression(value: unknown): SkillSystemDefinition {
     if (!isRecord(skill) || typeof skill.id !== "string" || !isSkillCategoryId(skill.category) || typeof skill.mvp !== "boolean" || !isNonNegativeNumber(skill.baseDifficulty) || !isLocalizedName(skill.name) || !isPositiveInteger(skill.actionsPerGain) || !isPositiveNumber(skill.gainAmount) || !Array.isArray(skill.actionIds) || !skill.actionIds.every((actionId) => typeof actionId === "string")) throw new Error(`Invalid skill progression at index ${index}.`);
     return { id: skill.id, category: skill.category, mvp: skill.mvp, baseDifficulty: skill.baseDifficulty, name: skill.name, actionsPerGain: skill.actionsPerGain, gainAmount: skill.gainAmount, actionIds: skill.actionIds };
   });
-  if (skills.length !== 40) throw new Error("The survival skill system requires exactly 40 skills.");
+  if (skills.length !== 41) throw new Error("The survival skill system requires exactly 41 skills.");
   return { totalSkillCap: value.totalSkillCap, individualSkillCap: value.individualSkillCap, curveExponent: value.curveExponent, trivialSkillGap: value.trivialSkillGap, successAnchors, categories, skills };
 }
 
@@ -257,6 +257,40 @@ export function findTool(itemId: string): ToolDefinition | undefined {
   return toolDefinitions.find((tool) => tool.itemId === itemId);
 }
 
+const PICKAXE_BASE_YIELD: Record<string, number> = {
+  "tool.pickaxe": 1,
+  "tool.copper-pickaxe": 2,
+  "tool.iron-pickaxe": 3,
+  "tool.steel-pickaxe": 4,
+};
+
+/** One mining cycle yields more with both a better pickaxe and practiced mining skill. */
+export function calculateMiningYield(toolItemId: string | null | undefined, skillValue: number): number {
+  const toolYield = PICKAXE_BASE_YIELD[toolItemId ?? ""] ?? 0;
+  if (toolYield === 0) return 0;
+  const skillBonus = Math.floor(Math.max(0, Math.min(skillSystemDefinition.individualSkillCap, skillValue)) / 30);
+  return toolYield + skillBonus;
+}
+
+/** Shared skill effects used by every playable action path (local Firebase and game server). */
+export function calculateSkillYield(baseQuantity: number, skillValue: number, skillPerBonus = 40): number {
+  const base = Math.max(0, Math.floor(baseQuantity));
+  const skill = Math.max(0, Math.min(skillSystemDefinition.individualSkillCap, skillValue));
+  return base + Math.floor(skill / Math.max(1, skillPerBonus));
+}
+
+export function calculateSkillDamage(baseDamage: number, skillValue: number): number {
+  const skill = Math.max(0, Math.min(skillSystemDefinition.individualSkillCap, skillValue));
+  // Novices use only 75% of a weapon's listed potential; mastery reaches 135%.
+  return Math.max(1, Math.round(Math.max(1, baseDamage) * (0.75 + skill / 200)));
+}
+
+export function calculateSkillInterval(baseMilliseconds: number, skillValue: number): number {
+  const skill = Math.max(0, Math.min(skillSystemDefinition.individualSkillCap, skillValue));
+  // Mastery shortens an action by at most 40%, so animations and server rate limits remain readable.
+  return Math.max(250, Math.round(baseMilliseconds * (1 - skill / 300)));
+}
+
 function parseRecipes(value: unknown): CraftingRecipe[] {
   if (!isRecord(value) || !Array.isArray(value.recipes)) throw new Error("Invalid crafting content.");
   return value.recipes.map((recipe, index) => {
@@ -377,9 +411,13 @@ export function getZoneDefinition(zoneId: string): ZoneDefinition | undefined {
  */
 const OBSTACLE_FOOTPRINTS: Record<string, { rx: number; ry: number }> = {
   looseStone: { rx: 14, ry: 9 },
+  stoneOutcrop: { rx: 104, ry: 58 },
   wildTree: { rx: 30, ry: 18 },
   wildFruitTree: { rx: 32, ry: 20 },
-  fishingWater: { rx: 76, ry: 42 },
+  // Water anchors sit at the visual centre of the painted feature. These radii cover the full wet
+  // surface (plus the wanderer's foot room), not just the small school-of-fish animation in it.
+  fishingWater: { rx: 148, ry: 104 },
+  riverFishingWater: { rx: 72, ry: 52 },
   copperOreDeposit: { rx: 30, ry: 18 },
   coalDeposit: { rx: 30, ry: 18 },
   ironOreDeposit: { rx: 30, ry: 18 },

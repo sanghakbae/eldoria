@@ -78,7 +78,11 @@ export class RuntimeWorld {
   private applyZoneTransition(player: RuntimePlayer) {
     const zone = getZoneDefinition(player.position.zoneId);
     if (!zone) return;
-    const edge = player.position.x < 31 ? "west" : player.position.x > zone.width - 31 ? "east" : null;
+    const edge = player.position.x < 31 ? "west"
+      : player.position.x > zone.width - 31 ? "east"
+        : player.position.y < 46 ? "north"
+          : player.position.y > zone.height - 26 ? "south"
+            : null;
     if (!edge) return;
     const exit = zone.exits.find((candidate) => candidate.edge === edge);
     const destination = exit ? getZoneDefinition(exit.toZoneId) : undefined;

@@ -1,5 +1,5 @@
-import { decodeServerMessage, encodeMessage, type ActionOutcome, type BuiltStructure, type CharacterGender, type CharacterSummary, type SkillLock } from "@eldoria/game-protocol";
-import { craftingRecipes, createInitialSurvivalState, findTool, foodCatalog, getZoneDefinition, nutrientIds } from "@eldoria/game-data";
+import { decodeServerMessage, encodeMessage, type ActionOutcome, type BuiltStructure, type CharacterGender, type CharacterSummary, type SkillLock, type WorldObjectState } from "@eldoria/game-protocol";
+import { calculateMiningYield, calculateSkillDamage, calculateSkillYield, craftingRecipes, createInitialSurvivalState, findSkillForAction, findTool, foodCatalog, getZoneDefinition, nutrientIds, resolveSkillAction } from "@eldoria/game-data";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
@@ -72,7 +72,19 @@ const localWildlifeCombat: Record<string, { health: number; retaliation: number;
   Wolf: { health: 10, retaliation: 9, reward: { itemId: "meat.wolf", quantity: 4 } }, Fox: { health: 5, retaliation: 3, reward: { itemId: "meat.fox", quantity: 2 } }, Bear: { health: 24, retaliation: 16, reward: { itemId: "meat.bear", quantity: 18 } },
   Bison: { health: 20, retaliation: 13, reward: { itemId: "meat.bison", quantity: 16 } }, Goat: { health: 7, retaliation: 4, reward: { itemId: "meat.goat", quantity: 5 } }, Turkey: { health: 4, retaliation: 2, reward: { itemId: "bird.turkey", quantity: 3 } },
   Turtle: { health: 9, retaliation: 2, reward: { itemId: "meat.turtle", quantity: 2 } }, Hare: { health: 4, retaliation: 1, reward: { itemId: "meat.hare", quantity: 2 } },
+  Eagle: { health: 7, retaliation: 0, reward: { itemId: "bird.eagle", quantity: 3 } }, Hawk: { health: 5, retaliation: 0, reward: { itemId: "bird.hawk", quantity: 2 } }, Falcon: { health: 5, retaliation: 0, reward: { itemId: "bird.falcon", quantity: 2 } },
+  Vulture: { health: 7, retaliation: 0, reward: { itemId: "bird.vulture", quantity: 3 } }, Crow: { health: 3, retaliation: 0, reward: { itemId: "bird.crow", quantity: 1 } }, Owl: { health: 4, retaliation: 0, reward: { itemId: "bird.owl", quantity: 2 } },
+  Gull: { health: 4, retaliation: 0, reward: { itemId: "bird.gull", quantity: 2 } }, Heron: { health: 5, retaliation: 0, reward: { itemId: "bird.heron", quantity: 2 } }, Crane: { health: 6, retaliation: 0, reward: { itemId: "bird.crane", quantity: 3 } },
+  Parrot: { health: 3, retaliation: 0, reward: { itemId: "bird.parrot", quantity: 1 } }, Hornbill: { health: 5, retaliation: 0, reward: { itemId: "bird.hornbill", quantity: 2 } },
 };
+
+function wildlifeSpeciesFromType(type: string) {
+  return type.startsWith("ambientBirdFlock") ? type.slice("ambientBirdFlock".length) : type.slice("wildlifeSpawn".length);
+}
+
+function isWildlifeType(type: string) {
+  return type.startsWith("wildlifeSpawn") || type.startsWith("ambientBirdFlock");
+}
 
 const pondFish = [
   { itemId: "fish.carp", ko: "잉어" },
@@ -88,6 +100,7 @@ export function useGameConnection(user: User): GameConnection {
   const restoringCharacterRef = useRef(false);
   const stateRef = useRef(state);
   const localWildlifeHealthRef = useRef(new Map<string, number>());
+  const localResourceStateRef = useRef(new Map<string, { remaining: number; exhaustedUntil: number }>());
   useEffect(() => { stateRef.current = state; }, [state]);
   // Firestore is the character authority in every environment unless a dedicated game server URL is
   // explicitly supplied. Local Vite reloads must never swap persistence to an in-memory repository.
@@ -102,6 +115,7 @@ export function useGameConnection(user: User): GameConnection {
       let cancelled = false;
       let positionSave: number | undefined;
       let pendingPosition: CharacterSummary["position"] | undefined;
+      let miningInterval: number | undefined;
       const recoverDefeatedCharacter = (defeatedCharacter: CharacterSummary) => {
         window.setTimeout(() => {
           if (cancelled) return;
@@ -145,12 +159,17 @@ export function useGameConnection(user: User): GameConnection {
         const character = stateRef.current.selectedCharacter;
         if (!objectId || !character) return;
         const object = getZoneDefinition(character.position.zoneId)?.layers.objects.find((candidate) => candidate.id === objectId);
-        if (!object?.type.startsWith("wildlifeSpawn")) return;
+        if (!object || !isWildlifeType(object.type)) return;
         const targetX = interaction.x ?? object.x;
         const targetY = interaction.y ?? object.y;
         const equippedId = character.survival.equipment?.mainHand ?? character.survival.equipped ?? "";
         const equippedTool = equippedId ? findTool(equippedId) : undefined;
         const bowEquipped = equippedId.endsWith("-bow");
+        const flyingBird = object.type.startsWith("ambientBirdFlock");
+        if (flyingBird && !bowEquipped) {
+          setState((current) => ({ ...current, message: "날아다니는 새는 활과 화살로 사냥해야 합니다." }));
+          return;
+        }
         const inventory = (character.survival.inventory ?? []).map((stack) => ({ ...stack }));
         const arrows = inventory.find((stack) => stack.itemId === "ammunition.arrow");
         if (bowEquipped && (!arrows || arrows.quantity < 1)) {
@@ -162,30 +181,48 @@ export function useGameConnection(user: User): GameConnection {
           setState((current) => ({ ...current, message: bowEquipped ? "활의 사거리 밖입니다." : "근접 공격은 팔이 닿는 거리에서만 가능합니다." }));
           return;
         }
-        const species = object.type.slice("wildlifeSpawn".length);
+        const species = wildlifeSpeciesFromType(object.type);
         const profile = localWildlifeCombat[species];
         if (!profile) return;
         const combatKey = `${character.position.zoneId}:${objectId}`;
         const currentHealth = localWildlifeHealthRef.current.get(combatKey) ?? profile.health;
-        const damage = Math.max(1, equippedTool?.damage ?? 1);
+        const actionId = bowEquipped ? "bow.shot" : equippedId.endsWith("-spear") ? "spear.thrust" : "weapon.strike";
+        const skill = findSkillForAction(actionId);
+        const skillValue = skill ? character.survival.skills?.[skill.id]?.value ?? 0 : 0;
+        const skillResult = skill ? resolveSkillAction({
+          skill,
+          skills: character.survival.skills ?? {},
+          locks: character.survival.locks ?? {},
+          roll: Math.random(),
+          successFloor: 0.35,
+        }) : undefined;
+        const hit = skillResult?.success ?? true;
+        const damage = hit ? calculateSkillDamage(equippedTool?.damage ?? 1, skillValue) : 0;
         if (bowEquipped && arrows) arrows.quantity -= 1;
         const nextHealth = Math.max(0, currentHealth - damage);
-        const defeated = nextHealth <= 0;
+        const defeated = hit && nextHealth <= 0;
         localWildlifeHealthRef.current.set(combatKey, defeated ? profile.health : nextHealth);
         const currentPlayerHealth = character.survival.health ?? { current: 100, maximum: 100 };
         const canCounter = !defeated && attackDistance <= 80;
         const nextPlayerHealth = canCounter ? Math.max(0, currentPlayerHealth.current - profile.retaliation) : currentPlayerHealth.current;
         const playerDefeated = canCounter && nextPlayerHealth <= 0;
-        const survival = { ...character.survival, inventory: inventory.filter((stack) => stack.quantity > 0), health: { ...currentPlayerHealth, current: nextPlayerHealth } };
+        const survival = { ...character.survival, inventory: inventory.filter((stack) => stack.quantity > 0), skills: skillResult?.skills ?? character.survival.skills, health: { ...currentPlayerHealth, current: nextPlayerHealth } };
         const updated = { ...character, survival };
-        setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: defeated ? `${species}을(를) 쓰러뜨렸습니다.` : bowEquipped ? `화살이 명중해 ${damage}의 피해를 입혔습니다.` : `${species}에게 ${damage}의 피해를 입혔습니다.` }));
+        const combatMessage = !hit
+          ? `사냥 숙련 부족으로 공격이 빗나갔습니다. (성공률 ${Math.round((skillResult?.chance ?? 1) * 100)}%)`
+          : defeated ? `${species}을(를) 쓰러뜨렸습니다.`
+            : bowEquipped ? `화살이 명중해 ${damage}의 피해를 입혔습니다.`
+              : `${species}에게 ${damage}의 피해를 입혔습니다.`;
+        const lastOutcome: ActionOutcome | null = skillResult && skill ? { success: hit, chance: skillResult.chance, skillId: skill.id, gain: skillResult.gain, drained: skillResult.drained } : null;
+        setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: combatMessage, lastOutcome }));
         void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() });
+        const reward = defeated ? { ...profile.reward, quantity: calculateSkillYield(profile.reward.quantity, skillValue, 50) } : null;
         window.dispatchEvent(new CustomEvent("eldoria:world-action", { detail: {
           objectId,
-          actionId: bowEquipped ? "bow.shot" : "club.strike",
-          success: true,
+          actionId,
+          success: hit,
           target: { health: nextHealth, maximumHealth: profile.health, defeated },
-          reward: defeated ? profile.reward : null,
+          reward,
           combat: canCounter ? { counterDamage: profile.retaliation, playerDefeated } : null,
         } }));
         if (playerDefeated) recoverDefeatedCharacter(updated);
@@ -216,11 +253,11 @@ export function useGameConnection(user: User): GameConnection {
         const character = stateRef.current.selectedCharacter;
         if (!objectId || !character) return;
         const object = getZoneDefinition(character.position.zoneId)?.layers.objects.find((candidate) => candidate.id === objectId);
-        if (!object || object.type.startsWith("wildlifeSpawn")) return;
+        if (!object || isWildlifeType(object.type)) return;
         if (Math.hypot(character.position.x - object.x, character.position.y - object.y) > 260) return;
         if (object.type === "animalDenEntrance" || object.type === "animalDenExit") {
           const returnKey = `eldoria.den-return.${character.id}`;
-          let nextPosition = { zoneId: "untamedWilds", x: 680, y: 225 };
+          let nextPosition = { zoneId: "untamedWilds", x: 385, y: 300 };
           if (object.type === "animalDenEntrance") {
             localStorage.setItem(returnKey, JSON.stringify(character.position));
             const arrival = getZoneDefinition("animalDen")?.layers.spawn.find((spawn) => spawn.id === "arrival");
@@ -249,11 +286,12 @@ export function useGameConnection(user: User): GameConnection {
         let reward: { itemId: string; quantity: number } | null = null;
         let message = "이 대상은 아직 사용할 수 없습니다.";
         if (object.type === "fishingWater" || object.type === "riverFishingWater") {
-          const hasFishingRod = Boolean(equipped && (equipped === "tool.fishing-rod" || equipped.endsWith("-fishing-rod")))
-            || (character.survival.inventory ?? []).some((stack) => (stack.itemId === "tool.fishing-rod" || stack.itemId.endsWith("-fishing-rod")) && stack.quantity > 0);
-          if (!hasFishingRod) { setState((current) => ({ ...current, message: "낚싯대가 있어야 낚시할 수 있습니다." })); return; }
-          const caught = pondFish[Math.floor(Math.random() * pondFish.length)]!;
-          actionId = "fishing.cast"; reward = { itemId: caught.itemId, quantity: 1 }; message = `${object.type === "riverFishingWater" ? "강" : "연못"}에서 ${caught.ko}를 낚았습니다.`;
+          const fishingRodEquipped = Boolean(equipped && (equipped === "tool.fishing-rod" || equipped.endsWith("-fishing-rod")));
+          if (!fishingRodEquipped) { setState((current) => ({ ...current, message: "낚시하려면 낚싯대를 주손에 장착해야 합니다." })); return; }
+          const regionalFish = getZoneDefinition(character.position.zoneId)?.ecology.hydrology.fishHabitats.filter((itemId) => itemId.startsWith("fish.")) ?? [];
+          const itemId = regionalFish[Math.floor(Math.random() * regionalFish.length)] ?? pondFish[Math.floor(Math.random() * pondFish.length)]!.itemId;
+          const caught = foodCatalog.find((food) => food.id === itemId);
+          actionId = "fishing.cast"; reward = { itemId, quantity: 1 }; message = `${object.type === "riverFishingWater" ? "강" : "연못"}에서 ${caught?.name.ko ?? itemId}를 낚았습니다.`;
         } else if (object.type === "wildTree") {
           if (!isAxe) { setState((current) => ({ ...current, message: "나무를 베려면 도끼가 필요합니다." })); return; }
           actionId = "material.process"; reward = { itemId: "wood.raw-log", quantity: 1 }; message = "나무에서 통나무를 얻었습니다.";
@@ -263,19 +301,78 @@ export function useGameConnection(user: User): GameConnection {
           actionId = "stone.flake"; reward = { itemId: "stone.raw", quantity: 1 }; message = "돌덩이를 주웠습니다.";
         } else if (object.type === "fallenBranch") {
           actionId = "material.process"; reward = { itemId: "wood.branch", quantity: 1 }; message = "나뭇가지를 주웠습니다.";
-        } else if (object.type.endsWith("OreDeposit") || object.type === "coalDeposit") {
-          if (!isPickaxe) { setState((current) => ({ ...current, message: "광석을 캐려면 곡괭이가 필요합니다." })); return; }
-          actionId = "stone.flake"; reward = { itemId: "stone.raw", quantity: 3 }; message = "광맥에서 돌을 캐냈습니다.";
+        } else if (object.type === "stoneOutcrop" || object.type.endsWith("OreDeposit") || object.type === "coalDeposit") {
+          if (!isPickaxe) {
+            const message = object.type === "stoneOutcrop"
+              ? "암반을 캐려면 곡괭이가 필요합니다."
+              : "광석을 캐려면 곡괭이가 필요합니다.";
+            setState((current) => ({ ...current, message }));
+            return;
+          }
+          const nodeKey = `${character.position.zoneId}:${object.id}`;
+          const now = Date.now();
+          const storedNode = localResourceStateRef.current.get(nodeKey);
+          const node = !storedNode || (storedNode.exhaustedUntil > 0 && storedNode.exhaustedUntil <= now)
+            ? { remaining: 12, exhaustedUntil: 0 }
+            : storedNode;
+          if (node.exhaustedUntil > now || node.remaining <= 0) {
+            setState((current) => ({ ...current, message: "이 광맥은 고갈되었습니다. 잠시 후 다시 채굴할 수 있습니다." }));
+            window.dispatchEvent(new CustomEvent<WorldObjectState>("eldoria:world-object", { detail: { kind: "resource", zoneId: character.position.zoneId, objectId, remaining: 0, maximum: 12, exhaustedUntil: node.exhaustedUntil } }));
+            return;
+          }
+          actionId = "ore.mine"; reward = { itemId: "stone.raw", quantity: 1 }; message = "광맥에서 돌을 캐냈습니다.";
         }
         if (!actionId || !reward) return;
-        const inventory = [...(character.survival.inventory ?? [])];
+        const skill = findSkillForAction(actionId);
+        const skillValue = skill ? character.survival.skills?.[skill.id]?.value ?? 0 : 0;
+        let skillResult: ReturnType<typeof resolveSkillAction> | undefined;
+        if (skill) {
+          const successFloor = object.type === "looseStone" || object.type === "fallenBranch" ? 1
+            : object.type === "wildFruitTree" ? 0.8
+              : object.type === "fishingWater" || object.type === "riverFishingWater" ? 0.55
+                : object.type === "wildTree" ? 0.45
+                  : 0.65;
+          skillResult = resolveSkillAction({
+            skill,
+            skills: character.survival.skills ?? {},
+            locks: character.survival.locks ?? {},
+            roll: Math.random(),
+            successFloor,
+          });
+        }
+        let survival = { ...character.survival, skills: skillResult?.skills ?? character.survival.skills };
+        if (skillResult && !skillResult.success) {
+          const failureMessage = `${skill?.name.ko ?? "관련 기술"} 숙련이 부족해 작업에 실패했습니다. (성공률 ${Math.round(skillResult.chance * 100)}%)`;
+          const updated = { ...character, survival };
+          const lastOutcome: ActionOutcome = { success: false, chance: skillResult.chance, skillId: skill!.id, gain: skillResult.gain, drained: skillResult.drained };
+          setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message: failureMessage, lastOutcome }));
+          void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() });
+          window.dispatchEvent(new CustomEvent("eldoria:world-action", { detail: { objectId, actionId, success: false, target: null, reward: null, combat: null } }));
+          return;
+        }
+        const skillTier = actionId === "material.process" && object.type === "wildTree" ? 30 : 40;
+        reward.quantity = actionId === "ore.mine"
+          ? calculateMiningYield(equipped, skillValue)
+          : calculateSkillYield(reward.quantity, skillValue, skillTier);
+        if (actionId === "ore.mine") message = `광맥에서 돌 ${reward.quantity}개를 캐냈습니다.`;
+        else if (reward.quantity > 1) message = `${message.replace(/\.$/, "")} ${reward.quantity}개를 얻었습니다.`;
+        const inventory = (character.survival.inventory ?? []).map((stack) => ({ ...stack }));
         const stack = inventory.find((candidate) => candidate.itemId === reward.itemId);
         if (stack) stack.quantity += reward.quantity; else inventory.push({ ...reward });
-        const survival = { ...character.survival, inventory };
+        survival = { ...survival, inventory };
         const updated = { ...character, survival };
-        setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message }));
+        const lastOutcome: ActionOutcome | null = skillResult && skill ? { success: true, chance: skillResult.chance, skillId: skill.id, gain: skillResult.gain, drained: skillResult.drained } : null;
+        setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message, lastOutcome }));
         void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() });
         window.dispatchEvent(new CustomEvent("eldoria:world-action", { detail: { objectId, actionId, success: true, target: null, reward, combat: null } }));
+        if (actionId === "ore.mine") {
+          const nodeKey = `${character.position.zoneId}:${objectId}`;
+          const previous = localResourceStateRef.current.get(nodeKey) ?? { remaining: 12, exhaustedUntil: 0 };
+          const remaining = Math.max(0, previous.remaining - 1);
+          const exhaustedUntil = remaining === 0 ? Date.now() + 300_000 : 0;
+          localResourceStateRef.current.set(nodeKey, { remaining, exhaustedUntil });
+          window.dispatchEvent(new CustomEvent<WorldObjectState>("eldoria:world-object", { detail: { kind: "resource", zoneId: character.position.zoneId, objectId, remaining, maximum: 12, exhaustedUntil } }));
+        }
       };
       const handleWildlifeAggression = (event: Event) => {
         const objectId = (event as CustomEvent<{ objectId: string }>).detail?.objectId;
@@ -285,7 +382,7 @@ export function useGameConnection(user: User): GameConnection {
         if (!object?.type.startsWith("wildlifeSpawn")) return;
         const species = object.type.slice("wildlifeSpawn".length);
         const profile = localWildlifeCombat[species];
-        if (!profile || (species !== "Wolf" && species !== "Bear")) return;
+        if (!profile || !["Wolf", "Bear", "Boar"].includes(species)) return;
         const currentPlayerHealth = character.survival.health ?? { current: 100, maximum: 100 };
         const nextPlayerHealth = Math.max(0, currentPlayerHealth.current - profile.retaliation);
         const playerDefeated = nextPlayerHealth <= 0;
@@ -317,6 +414,28 @@ export function useGameConnection(user: User): GameConnection {
         void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() });
         window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));
       };
+      const handleMiningStatus = (event: Event) => {
+        const message = (event as CustomEvent<string>).detail;
+        if (message) setState((current) => ({ ...current, message }));
+      };
+      const stopAutomaticMining = () => {
+        if (miningInterval !== undefined) window.clearInterval(miningInterval);
+        miningInterval = undefined;
+      };
+      const handleMiningStart = (event: Event) => {
+        const detail = (event as CustomEvent<{ objectId: string; intervalMs?: number }>).detail;
+        if (!detail?.objectId) return;
+        stopAutomaticMining();
+        miningInterval = window.setInterval(() => {
+          const character = stateRef.current.selectedCharacter;
+          const equipped = character?.survival.equipment?.mainHand ?? character?.survival.equipped ?? "";
+          if (equipped !== "tool.pickaxe" && !equipped.endsWith("-pickaxe")) {
+            stopAutomaticMining();
+            return;
+          }
+          handleLocalResource(new CustomEvent("eldoria:interact", { detail: { objectId: detail.objectId } }));
+        }, Math.max(500, detail.intervalMs ?? 1900));
+      };
       window.addEventListener("eldoria:player-state", persistPosition);
       window.addEventListener("eldoria:interact", handleWildlifeCombat);
       window.addEventListener("eldoria:interact", handleLocalResource);
@@ -324,6 +443,9 @@ export function useGameConnection(user: User): GameConnection {
       window.addEventListener("eldoria:loot", handleLoot);
       window.addEventListener("eldoria:sleep", handleSleep);
       window.addEventListener("eldoria:structure-place", handleStructurePlacement);
+      window.addEventListener("eldoria:mining-status", handleMiningStatus);
+      window.addEventListener("eldoria:mining-start", handleMiningStart);
+      window.addEventListener("eldoria:mining-stop", stopAutomaticMining);
       void getDocs(query(collection(firestore, "characters"), where("ownerUid", "==", user.uid))).then((snapshot) => {
         if (cancelled) return;
         const characters = snapshot.docs.map((document) => {
@@ -353,6 +475,7 @@ export function useGameConnection(user: User): GameConnection {
       return () => {
         cancelled = true;
         if (positionSave !== undefined) window.clearTimeout(positionSave);
+        stopAutomaticMining();
         // A reload can happen inside the one-second debounce window. Flush that last coordinate so
         // the same character resumes at the exact place they stopped instead of an older checkpoint.
         const characterId = selectedCharacterIdRef.current;
@@ -364,6 +487,9 @@ export function useGameConnection(user: User): GameConnection {
         window.removeEventListener("eldoria:loot", handleLoot);
         window.removeEventListener("eldoria:sleep", handleSleep);
         window.removeEventListener("eldoria:structure-place", handleStructurePlacement);
+        window.removeEventListener("eldoria:mining-status", handleMiningStatus);
+        window.removeEventListener("eldoria:mining-start", handleMiningStart);
+        window.removeEventListener("eldoria:mining-stop", stopAutomaticMining);
       };
     }
 
@@ -616,27 +742,41 @@ export function useGameConnection(user: User): GameConnection {
         setState((current) => ({ ...current, message, lastCraft: { recipeId, success: false, message, chance: null } }));
         return;
       }
+      const skill = findSkillForAction(recipe.actionId);
+      const skillResult = skill ? resolveSkillAction({
+        skill,
+        skills: character.survival.skills ?? {},
+        locks: character.survival.locks ?? {},
+        roll: Math.random(),
+        difficulty: recipe.difficulty,
+        successFloor: recipe.successFloor,
+      }) : undefined;
+      const crafted = skillResult?.success ?? true;
       for (const input of recipe.inputs) {
         const stack = inventory.find((candidate) => candidate.itemId === input.itemId)!;
-        stack.quantity -= input.quantity;
+        stack.quantity -= crafted ? input.quantity : Math.max(1, Math.floor(input.quantity / 2));
       }
       const remaining = inventory.filter((stack) => stack.quantity > 0);
       let structures = character.survival.structures ?? [];
       let built: BuiltStructure | undefined;
-      if (recipe.output.itemId === "structure.log-shelter" || recipe.output.itemId === "structure.wood-bridge") {
+      if (crafted && (recipe.output.itemId === "structure.log-shelter" || recipe.output.itemId === "structure.wood-bridge")) {
         // Negative coordinates represent a crafted but not yet placed structure. The scene presents a
         // placement preview and persists the chosen clear ground through eldoria:structure-place.
         built = { id: crypto.randomUUID(), type: recipe.output.itemId === "structure.wood-bridge" ? "wood-bridge" : "log-shelter", zoneId: character.position.zoneId, x: -1, y: -1 };
         structures = [...structures, built];
-      } else {
+      } else if (crafted) {
         const output = remaining.find((stack) => stack.itemId === recipe.output.itemId);
         if (output) output.quantity += recipe.output.quantity;
         else remaining.push({ ...recipe.output });
       }
-      const survival = { ...character.survival, inventory: remaining, structures };
+      const survival = { ...character.survival, inventory: remaining, structures, skills: skillResult?.skills ?? character.survival.skills };
       const updated = { ...character, survival };
-      const message = built ? `${recipe.name.ko} 제작을 완료했습니다. 월드의 원하는 위치를 클릭해 배치하세요.` : `${recipe.name.ko} 제작을 완료했습니다.`;
-      setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message, lastCraft: { recipeId, success: true, message, chance: 1 } }));
+      const chance = skillResult?.chance ?? 1;
+      const message = !crafted
+        ? `${skill?.name.ko ?? "제작"} 숙련 부족으로 ${recipe.name.ko} 제작에 실패했습니다. 재료 일부를 잃었습니다. (성공률 ${Math.round(chance * 100)}%)`
+        : built ? `${recipe.name.ko} 제작을 완료했습니다. 월드의 원하는 위치를 클릭해 배치하세요.`
+          : `${recipe.name.ko} 제작을 완료했습니다.`;
+      setState((current) => ({ ...current, selectedCharacter: updated, characters: current.characters.map((candidate) => candidate.id === updated.id ? updated : candidate), message, lastCraft: { recipeId, success: crafted, message, chance } }));
       void updateDoc(doc(firestore, "characters", character.id), { survival, updatedAt: serverTimestamp() }).catch((error: unknown) => setState((current) => ({ ...current, message: error instanceof Error ? error.message : String(error) })));
       if (built) window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));
     },

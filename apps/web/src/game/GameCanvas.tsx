@@ -3,7 +3,7 @@ import Phaser from "phaser";
 import type { BuiltStructure, CharacterSummary } from "@eldoria/game-protocol";
 import { createGameConfig } from "./config";
 
-export function GameCanvas({ gender, language, position, equipped, equipment, hasFishingRod, arrowCount, structures }: { gender: "female" | "male"; language: "en" | "ko"; position: CharacterSummary["position"]; equipped: string | null; equipment: Record<string, string | null | undefined>; hasFishingRod: boolean; arrowCount: number; structures: BuiltStructure[] }) {
+export function GameCanvas({ gender, language, position, equipped, equipment, arrowCount, structures }: { gender: "female" | "male"; language: "en" | "ko"; position: CharacterSummary["position"]; equipped: string | null; equipment: Record<string, string | null | undefined>; arrowCount: number; structures: BuiltStructure[] }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
 
@@ -45,12 +45,12 @@ export function GameCanvas({ gender, language, position, equipped, equipment, ha
     if (!hostRef.current) return;
     hostRef.current.dataset.language = language;
     hostRef.current.dataset.equipped = equipped ?? "";
-    hostRef.current.dataset.hasFishingRod = String(hasFishingRod || Boolean(equipped && (equipped === "tool.fishing-rod" || equipped.endsWith("-fishing-rod"))));
+    hostRef.current.dataset.hasFishingRod = String(Boolean(equipped && (equipped === "tool.fishing-rod" || equipped.endsWith("-fishing-rod"))));
     hostRef.current.dataset.arrowCount = String(arrowCount);
     hostRef.current.dataset.equipment = JSON.stringify(Object.fromEntries(Object.entries(equipment).filter(([, itemId]) => Boolean(itemId))));
     hostRef.current.dataset.structures = JSON.stringify(structures);
     window.dispatchEvent(new CustomEvent("eldoria:structures", { detail: structures }));
-  }, [language, equipped, equipment, hasFishingRod, arrowCount, structures]);
+  }, [language, equipped, equipment, arrowCount, structures]);
 
   useEffect(() => {
     if (!hostRef.current) return;
